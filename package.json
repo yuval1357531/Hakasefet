@@ -1,0 +1,83 @@
+'use client'
+
+import { useRouter } from 'next/navigation'
+
+const sections = [
+  {
+    title: 'מישרדות לחופש',
+    description: 'הקורס הפרקטי שלוקח אותך ממצב של הישרדות למצב של חופש',
+    icon: '🎯',
+    path: '/course',
+    color: 'from-emerald-500/10 to-transparent',
+  },
+  {
+    title: 'שיעורי הכספת',
+    description: 'כל השיעורים המוקלטים של הכספת במקום אחד',
+    icon: '📚',
+    path: '/lessons',
+    color: 'from-blue-500/10 to-transparent',
+  },
+  {
+    title: 'צ׳אט בוט ג׳אוריוס',
+    description: 'המנטור האישי שלך – יודע את כל התוכן ומכוון אותך',
+    icon: '🤖',
+    path: '/chat',
+    color: 'from-purple-500/10 to-transparent',
+  },
+  {
+    title: 'ליווי אישי',
+    description: 'ליווי אישי עם ג׳אוריוס – השלב הבא שלך',
+    icon: '⭐',
+    path: '/coaching',
+    color: 'from-amber-500/10 to-transparent',
+    locked: true,
+  },
+]
+
+export default function DashboardPage() {
+  const router = useRouter()
+
+  return (
+    <div>
+      {/* Welcome */}
+      <div className="mb-10">
+        <h1 className="text-3xl font-bold text-vault-text mb-2">ברוכים הבאים לכספת</h1>
+        <p className="text-vault-muted text-lg">הכל כאן. הידע, הכלים, הדרך.</p>
+      </div>
+
+      {/* Daily message */}
+      <div className="vault-card gold-glow border-vault-gold/20 mb-10">
+        <p className="text-vault-gold text-sm font-medium mb-1">המשפט של היום</p>
+        <p className="text-vault-text text-lg font-light leading-relaxed">
+          ״השינוי לא מתחיל כשהכל מושלם. השינוי מתחיל כשאתה מחליט שמספיק.״
+        </p>
+      </div>
+
+      {/* Sections */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {sections.map((section) => (
+          <button
+            key={section.path}
+            onClick={() => !section.locked && router.push(section.path)}
+            className={`
+              vault-card text-right hover:border-vault-gold/30 transition-all duration-300
+              bg-gradient-to-bl ${section.color}
+              ${section.locked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+            `}
+          >
+            <div className="flex items-start gap-4">
+              <span className="text-3xl">{section.icon}</span>
+              <div>
+                <h2 className="text-xl font-semibold text-vault-text flex items-center gap-2">
+                  {section.title}
+                  {section.locked && <span className="text-sm">🔒</span>}
+                </h2>
+                <p className="text-vault-muted mt-1">{section.description}</p>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
