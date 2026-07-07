@@ -1,0 +1,13 @@
+.vercel
+.env*
+node_modules
+
+# Local Claude Code settings (contains Bash allowlist entries with
+# real credentials from past debugging sessions) -- never commit
+.claude/settings.local.json
+
+# Installed skill packages (third-party tooling cloned via `npx skills
+# add`, not part of this website) -- not project source
+.agents/
+.claude/skills/
+skills-lock.json

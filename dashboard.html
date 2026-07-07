@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>הכספת | דאשבורד</title>
+
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/apple-touch-icon-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/apple-touch-icon-152.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="הכספת">
+<meta name="theme-color" content="#04060b">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Assistant:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+
+  <!-- Vault-opening handoff: the blue-fire field from login.html arrives
+       full-screen and settles here, uncovering the dashboard beneath.
+       Removed instantly on any normal load (no flag = no effect). -->
+  <div class="entry-reveal" id="entryReveal" aria-hidden="true"></div>
+  <script>
+    (function () {
+      var el = document.getElementById('entryReveal');
+      var mode = null;
+      try {
+        mode = sessionStorage.getItem('vault_entry_reveal');
+        sessionStorage.removeItem('vault_entry_reveal');
+      } catch (e) {}
+      var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!mode || reduced) { el.parentNode.removeChild(el); return; }
+      el.classList.add(mode === 'full' ? 'is-full' : 'is-lite');
+      el.addEventListener('animationend', function () {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      });
+    })();
+  </script>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <a class="sidebar-header" href="#/">
+      <div class="sidebar-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="10" width="16" height="10" rx="2"></rect>
+          <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+          <circle cx="12" cy="15" r="1.6"></circle>
+        </svg>
+      </div>
+      <div class="sidebar-title gold-title">הכספת</div>
+    </a>
+
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-meta">
+          <div class="user-name" id="userName">—</div>
+          <div class="user-role" id="userRole">—</div>
+        </div>
+      </div>
+      <button class="btn-ghost logout-btn" id="logoutBtn" type="button">התנתקות</button>
+    </div>
+  </aside>
+
+  <div class="app-main">
+    <header class="topbar">
+      <button class="icon-btn" id="sidebarToggle" type="button" aria-label="פתיחה/סגירה של התפריט">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="7" x2="20" y2="7"></line>
+          <line x1="4" y1="12" x2="20" y2="12"></line>
+          <line x1="4" y1="17" x2="20" y2="17"></line>
+        </svg>
+      </button>
+      <h1 class="topbar-title" id="pageTitle">הכספת</h1>
+      <button class="mode-toggle-btn" id="modeToggleBtn" type="button" hidden>
+        <span class="mode-toggle-icon" id="modeToggleIcon"></span>
+        <span id="modeToggleLabel"></span>
+      </button>
+    </header>
+
+    <main class="content-area" id="content"></main>
+  </div>
+
+<script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

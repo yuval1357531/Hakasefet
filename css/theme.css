@@ -1,0 +1,217 @@
+/* ============================================================
+   הכספת — Visual DNA: Obsidian / Crystal / Blue Fire
+   Base tokens + shared materials for the whole site.
+
+   Three materials, not colors:
+   1. Obsidian — the canvas. Deep volcanic black with a cold
+      blue undertone. Matte, heavy, quiet.
+   2. Crystal — the surfaces. Faceted, translucent, catches a
+      thin line of light on its top edge.
+   3. Blue Fire — the energy. Light that lives INSIDE the
+      crystal and wakes up on interaction; never lit from
+      outside, never flat neon.
+
+   The legacy token names (--gold*) are kept as aliases so every
+   existing component picks up the new language with zero markup
+   changes — do not remove them.
+   ============================================================ */
+
+:root {
+  /* Materials */
+  --obsidian: #04060b;
+  --obsidian-raised: #0b101b;
+  --crystal: #5aa7ff;        /* living blue — primary energy */
+  --crystal-ice: #c9e6ff;    /* ice highlight */
+  --crystal-cyan: #46d5ff;   /* electric core */
+  --crystal-deep: #1d4e9e;   /* deep sapphire */
+  --white-glow: #eaf6ff;
+
+  /* Legacy aliases — keep every existing var() working */
+  --gold: var(--crystal);
+  --gold-light: var(--crystal-ice);
+  --gold-dark: var(--crystal-deep);
+  --bg-deep: var(--obsidian);
+  --panel: rgba(9, 13, 21, 0.78);
+  --panel-solid: #0a0e17;
+  --border-gold: rgba(99, 171, 255, 0.32);
+  --border-gold-soft: rgba(99, 171, 255, 0.15);
+  --text-main: #edf3fb;
+  --text-muted: #97a5b8;
+  --text-dim: #5d6a7d;
+  --font-serif: 'Frank Ruhl Libre', serif;
+  --font-body: 'Assistant', sans-serif;
+  --radius-lg: 18px;
+  --radius-md: 10px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(46, 92, 168, 0.14) 0%, transparent 55%),
+    radial-gradient(circle at 50% 20%, #0e1522 0%, #080c14 45%, var(--obsidian) 100%);
+  color: var(--text-main);
+}
+
+a { color: inherit; }
+
+::selection { background: rgba(90, 167, 255, 0.28); color: var(--white-glow); }
+
+/* Obsidian scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #070b12; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #1b2536, #121a29);
+  border-radius: 8px;
+  border: 2px solid #070b12;
+}
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #27364f, #182238); }
+
+/* Faceted-crystal title: white glint at the tip sinking into sapphire */
+.gold-title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  background: linear-gradient(180deg, #f4faff 0%, #cfe9ff 30%, #7db8ff 62%, #2f6fc4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgba(90, 167, 255, 0.16));
+}
+
+/* Primary action: polished obsidian stone with a live crystal core.
+   Rest = almost black, quiet. Hover = the inner energy starts to
+   breathe. Press = the light surges through the stone, then settles. */
+.btn-gold {
+  border: 1px solid rgba(99, 171, 255, 0.42);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #1a2740 0%, #0e1728 55%, #080d17 100%);
+  color: var(--crystal-ice);
+  font-family: var(--font-body);
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.45s ease, border-color 0.45s ease, color 0.3s ease;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(214, 236, 255, 0.16),
+    inset 0 0 18px rgba(70, 150, 255, 0.14);
+  text-shadow: 0 0 12px rgba(120, 195, 255, 0.35);
+}
+.btn-gold:hover {
+  border-color: rgba(130, 195, 255, 0.65);
+  color: var(--white-glow);
+  animation: crystal-breathe 2.6s ease-in-out infinite;
+}
+.btn-gold:active {
+  transform: translateY(1px) scale(0.995);
+  animation: none;
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(214, 236, 255, 0.18),
+    inset 0 0 34px rgba(90, 190, 255, 0.4);
+}
+@keyframes crystal-breathe {
+  0%, 100% {
+    box-shadow:
+      0 10px 28px rgba(0, 0, 0, 0.55),
+      inset 0 1px 0 rgba(214, 236, 255, 0.16),
+      inset 0 0 18px rgba(70, 150, 255, 0.18);
+  }
+  50% {
+    box-shadow:
+      0 12px 32px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(214, 236, 255, 0.2),
+      inset 0 0 30px rgba(90, 175, 255, 0.32);
+  }
+}
+
+.btn-ghost {
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  background: rgba(10, 15, 25, 0.4);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color 0.3s ease, color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+}
+.btn-ghost:hover {
+  color: var(--crystal-ice);
+  border-color: var(--border-gold);
+  background: rgba(90, 167, 255, 0.06);
+  box-shadow: inset 0 0 14px rgba(80, 160, 255, 0.08);
+}
+
+/* Crystal slab: faceted top edge catching light, deep cinematic
+   shadow below, faint cold sheen across the face */
+.panel-card {
+  background:
+    linear-gradient(165deg, rgba(140, 200, 255, 0.045) 0%, transparent 32%),
+    var(--panel);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 1px rgba(99, 171, 255, 0.05),
+    inset 0 1px 0 rgba(214, 236, 255, 0.08),
+    0 24px 70px rgba(0, 0, 0, 0.7),
+    0 0 90px rgba(60, 130, 255, 0.05);
+}
+
+.field-group { text-align: right; margin-bottom: 18px; }
+.field-group label {
+  display: block;
+  font-size: 13px;
+  color: var(--crystal-ice);
+  margin-bottom: 7px;
+  letter-spacing: 0.2px;
+}
+.field-group input,
+.field-group select,
+.field-group textarea {
+  width: 100%;
+  padding: 13px 14px;
+  background: rgba(6, 10, 18, 0.55);
+  border: 1px solid rgba(99, 171, 255, 0.2);
+  border-radius: var(--radius-md);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+.field-group input::placeholder { color: var(--text-dim); }
+.field-group input:focus,
+.field-group select:focus,
+.field-group textarea:focus {
+  border-color: var(--crystal);
+  background: rgba(10, 18, 32, 0.6);
+  box-shadow: 0 0 0 3px rgba(90, 167, 255, 0.12), inset 0 0 14px rgba(80, 160, 255, 0.06);
+}
+
+/* Errors stay warm on purpose — the one thing that is not of this
+   cold world, so it reads instantly */
+.error-msg {
+  min-height: 18px;
+  font-size: 13px;
+  color: #f0987a;
+  margin: 2px 0 14px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.error-msg.show { opacity: 1; transform: translateY(0); }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-gold:hover { animation: none; }
+}
