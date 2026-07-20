@@ -15,10 +15,6 @@ import { progressStore } from '../data/progressStore.js';
 import { auth } from '../auth.js';
 import { editableField, wireEditableFields, reorderButtonsHTML, wireReorderButtons } from '../inlineEdit.js';
 
-function loadingHTML() {
-  return '<div class="placeholder-page"><div class="placeholder-badge">טוען...</div></div>';
-}
-
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -64,8 +60,6 @@ async function saveLessonField(id, field, value) {
 
 export async function mountSectionHome(container, section, session) {
   async function render() {
-    container.innerHTML = loadingHTML();
-
     const editMode = auth.isEditMode();
     const sectionRecord = await contentStore.sections.getById(section.id);
     const label = (sectionRecord && sectionRecord.title) || section.label;
@@ -127,8 +121,6 @@ export async function mountSectionHome(container, section, session) {
 
 export async function mountCourseDetail(container, section, course, session) {
   async function render() {
-    container.innerHTML = loadingHTML();
-
     const editMode = auth.isEditMode();
     const modules = await contentStore.modules.getByCourseId(course.id);
     const allLessons = await getCourseLessons(course.id, editMode);
@@ -179,7 +171,6 @@ export async function mountCourseDetail(container, section, course, session) {
     container.innerHTML = `
       <div class="admin-page">
         <div class="admin-page-header">
-          <a href="#/${section.id}" class="btn-ghost small back-link">חזרה ל${escapeHtml(section.label)}</a>
           <h1 class="gold-title placeholder-title">${courseTitleHTML}</h1>
           <p class="placeholder-desc">${courseDescHTML}</p>
           ${progressBarHTML(progress.percent, `${progress.completed} מתוך ${progress.total} שיעורים הושלמו (${progress.percent}%)`)}
@@ -228,10 +219,6 @@ export async function mountLessonView(container, section, course, lesson, sessio
 
     container.innerHTML = `
       <div class="admin-page">
-        <div class="admin-page-header">
-          <a href="#/${section.id}/course/${course.id}" class="btn-ghost small back-link">חזרה ל${escapeHtml(course.title)}</a>
-        </div>
-
         <div class="panel-card lesson-panel">
           <div class="video-placeholder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" stroke="none"/></svg>
@@ -260,6 +247,5 @@ export async function mountLessonView(container, section, course, lesson, sessio
     wireEditableFields(container, { onSave: saveLessonField, rerender: render });
   }
 
-  container.innerHTML = loadingHTML();
   await render();
 }

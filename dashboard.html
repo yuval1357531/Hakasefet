@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>הכספת | דאשבורד</title>
 
 <link rel="manifest" href="manifest.json">
@@ -18,7 +18,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Assistant:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Assistant:wght@400;500;600;700&family=Heebo:wght@700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/theme.css">
 <link rel="stylesheet" href="css/dashboard.css">
 </head>
@@ -46,20 +46,36 @@
   </script>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <button type="button" class="sidebar-peek" id="sidebarPeek" aria-label="פתיחת התפריט" hidden></button>
+  <!-- Minimal help layer (see js/helpTip.js) -- text/positioning both set
+       from dashboard.js's updatePeek(), since the peek itself only ever
+       exists as inline-styled coordinates, never static markup this class
+       could sit next to declaratively. -->
+  <button type="button" class="help-tip help-tip-peek" id="sidebarPeekHelp" data-help-id="sidebar-menu" aria-label="הסבר" aria-haspopup="dialog" hidden>?</button>
 
   <aside class="sidebar" id="sidebar">
     <a class="sidebar-header" href="#/">
       <div class="sidebar-logo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="4" y="10" width="16" height="10" rx="2"></rect>
-          <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
-          <circle cx="12" cy="15" r="1.6"></circle>
-        </svg>
+        <span class="sidebar-logo-ring" aria-hidden="true"></span>
+        <img src="assets/sidebar-logo-120.png" alt="" class="sidebar-logo-img">
       </div>
       <div class="sidebar-title gold-title">הכספת</div>
     </a>
 
-    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-divider" aria-hidden="true"></div>
+
+    <div class="sidebar-scroll">
+      <a class="nav-item personal-nav-item" id="personalNavLink" data-id="me" href="#/me">
+        <span class="personal-area-icon" aria-hidden="true">
+          <img src="assets/jaurius-mask-icon-64.png" alt="" class="personal-area-icon-img">
+        </span>
+        <span class="personal-area-greeting" id="personalGreeting">שלום</span>
+      </a>
+
+      <div class="sidebar-divider-muted" aria-hidden="true"></div>
+
+      <nav class="sidebar-nav" id="sidebarNav"></nav>
+    </div>
 
     <div class="sidebar-footer">
       <div class="user-chip">
@@ -69,27 +85,21 @@
           <div class="user-role" id="userRole">—</div>
         </div>
       </div>
+      <button class="mode-toggle-btn" id="modeToggleBtn" type="button" hidden>
+        <span class="mode-toggle-icon" id="modeToggleIcon"></span>
+        <span id="modeToggleLabel"></span>
+      </button>
       <button class="btn-ghost logout-btn" id="logoutBtn" type="button">התנתקות</button>
     </div>
   </aside>
 
   <div class="app-main">
-    <header class="topbar">
-      <button class="icon-btn" id="sidebarToggle" type="button" aria-label="פתיחה/סגירה של התפריט">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="4" y1="7" x2="20" y2="7"></line>
-          <line x1="4" y1="12" x2="20" y2="12"></line>
-          <line x1="4" y1="17" x2="20" y2="17"></line>
-        </svg>
-      </button>
-      <h1 class="topbar-title" id="pageTitle">הכספת</h1>
-      <button class="mode-toggle-btn" id="modeToggleBtn" type="button" hidden>
-        <span class="mode-toggle-icon" id="modeToggleIcon"></span>
-        <span id="modeToggleLabel"></span>
-      </button>
-    </header>
-
     <main class="content-area" id="content"></main>
+    <!-- Single shared loading overlay for every real navigation -- see
+         js/loader.js. Covers just the content area (sidebar/topbar stay
+         visible and usable), fades in only if a navigation actually takes
+         a moment, never flashes for an instant. -->
+    <div class="content-loader-overlay" id="contentLoaderOverlay" hidden aria-hidden="true"></div>
   </div>
 
 <script type="module" src="js/dashboard.js"></script>

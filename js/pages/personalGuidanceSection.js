@@ -1,31 +1,19 @@
-// User-facing pages for the "הכספת" section: lesson tabs + top ticker that
-// blends admin-authored highlight phrases with approved student comments
-// (mountVaultHome), and the single-lesson viewer with the "מצפיתי בשיעור"
-// toggle + personal comment form + approved comments for that lesson
-// (mountVaultLesson). Watch state reuses progressStore exactly like every
-// other lesson engine in the app.
+// User-facing pages for the "ליווי אישי" section -- the SAME content-
+// portal engine as vaultSection.js (הכספת), byte-for-byte, pointed at its
+// own personalGuidanceStore/personalGuidanceCommentsStore tables. Per the
+// "לשכפל/להרחיב את המנוע הקיים, לא לבנות מנוע חדש" requirement, this file
+// is a deliberate mirror of vaultSection.js -- any future engine fix
+// belongs in BOTH files, the same way vaultSection.js/freedomSection.js
+// already have to be kept in sync today.
 //
-// Content-visibility bypass (seeing inactive lessons) follows
-// auth.isEditMode() rather than raw auth.isAdmin() -- in user-experience
-// mode the master sees exactly what a regular user would see. Edit-mode
-// only adds inline management directly on this page (lesson add/reorder/
-// hide/delete, embed + hint + description-mode editing, ticker phrase
-// management, comment moderation) -- there is no separate /admin page for
-// any of this anymore.
-//
-// Master actions never trigger a full-page refetch: each mount function
-// fetches its data ONCE via loadData(), keeps it in local closure
-// variables, and every management action (save/edit/delete/toggle/
-// reorder/link) patches those local variables from the store call's own
-// return value, then calls the local, synchronous paint() to redraw --
-// no "טוען..." flash, no re-hitting the network for a small action. Only
-// the very first mount, or a genuine student-facing action outside edit
-// mode (marking a lesson watched, posting a personal comment), still goes
-// through the network -- those aren't the "reload feeling" this exists to
-// avoid, and were left exactly as they worked before.
+// One addition vaultSection.js doesn't need: access here is permission-
+// gated (permission_personal_guidance), but the section still always
+// shows in the sidebar (see dashboard.js) -- a user without access sees a
+// clean "locked" placeholder instead of the real content when they open
+// it, rather than being hard-denied at the router level.
 
-import { vaultStore } from '../data/vaultStore.js';
-import { commentsStore } from '../data/commentsStore.js';
+import { personalGuidanceStore } from '../data/personalGuidanceStore.js';
+import { personalGuidanceCommentsStore as commentsStore } from '../data/personalGuidanceCommentsStore.js';
 import { progressStore } from '../data/progressStore.js';
 import { contentStore } from '../data/contentStore.js';
 import { journalStore } from '../data/journalStore.js';
@@ -63,6 +51,59 @@ import { backButtonHTML, wirePageBackButton } from '../pageBackButton.js';
 const STATUS_LABELS = { pending: 'ממתין', approved: 'מאושר', hidden: 'מוסתר' };
 const STATUS_BADGE = { pending: '', approved: 'badge-active', hidden: 'badge-blocked' };
 
+// "מסך בלי גישה" -- shown to a real visitor without permission_personal_
+// guidance (never any real lesson/video/trail/comment data, see the
+// guards at the top of mountPersonalGuidanceHome/mountPersonalGuidanceLesson),
+// and to the master in edit mode via the "תצוגת בלי גישה" toggle below
+// (editable there). Content lives on the SAME sections row as the
+// section's own title/description, just under its own locked_* columns --
+// deliberately separate fields, since this message is for a completely
+// different audience than the real unlocked content.
+function lockedHTML(sectionRecord, section, editable) {
+  const lockedTitle = (sectionRecord && sectionRecord.lockedTitle) || 'ליווי אישי';
+  const lockedDescription =
+    (sectionRecord && sectionRecord.lockedDescription) ||
+    'התוכן הזה נעול כרגע. לפתיחת גישה לליווי אישי יש לפנות ליובל.';
+  const lockedCta =
+    (sectionRecord && sectionRecord.lockedCta) ||
+    'אם אתה מרגיש שהגיע הזמן לליווי אישי, אפשר לפנות ליובל כדי לבדוק התאמה ופתיחת גישה.';
+  const lockedMediaUrl = (sectionRecord && sectionRecord.lockedMediaUrl) || '';
+  const titleHTML = editable ? editableField(section.id, 'lockedTitle', lockedTitle) : escapeHtml(lockedTitle);
+  const descHTML = editable
+    ? editableField(section.id, 'lockedDescription', lockedDescription, { multiline: true })
+    : escapeHtml(lockedDescription);
+  const ctaHTML = editable
+    ? editableField(section.id, 'lockedCta', lockedCta, { multiline: true })
+    : escapeHtml(lockedCta);
+  const mediaHTML = editable
+    ? `<p class="lesson-embed-edit">קישור למדיה (תמונה / קובץ / PDF / סילבוס): ${editableField(section.id, 'lockedMediaUrl', lockedMediaUrl || '(לא הוגדר)')}</p>`
+    : lockedMediaUrl
+      ? `<a class="btn-ghost small" href="${escapeAttr(lockedMediaUrl)}" target="_blank" rel="noopener">צפייה בחומר מצורף</a>`
+      : '';
+  return `
+    <div class="admin-page">
+      <div class="admin-page-header">
+        <h1 class="gold-title placeholder-title">${titleHTML}</h1>
+        <p class="placeholder-desc">${descHTML}</p>
+      </div>
+      <div class="placeholder-badge">🔒 אין לך גישה לאזור זה כרגע</div>
+      <p class="lesson-text" style="margin-top: 18px;">${ctaHTML}</p>
+      ${mediaHTML}
+    </div>`;
+}
+
+// Master-only, edit mode only -- lets the master preview the "no access"
+// screen without touching their own real permissions. Reuses the exact
+// look of the lesson-detail "תצוגת תיאור" mode row.
+function viewModeToggleHTML(viewAsLocked) {
+  return `
+    <div class="desc-mode-row">
+      <span class="desc-mode-label">תצוגה:</span>
+      <button type="button" class="btn-ghost small ${!viewAsLocked ? 'is-active-mode' : ''}" data-view-mode="access">תצוגת בעלי גישה</button>
+      <button type="button" class="btn-ghost small ${viewAsLocked ? 'is-active-mode' : ''}" data-view-mode="locked">תצוגת בלי גישה</button>
+    </div>`;
+}
+
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -92,7 +133,24 @@ function embedHTML(embedUrl) {
     </div>`;
 }
 
-export async function mountVaultHome(container, section, session) {
+export async function mountPersonalGuidanceHome(container, section, session) {
+  const editMode = auth.isEditMode();
+  if (!editMode && !auth.hasAccess('personalGuidance')) {
+    // Real (non-admin) visitor without access: only the lightweight
+    // section row is fetched (for the editable locked-screen text) --
+    // never lessons/highlights/comments/topics/groups.
+    const sectionRecordOnly = await contentStore.sections.getById(section.id);
+    container.innerHTML = lockedHTML(sectionRecordOnly, section, false);
+    return;
+  }
+
+  // Master-only, edit mode only: lets the master preview the "no access"
+  // screen (and edit its text/media) without changing their own real
+  // permissions -- a real visitor without access always gets the locked
+  // screen above regardless of this, since it's never even reached for
+  // them.
+  let viewAsLocked = false;
+
   // Which ticker phrase (if any) the master is currently editing -- kept
   // across re-renders so the edit form stays populated.
   let editingHighlightId = null;
@@ -131,12 +189,12 @@ export async function mountVaultHome(container, section, session) {
     const editMode = auth.isEditMode();
     const [sr, ls, up, ac, hl, tp, gr] = await Promise.all([
       contentStore.sections.getById(section.id),
-      editMode ? vaultStore.lessons.getAll() : vaultStore.lessons.getActive(),
+      editMode ? personalGuidanceStore.lessons.getAll() : personalGuidanceStore.lessons.getActive(),
       progressStore.getForUser(session.id),
       commentsStore.getApprovedAll(),
-      editMode ? vaultStore.highlights.getAll() : vaultStore.highlights.getActive(),
-      vaultStore.topics.getAll(),
-      vaultStore.groups.getAll(),
+      editMode ? personalGuidanceStore.highlights.getAll() : personalGuidanceStore.highlights.getActive(),
+      personalGuidanceStore.topics.getAll(),
+      personalGuidanceStore.groups.getAll(),
     ]);
     topics = tp;
     groups = gr;
@@ -147,8 +205,31 @@ export async function mountVaultHome(container, section, session) {
     highlights = hl;
   }
 
+  function wireViewToggle() {
+    container.querySelectorAll('[data-view-mode]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        viewAsLocked = btn.dataset.viewMode === 'locked';
+        paint();
+      });
+    });
+  }
+
   function paint() {
     const editMode = auth.isEditMode();
+    // Master preview toggle: show the (editable) locked screen instead of
+    // the real content, without touching any real permission.
+    if (editMode && viewAsLocked) {
+      container.innerHTML = viewModeToggleHTML(viewAsLocked) + lockedHTML(sectionRecord, section, true);
+      wireEditableFields(container, {
+        onSave: async (id, field, value) => {
+          const updated = await contentStore.sections.update(id, { [field]: value });
+          if (updated) sectionRecord = updated;
+        },
+        rerender: paint,
+      });
+      wireViewToggle();
+      return;
+    }
     const label = (sectionRecord && sectionRecord.title) || section.label;
     const description = (sectionRecord && sectionRecord.description) || section.description;
     const completedIds = new Set(userProgress.filter((p) => p.isCompleted).map((p) => p.lessonId));
@@ -230,29 +311,6 @@ export async function mountVaultHome(container, section, session) {
       ? editableField(section.id, 'description', description, { multiline: true })
       : escapeHtml(description);
 
-    // Small, editable clarification note -- this section only ("פורטל
-    // תוכן הכספת"), sitting between the title and the existing description.
-    // Same save mechanism as title/description (contentStore.sections,
-    // editableField/wireEditableFields) -- just its own column
-    // (clarification_note) so it never overwrites the real description.
-    const clarificationNote =
-      (sectionRecord && sectionRecord.clarificationNote) ||
-      'הכספת היא לא קורס שחייבים לעבור לפי הסדר. זה פורטל תוכן חי — אפשר להיכנס לפי נושא, צורך או נקודה שאתה רוצה לחזק, ולחזור לשיעורים שוב כשצריך.';
-    const clarificationHTML = editMode
-      ? editableField(section.id, 'clarificationNote', clarificationNote, { multiline: true })
-      : escapeHtml(clarificationNote);
-    const clarificationBlockHTML =
-      section.id === 'vault'
-        ? `
-      <div class="vault-clarification-note">
-        <svg class="vault-clarification-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 3.4 L21 20.2 H3 Z" stroke="#ff5c5c" stroke-width="1.4" stroke-linejoin="round"/>
-          <circle cx="12" cy="15.6" r="1.3" fill="#ff5c5c"/>
-        </svg>
-        <p class="vault-clarification-text">${clarificationHTML}</p>
-      </div>`
-        : '';
-
     // "מערכת סינון שיעורים" -- student-facing only, sits right below the
     // top ticker and above the lesson list (see the template below).
     const topicsFilterMarkup = !editMode
@@ -286,9 +344,9 @@ export async function mountVaultHome(container, section, session) {
     // "ניהול משפטים בצג העליון" -- phrases that run in the general course
     // ticker. Its lesson-link picker is only for *when* a phrase unlocks
     // there after a student completes a lesson; it is a completely
-    // separate editor from "צידה לדרך" (see mountVaultLesson), which is
-    // reached only from inside a specific lesson's own page. Lives at the
-    // top of the page (above the lesson list), edit mode only.
+    // separate editor from "צידה לדרך" (see mountPersonalGuidanceLesson),
+    // which is reached only from inside a specific lesson's own page.
+    // Lives at the top of the page (above the lesson list), edit mode only.
     const highlightsHTML = editMode
       ? accordionHTML(
           'ticker-highlights',
@@ -320,9 +378,9 @@ export async function mountVaultHome(container, section, session) {
 
     container.innerHTML = `
       <div class="admin-page">
+        ${editMode ? viewModeToggleHTML(viewAsLocked) : ''}
         <div class="admin-page-header">
           <h1 class="gold-title placeholder-title">${titleHTML}</h1>
-          ${clarificationBlockHTML}
           <p class="placeholder-desc">${descHTML}</p>
         </div>
         ${tickerMarkup}
@@ -340,6 +398,7 @@ export async function mountVaultHome(container, section, session) {
 
     wireTicker(container);
     wireAccordions(container, { state: openAccordions, rerender: paint });
+    wireViewToggle();
 
     wireEditableFields(container, {
       onSave: async (id, field, value) => {
@@ -350,8 +409,8 @@ export async function mountVaultHome(container, section, session) {
     });
     wireReorderButtons(container, {
       onMove: async (id, dir) => {
-        if (dir === 'up') await vaultStore.lessons.moveUp(id);
-        else await vaultStore.lessons.moveDown(id);
+        if (dir === 'up') await personalGuidanceStore.lessons.moveUp(id);
+        else await personalGuidanceStore.lessons.moveDown(id);
         const idx = lessons.findIndex((l) => l.id === id);
         const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
         if (idx !== -1 && swapIdx >= 0 && swapIdx < lessons.length) {
@@ -361,7 +420,7 @@ export async function mountVaultHome(container, section, session) {
       rerender: paint,
     });
     wireHighlightsManager(container, {
-      store: vaultStore,
+      store: personalGuidanceStore,
       lessons,
       highlights,
       rerender: paint,
@@ -381,7 +440,7 @@ export async function mountVaultHome(container, section, session) {
       },
     });
     wireTopicsManager(container, {
-      store: vaultStore,
+      store: personalGuidanceStore,
       lessons,
       topics,
       rerender: paint,
@@ -389,7 +448,7 @@ export async function mountVaultHome(container, section, session) {
       setEditingId: (v) => { editingTopicId = v; },
     });
     wireGroupsManager(container, {
-      store: vaultStore,
+      store: personalGuidanceStore,
       lessons,
       groups,
       rerender: paint,
@@ -404,7 +463,7 @@ export async function mountVaultHome(container, section, session) {
         const input = container.querySelector('#newLessonTitle');
         const title = input.value.trim();
         if (!title) return;
-        const created = await vaultStore.lessons.create({ title });
+        const created = await personalGuidanceStore.lessons.create({ title });
         if (created) lessons.push(created);
         paint();
       });
@@ -422,7 +481,7 @@ export async function mountVaultHome(container, section, session) {
         } else if (action === 'toggle-active') {
           const current = lessons.find((l) => l.id === id);
           if (!current) return;
-          const updated = await vaultStore.lessons.update(id, { isActive: !current.isActive });
+          const updated = await personalGuidanceStore.lessons.update(id, { isActive: !current.isActive });
           if (updated) {
             const idx = lessons.findIndex((l) => l.id === id);
             if (idx !== -1) lessons[idx] = updated;
@@ -430,7 +489,7 @@ export async function mountVaultHome(container, section, session) {
           paint();
         } else if (action === 'delete') {
           if (window.confirm('למחוק את השיעור? כל התגובות המשויכות אליו יימחקו גם הן.')) {
-            await vaultStore.lessons.remove(id);
+            await personalGuidanceStore.lessons.remove(id);
             await commentsStore.removeByLessonId(id);
             lessons = lessons.filter((l) => l.id !== id);
             paint();
@@ -445,7 +504,7 @@ export async function mountVaultHome(container, section, session) {
         const id = form.dataset.lessonId;
         const value = form.querySelector('.editable-input').value.trim();
         if (value) {
-          const updated = await vaultStore.lessons.update(id, { title: value });
+          const updated = await personalGuidanceStore.lessons.update(id, { title: value });
           if (updated) {
             const idx = lessons.findIndex((l) => l.id === id);
             if (idx !== -1) lessons[idx] = updated;
@@ -467,7 +526,17 @@ export async function mountVaultHome(container, section, session) {
   paint();
 }
 
-export async function mountVaultLesson(container, section, lesson, session) {
+export async function mountPersonalGuidanceLesson(container, section, lesson, session) {
+  if (!auth.isEditMode() && !auth.hasAccess('personalGuidance')) {
+    // Defensive only -- router.js already redirects a locked visitor's
+    // direct lesson URL back to the home (locked) screen before this ever
+    // mounts; kept here too in case this is ever reached another way, and
+    // never fetches any lesson/comment/trail data either way.
+    const sectionRecordOnly = await contentStore.sections.getById(section.id);
+    container.innerHTML = lockedHTML(sectionRecordOnly, section, false);
+    return;
+  }
+
   // Which collapsible management panels are open -- kept across re-renders.
   const openAccordions = new Set();
   // Which "צידה לדרך" phrase (if any) the master is currently editing.
@@ -488,8 +557,8 @@ export async function mountVaultLesson(container, section, lesson, session) {
     const [r, c, freshLessonRaw, hl, savedKeys] = await Promise.all([
       progressStore.getForLesson(session.id, lesson.id),
       commentsStore.getByLessonId(lesson.id),
-      vaultStore.lessons.getById(lesson.id),
-      editMode ? vaultStore.highlights.getAll() : vaultStore.highlights.getActive(),
+      personalGuidanceStore.lessons.getById(lesson.id),
+      editMode ? personalGuidanceStore.highlights.getAll() : personalGuidanceStore.highlights.getActive(),
       journalStore.getSavedKeys(session.id),
     ]);
     record = r;
@@ -503,9 +572,10 @@ export async function mountVaultLesson(container, section, lesson, session) {
     const editMode = auth.isEditMode();
     const isCompleted = !!(record && record.isCompleted);
     // "צידה לדרך" -- notes/phrases scoped to THIS lesson only. Same
-    // underlying rows as the general ticker manager (mountVaultHome), just
-    // filtered to this lesson id; editing here never touches any other
-    // lesson's links (see wireTrailManager in insightsTicker.js).
+    // underlying rows as the general ticker manager
+    // (mountPersonalGuidanceHome), just filtered to this lesson id;
+    // editing here never touches any other lesson's links (see
+    // wireTrailManager in insightsTicker.js).
     const trailItems = trailNotesForLesson(highlights, freshLesson.id);
     const approvedComments = comments.filter((c) => c.status === 'approved');
 
@@ -564,7 +634,7 @@ export async function mountVaultLesson(container, section, lesson, session) {
       </div>`
       : '';
 
-    const seenKey = `vault_desc_seen_${freshLesson.id}`;
+    const seenKey = `personalguidance_desc_seen_${freshLesson.id}`;
     const showPopup =
       !editMode && descriptionMode === 'popup' && freshLesson.description && !sessionStorage.getItem(seenKey);
     const popupHTML = showPopup
@@ -647,7 +717,7 @@ export async function mountVaultLesson(container, section, lesson, session) {
 
     container.querySelectorAll('[data-desc-mode]').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        const updated = await vaultStore.lessons.update(freshLesson.id, { descriptionMode: btn.dataset.descMode });
+        const updated = await personalGuidanceStore.lessons.update(freshLesson.id, { descriptionMode: btn.dataset.descMode });
         if (updated) freshLesson = updated;
         paint();
       });
@@ -672,7 +742,7 @@ export async function mountVaultLesson(container, section, lesson, session) {
       embedForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const value = container.querySelector('#embedUrlInput').value.trim();
-        const updated = await vaultStore.lessons.update(freshLesson.id, { embedUrl: value });
+        const updated = await personalGuidanceStore.lessons.update(freshLesson.id, { embedUrl: value });
         if (updated) freshLesson = updated;
         editingEmbed = false;
         paint();
@@ -711,14 +781,14 @@ export async function mountVaultLesson(container, section, lesson, session) {
 
     wireEditableFields(container, {
       onSave: async (id, field, value) => {
-        const updated = await vaultStore.lessons.update(id, { [field]: value });
+        const updated = await personalGuidanceStore.lessons.update(id, { [field]: value });
         if (updated) freshLesson = updated;
       },
       rerender: paint,
     });
     wireModeration(container, { comments, rerender: paint });
     wireTrailManager(container, {
-      store: vaultStore,
+      store: personalGuidanceStore,
       lessonId: freshLesson.id,
       highlights,
       rerender: paint,
@@ -726,7 +796,7 @@ export async function mountVaultLesson(container, section, lesson, session) {
       setEditingId: (v) => { editingTrailId = v; },
     });
     wireAccordions(container, { state: openAccordions, rerender: paint });
-    wireTrailNotesJournalSave(container, { journalStore, session, sectionId: 'vault', lessonId: freshLesson.id });
+    wireTrailNotesJournalSave(container, { journalStore, session, sectionId: 'personalGuidance', lessonId: freshLesson.id });
     wireTrailExpand(container);
     wirePageBackButton(container);
   }

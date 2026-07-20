@@ -35,11 +35,44 @@ function toHighlight(row) {
     text: row.text,
     order: row.order,
     isActive: row.is_active,
+    linkedLessonIds: row.linked_lesson_ids || [],
+    depthLevel: row.depth_level || 'basic',
+    showInTicker: row.show_in_ticker !== false,
+    mediaUrl: row.media_url || '',
+    description: row.description || '',
   };
 }
 
 function makeId(prefix) {
   return prefix + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+// A trail note's media is now a real uploaded file (image/video/document),
+// not a manually-typed link -- stored in the public 'trail-media' bucket
+// (shared with vaultStore.js) and referenced by its public URL, so
+// trailMediaHTML/journalStore need no changes at all (mediaUrl stays a
+// plain string either way).
+async function uploadTrailMedia(file) {
+  const path = `${makeId('trail')}-${file.name}`;
+  const { error } = await supabase.storage.from('trail-media').upload(path, file);
+  if (error) return null;
+  const { data } = supabase.storage.from('trail-media').getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
+function trailMediaPath(url) {
+  const marker = '/trail-media/';
+  const idx = (url || '').indexOf(marker);
+  return idx === -1 ? null : decodeURIComponent(url.slice(idx + marker.length));
+}
+
+// Cleans up the storage object behind a highlight's current media before
+// it's replaced or cleared, so re-uploading/removing never leaks orphaned
+// files in the bucket.
+async function removeTrailMediaFor(id) {
+  const { data } = await supabase.from('freedom_highlights').select('media_url').eq('id', id).maybeSingle();
+  const path = data && trailMediaPath(data.media_url);
+  if (path) await supabase.storage.from('trail-media').remove([path]);
 }
 
 async function reorder(table, id, direction, groupFilterFn) {
@@ -178,9 +211,20 @@ const highlightsApi = {
   async create(data) {
     const all = await this.getAll();
     const order = all.length ? Math.max(...all.map((h) => h.order)) + 1 : 0;
+    const mediaUrl = data.file ? await uploadTrailMedia(data.file) : data.mediaUrl || '';
     const { data: row, error } = await supabase
       .from('freedom_highlights')
-      .insert({ id: makeId('fhl'), text: data.text, order, is_active: data.isActive !== false })
+      .insert({
+        id: makeId('fhl'),
+        text: data.text,
+        order,
+        is_active: data.isActive !== false,
+        linked_lesson_ids: data.linkedLessonIds || [],
+        depth_level: data.depthLevel || 'basic',
+        show_in_ticker: data.showInTicker !== false,
+        media_url: mediaUrl || '',
+        description: data.description || '',
+      })
       .select()
       .single();
     if (error || !row) return null;
@@ -191,11 +235,26 @@ const highlightsApi = {
     if (changes.text !== undefined) payload.text = changes.text;
     if (changes.isActive !== undefined) payload.is_active = changes.isActive;
     if (changes.order !== undefined) payload.order = changes.order;
+    if (changes.linkedLessonIds !== undefined) payload.linked_lesson_ids = changes.linkedLessonIds;
+    if (changes.depthLevel !== undefined) payload.depth_level = changes.depthLevel;
+    if (changes.showInTicker !== undefined) payload.show_in_ticker = changes.showInTicker;
+    if (changes.description !== undefined) payload.description = changes.description;
+    if (changes.file) {
+      const uploaded = await uploadTrailMedia(changes.file);
+      if (uploaded) {
+        await removeTrailMediaFor(id);
+        payload.media_url = uploaded;
+      }
+    } else if (changes.mediaUrl !== undefined) {
+      if (changes.mediaUrl === '') await removeTrailMediaFor(id);
+      payload.media_url = changes.mediaUrl;
+    }
     const { data, error } = await supabase.from('freedom_highlights').update(payload).eq('id', id).select().single();
     if (error || !data) return null;
     return toHighlight(data);
   },
   async remove(id) {
+    await removeTrailMediaFor(id);
     const { error } = await supabase.from('freedom_highlights').delete().eq('id', id);
     return !error;
   },

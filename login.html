@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>הכספת | כניסה</title>
 
 <link rel="manifest" href="manifest.json">
@@ -31,10 +31,28 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Assistant:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Assistant:wght@400;500;600;700&family=Heebo:wght@700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/theme.css">
 <style>
-  html, body { height: 100%; }
+  /* The opening screen is a fixed stage, not a scrolling page: nothing
+     here should ever pan, drag, or rubber-band in either direction --
+     the logo/fields/button stay exactly where they're placed. This is
+     purely a scroll/gesture lock; it doesn't touch the logo's own
+     hover/touch glow (that's pointer tracking on one element, not page
+     scrolling) or any of the intro/flash/domino animations below. */
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  /* Guarantees the `hidden` attribute always wins over any class-based
+     `display` rule below (author-origin CSS otherwise beats the UA
+     stylesheet's `[hidden]{display:none}` at equal specificity, which is
+     exactly what let the reset panel render on top of the login form
+     instead of staying hidden). Every show/hide in this page relies on
+     this holding true. */
+  [hidden] { display: none !important; }
 
   body {
     min-height: 100dvh;
@@ -42,6 +60,24 @@
     background: #050405;
     overflow-x: hidden;
   }
+  /* Resting state reads 20% darker so the logo/fields stand out more;
+     lifts back to normal the instant the vault answers the touch (see
+     .is-bright, toggled in the submit handler below) -- then the existing
+     intro/flash sequence carries on exactly as before. A plain overlay
+     (not a `filter` on body/html) on purpose: `filter` on an ancestor of
+     `position: fixed` elements turns it into their containing block,
+     which silently breaks the fullscreen fixed layers (.brand-stage,
+     .bg-overlay, etc.) below and causes page overflow -- this sidesteps
+     that entirely. */
+  .pre-login-dim {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.2);
+    transition: opacity 0.6s ease;
+  }
+  .pre-login-dim.is-bright { opacity: 0; }
 
   /* --- Stage: fullscreen cover background (masked figure + energy orb) --- */
   .brand-stage {
@@ -147,37 +183,317 @@
     padding: max(4vh, 24px) 20px max(5vh, 28px);
     transition: opacity 0.9s ease, transform 0.9s ease;
   }
-  /* Applied when the intro video begins: fields + texts dissolve away */
+  /* Applied when the intro video begins: fields + texts dissolve away.
+     Still used by the silent remember-me auto-entry path (no video, no
+     domino -- see the auto-entry IIFE below), untouched. */
   .login-content.fade-out {
     opacity: 0;
     transform: scale(0.985);
     pointer-events: none;
   }
 
+  /* --- Domino exit (manual "פתח את הכספת" submit only): the video is
+     already playing underneath by the time any of this starts (see
+     startIntro/dominoExit below) -- each element gets its OWN quick,
+     directional dismissal instead of the whole form fading as one flat
+     block, staggered so it reads as one fast domino chain instead of a
+     simultaneous fade. Short + snappy on purpose (~200-240ms per element,
+     ~90ms stagger) so the whole sequence finishes well under half a
+     second regardless of how long the intro video itself runs. Secondary
+     texts (error/status/remember/forgot-link) get a plain quick fade,
+     not a directional slide -- they're not one of the four named
+     elements, just quietly clear out of the way alongside them. */
+  .domino-exit-fade { transition: opacity 0.16s ease; opacity: 0; pointer-events: none; }
+  .domino-exit-btn {
+    transition: transform 0.22s cubic-bezier(0.4, 0, 1, 1), opacity 0.22s ease;
+    transform: translateY(70px);
+    opacity: 0;
+  }
+  .domino-exit-left {
+    transition: transform 0.22s cubic-bezier(0.4, 0, 1, 1), opacity 0.22s ease;
+    transform: translateX(-90px);
+    opacity: 0;
+  }
+  .domino-exit-right {
+    transition: transform 0.22s cubic-bezier(0.4, 0, 1, 1), opacity 0.22s ease;
+    transform: translateX(90px);
+    opacity: 0;
+  }
+  /* .brand-header's own base transform (translate(-50%, -100%)) centers
+     it horizontally -- the exit class must keep that -50% X term and only
+     add to the Y term, otherwise it would snap back to the left edge
+     instead of sliding up from center. */
+  .domino-exit-up {
+    transition: transform 0.24s cubic-bezier(0.4, 0, 1, 1), opacity 0.24s ease;
+    transform: translate(-50%, calc(-100% - 60px));
+    opacity: 0;
+  }
+
+  /* Title sits just above the login fields -- centered in the heart of
+     the screen, not at the page top. Absolute inside .login-content so it
+     doesn't disturb the form's own positioning. */
   .brand-header {
+    position: absolute;
+    top: 30dvh;
+    left: 50%;
+    transform: translate(-50%, -100%);
+    z-index: 3;
     text-align: center;
-    animation: enter 0.3s ease-out both;
+    animation: title-enter 0.5s ease-out both;
   }
+  @keyframes title-enter {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  /* --- The title IS the faceted-diamond artwork (title-diamond.png):
+     sapphire-crystal letters keyed out of their source background at the
+     pixel level (component detection + morphological closing, not a
+     single brightness cut) -- ONLY the letters exist here: no
+     rectangle, no base/shelf/shadow under them, no pasted screenshot.
+     Two slow, internal living layers, nothing that reads as a moving
+     shine: the letters breathe (a whole-stone brightness pulse -- depth,
+     not a sweep), and tiny facet sparkles in varied white/sapphire/gold
+     tints surface and sink at different spots, like sunlight catching
+     different facets deep inside the stone. Beat frequencies (6.5 /
+     13.5 / 19s) never realign -> alive, never looping visibly. */
   .brand-title {
+    position: relative;
     margin: 0;
-    font-family: var(--font-serif);
-    font-weight: 700;
-    font-size: clamp(40px, 12vw, 54px);
-    letter-spacing: 2px;
-    background: linear-gradient(160deg,
-      #f4faff 0%, #cfe9ff 18%, #7db8ff 38%, #2c5fae 54%,
-      #d6ecff 70%, #4f93de 86%, #eef7ff 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.7));
+    width: min(67.2vw, 320px);
+    aspect-ratio: 1595 / 373;
   }
-  .brand-subtitle {
-    margin: 4px 0 0;
-    font-size: 13px;
-    letter-spacing: 4px;
-    color: var(--text-muted);
-    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+  .brand-title > span { position: absolute; inset: 0; pointer-events: none; }
+  /* accessible text, hidden visually */
+  .brand-title-sr {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0);
+    white-space: nowrap; border: 0;
+  }
+  /* (0) Ambient halo, sitting BEHIND the letters and NOT masked to their
+     shape -- a soft, wide, blurred pool of light that fills the whole
+     word's silhouette, including the narrow gaps between letters. This
+     is what keeps a gap between two letters reading as "soft light",
+     never as a bare dark notch: the halo doesn't care about individual
+     glyph edges, it just gently lights the whole area the word sits in,
+     like the stone's own glow spilling past the strict outline of the
+     letters. Same breathing rhythm as the crystal layer below (6.5s),
+     kept in sync deliberately so the whole word pulses as one gem. */
+  .brand-title-halo {
+    background: radial-gradient(ellipse 58% 68% at 50% 50%,
+      rgba(110, 185, 255, 0.22) 0%, rgba(80, 160, 255, 0.1) 45%, transparent 76%);
+    filter: blur(16px);
+    mix-blend-mode: screen;
+    animation: title-halo-breathe 6.5s ease-in-out infinite;
+    will-change: opacity;
+  }
+  @keyframes title-halo-breathe {
+    0%, 100% { opacity: 0.4; }
+    38% { opacity: 0.48; }
+    64% { opacity: 0.42; }
+    82% { opacity: 0.52; }
+  }
+  /* Base letters -- the artwork's own colour and texture carry almost
+     all of the weight here on purpose (true to the reference image);
+     the "breathe" is only a hair of brightness drift (1% either side of
+     neutral) plus a faint drop-shadow, not a colour treatment. This is
+     deliberately far more restrained than earlier passes -- the goal is
+     the stone looking like itself, with life at the very edge of
+     perceptible, not a filtered/tinted version of the source art. */
+  .brand-title-crystal {
+    background: url('assets/title-diamond.png') center / contain no-repeat;
+    animation: title-breathe 6.5s ease-in-out infinite;
+    will-change: filter;
+  }
+  @keyframes title-breathe {
+    0%, 100% { filter: brightness(0.99) drop-shadow(0 0 4px rgba(70, 140, 255, 0.16)); }
+    38% { filter: brightness(1.005) drop-shadow(0 0 5px rgba(75, 145, 255, 0.2)); }
+    64% { filter: brightness(0.995) drop-shadow(0 0 4.5px rgba(72, 142, 255, 0.17)); }
+    82% { filter: brightness(1.01) drop-shadow(0 0 6px rgba(80, 150, 255, 0.22)); }
+  }
+  /* (1b) Rim light: collapses the SAME artwork to a solid silhouette
+     (brightness(0) invert(1) turns every opaque pixel pure white, no
+     matter how dark that pixel's own colour was) and glows outward from
+     that clean shape. This is what finally kills any last dark-pixel
+     contamination sitting exactly on the letters' true edge -- rather
+     than chasing individual dark pixels in the artwork, a soft bright
+     line is drawn exactly along the real alpha boundary, on top, so the
+     edge always reads as "lit", never as "dark", regardless of what the
+     source pixel there happened to be. Kept just strong enough to do
+     that job and no stronger, so it doesn't wash out the artwork's own
+     colour. */
+  .brand-title-rim {
+    background: url('assets/title-diamond.png') center / contain no-repeat;
+    filter: brightness(0) invert(1) drop-shadow(0 0 2px rgba(190, 225, 255, 0.8)) blur(0.4px);
+    mix-blend-mode: screen;
+    opacity: 0.36;
+    animation: title-rim-breathe 6.5s ease-in-out infinite;
+    will-change: opacity;
+  }
+  @keyframes title-rim-breathe {
+    0%, 100% { opacity: 0.32; }
+    38% { opacity: 0.38; }
+    64% { opacity: 0.33; }
+    82% { opacity: 0.4; }
+  }
+  /* (2) Facet sparkles -- FIVE independent layers, one anchored to each
+     letter's own horizontal zone (the word is 5 letters, ה-כ-ס-פ-ת read
+     right to left, so roughly 5 equal 20%-wide bands across the image).
+     Each layer is now a SINGLE tiny point of light (not three at once)
+     that visits 3 different spots within its own letter over its cycle
+     -- a real pinpoint, like one facet catching the sun for a moment,
+     never the whole letter lighting up. Each layer runs on its own
+     duration (11 / 14.5 / 17.5 / 21.5 / 26s) with its own phase offset,
+     so letters catch light one at a time, essentially never in unison,
+     and the pattern never repeats on a noticeable rhythm -- genuinely
+     random-feeling, though every layer alone is a slow, quiet in/hold/
+     out breathe (~1s). Kept small and modest in peak brightness on
+     purpose: a glint, not a flash. Masked to the letters' own alpha, so
+     a sparkle only ever exists inside a letter. Three tints rotate
+     through the layers -- white, a deep "magic" sapphire, and a soft
+     warm gold -- like sunlight breaking into its component colours as
+     it passes through the crystal, never a single flat glow. */
+  .brand-title-sparkle,
+  .brand-title-sparkle-b,
+  .brand-title-sparkle-c,
+  .brand-title-sparkle-d,
+  .brand-title-sparkle-e {
+    background-repeat: no-repeat;
+    -webkit-mask: url('assets/title-diamond.png') center / contain no-repeat;
+    mask: url('assets/title-diamond.png') center / contain no-repeat;
+    -webkit-mask-mode: alpha;
+    mix-blend-mode: screen;
+    will-change: background-position, opacity;
+  }
+  /* Letter 1 (rightmost, ה) -- white */
+  .brand-title-sparkle {
+    background-image: radial-gradient(closest-side, rgba(255, 255, 255, 0.75) 0%, rgba(225, 240, 255, 0.32) 35%, transparent 72%);
+    background-size: 3.2% 11%;
+    animation: title-sparkle 11s ease-in-out infinite;
+  }
+  @keyframes title-sparkle {
+    0%   { opacity: 0; background-position: 84% 32%; }
+    8%   { opacity: 0.2; background-position: 84% 32%; }
+    16%  { opacity: 0; background-position: 84% 32%; }
+    41%  { opacity: 0; background-position: 90% 78%; }
+    49%  { opacity: 0.18; background-position: 90% 78%; }
+    57%  { opacity: 0; background-position: 90% 78%; }
+    73%  { opacity: 0; background-position: 87% 55%; }
+    81%  { opacity: 0.2; background-position: 87% 55%; }
+    89%, 100% { opacity: 0; background-position: 87% 55%; }
+  }
+  /* Letter 2 (כ) -- sapphire */
+  .brand-title-sparkle-b {
+    background-image: radial-gradient(closest-side, rgba(150, 198, 255, 0.7) 0%, rgba(85, 145, 235, 0.3) 35%, transparent 72%);
+    background-size: 2.6% 9%;
+    animation: title-sparkle-b 14.5s ease-in-out infinite;
+  }
+  @keyframes title-sparkle-b {
+    0%   { opacity: 0; background-position: 62% 40%; }
+    6%   { opacity: 0.16; background-position: 62% 40%; }
+    13%  { opacity: 0; background-position: 62% 40%; }
+    38%  { opacity: 0; background-position: 68% 68%; }
+    45%  { opacity: 0.18; background-position: 68% 68%; }
+    52%  { opacity: 0; background-position: 68% 68%; }
+    76%  { opacity: 0; background-position: 65% 25%; }
+    83%  { opacity: 0.16; background-position: 65% 25%; }
+    90%, 100% { opacity: 0; background-position: 65% 25%; }
+  }
+  /* Letter 3 (center, ס) -- gold */
+  .brand-title-sparkle-c {
+    background-image: radial-gradient(closest-side, rgba(255, 232, 180, 0.62) 0%, rgba(255, 205, 120, 0.26) 35%, transparent 72%);
+    background-size: 2.4% 8%;
+    animation: title-sparkle-c 17.5s ease-in-out infinite;
+  }
+  @keyframes title-sparkle-c {
+    0%   { opacity: 0; background-position: 42% 30%; }
+    5%   { opacity: 0.18; background-position: 42% 30%; }
+    11%  { opacity: 0; background-position: 42% 30%; }
+    35%  { opacity: 0; background-position: 48% 78%; }
+    41%  { opacity: 0.16; background-position: 48% 78%; }
+    47%  { opacity: 0; background-position: 48% 78%; }
+    68%  { opacity: 0; background-position: 45% 50%; }
+    74%  { opacity: 0.2; background-position: 45% 50%; }
+    81%, 100% { opacity: 0; background-position: 45% 50%; }
+  }
+  /* Letter 4 (פ) -- white */
+  .brand-title-sparkle-d {
+    background-image: radial-gradient(closest-side, rgba(255, 255, 255, 0.68) 0%, rgba(225, 240, 255, 0.28) 35%, transparent 72%);
+    background-size: 3% 10%;
+    animation: title-sparkle-d 21.5s ease-in-out infinite;
+  }
+  @keyframes title-sparkle-d {
+    0%   { opacity: 0; background-position: 24% 45%; }
+    4%   { opacity: 0.16; background-position: 24% 45%; }
+    9%   { opacity: 0; background-position: 24% 45%; }
+    32%  { opacity: 0; background-position: 20% 25%; }
+    37%  { opacity: 0.2; background-position: 20% 25%; }
+    42%  { opacity: 0; background-position: 20% 25%; }
+    64%  { opacity: 0; background-position: 28% 70%; }
+    69%  { opacity: 0.18; background-position: 28% 70%; }
+    75%, 100% { opacity: 0; background-position: 28% 70%; }
+  }
+  /* Letter 5 (leftmost, ת) -- sapphire */
+  .brand-title-sparkle-e {
+    background-image: radial-gradient(closest-side, rgba(150, 198, 255, 0.65) 0%, rgba(85, 145, 235, 0.28) 35%, transparent 72%);
+    background-size: 2.8% 9.5%;
+    animation: title-sparkle-e 26s ease-in-out infinite;
+  }
+  @keyframes title-sparkle-e {
+    0%   { opacity: 0; background-position: 6% 55%; }
+    3%   { opacity: 0.16; background-position: 6% 55%; }
+    7%   { opacity: 0; background-position: 6% 55%; }
+    28%  { opacity: 0; background-position: 10% 75%; }
+    32%  { opacity: 0.18; background-position: 10% 75%; }
+    36%  { opacity: 0; background-position: 10% 75%; }
+    58%  { opacity: 0; background-position: 2% 35%; }
+    62%  { opacity: 0.18; background-position: 2% 35%; }
+    67%, 100% { opacity: 0; background-position: 2% 35%; }
+  }
+
+  /* --- Interactive touch/mouse glow: real light answering the visitor's
+     own hand, exactly where their finger/cursor is on the stone -- not a
+     scripted animation like the sparkles above. Two layers, same "masked
+     vs. unmasked" split the static halo/crystal pair already uses:
+     .brand-title-pointer-halo is a soft, UNmasked bloom sitting behind the
+     letters (light spilling out from inside the gem past its own
+     silhouette, like the existing static halo but following the pointer);
+     .brand-title-pointer-glow is masked to the letters' own alpha shape,
+     so the bright core of the light only ever exists INSIDE the stone,
+     never spilling onto the transparent gaps between letters. Position is
+     driven by --px/--py (percentages, written by JS on pointermove --
+     Pointer Events unify mouse and touch, so the same listener drives
+     both a mouse cursor and a dragging finger). Opacity fades in only
+     while the pointer is actually over/near the title (.is-glowing),
+     fades out the instant it leaves -- never lingers, never loops. */
+  .brand-title-pointer-halo {
+    background: radial-gradient(circle at var(--px, 50%) var(--py, 50%),
+      rgba(150, 205, 255, 0.55) 0%, rgba(90, 160, 255, 0.24) 32%, transparent 62%);
+    filter: blur(20px);
+    mix-blend-mode: screen;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    will-change: opacity;
+  }
+  .brand-title-pointer-glow {
+    background: radial-gradient(circle at var(--px, 50%) var(--py, 50%),
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(200, 230, 255, 0.75) 18%,
+      rgba(120, 190, 255, 0.4) 40%,
+      transparent 66%);
+    -webkit-mask: url('assets/title-diamond.png') center / contain no-repeat;
+    mask: url('assets/title-diamond.png') center / contain no-repeat;
+    -webkit-mask-mode: alpha;
+    mix-blend-mode: screen;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    will-change: opacity;
+  }
+  .brand-title.is-glowing .brand-title-pointer-halo,
+  .brand-title.is-glowing .brand-title-pointer-glow {
+    opacity: 1;
+    transition-duration: 0.12s;
   }
 
   /* Form floats at the visual center — no card/panel */
@@ -478,6 +794,66 @@
   }
   .forgot-link:hover { color: var(--gold-light); border-color: rgba(120, 190, 255, 0.4); }
 
+  /* Failure reason: small + clearly red, tucked right under its field.
+     Defined after theme.css so its colour wins over .error-msg's default. */
+  .login-error,
+  .reset-error {
+    color: #ff5f5f;
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: right;
+    margin: -4px 2px 0;
+    text-shadow: 0 1px 5px rgba(0, 0, 0, 0.85);
+  }
+
+  /* Password-reset panel: reuses .login-form's centered placement + input
+     styling, so it reads as the same crystal surface, not a new screen. */
+  .reset-panel { gap: 12px; }
+  .reset-step { display: flex; flex-direction: column; gap: 12px; }
+  .reset-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    text-align: center;
+    color: var(--crystal-ice);
+    text-shadow: 0 0 12px rgba(70, 160, 255, 0.4), 0 1px 6px rgba(0, 0, 0, 0.9);
+  }
+  .reset-hint {
+    margin: -4px 0 2px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    text-align: center;
+    color: var(--text-muted);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+  }
+  .reset-btn {
+    width: 100%;
+    padding: 15px;
+    min-height: 52px;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    color: #f4faff;
+    cursor: pointer;
+    border-radius: 14px;
+    border: 1px solid rgba(190, 224, 255, 0.5);
+    background: linear-gradient(165deg,
+      rgba(96, 156, 238, 0.22) 0%,
+      rgba(34, 76, 158, 0.34) 55%,
+      rgba(12, 30, 74, 0.5) 100%);
+    text-shadow: 0 1px 2px rgba(4, 10, 26, 0.65), 0 0 16px rgba(150, 210, 255, 0.4);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      inset 0 0 22px rgba(80, 160, 255, 0.16),
+      0 10px 30px rgba(0, 0, 0, 0.45);
+    transition: filter 0.25s ease, transform 0.12s ease, box-shadow 0.4s ease;
+  }
+  .reset-btn:hover { filter: brightness(1.12); }
+  .reset-btn:active { transform: translateY(1px); }
+  .reset-btn:disabled { opacity: 0.55; cursor: default; filter: none; }
+
   .status-line {
     text-align: center;
     font-size: 12.5px;
@@ -521,6 +897,65 @@
   }
   .flash-overlay.on { opacity: 1; }
 
+  /* "זכור אותי" auto-entry: while body.remember-checking is present (set
+     synchronously at the very top of <body>, before first paint), the
+     whole login form/logo stays hidden and only this short, clean loader
+     shows -- no fields, no full intro animation. Removed again (see the
+     module script) either by navigating straight to the dashboard once
+     the remembered session checks out, or by the class being taken back
+     off if it turns out NOT to be valid, revealing the normal form. */
+  body.remember-checking .login-content { display: none; }
+  .remember-loader {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    align-items: center;
+    justify-content: center;
+  }
+  body.remember-checking .remember-loader { display: flex; }
+  .remember-loader-svg { width: 74px; height: 74px; overflow: visible; animation: remember-loader-breathe 2.4s ease-in-out infinite; }
+  @keyframes remember-loader-breathe {
+    0%, 100% {
+      filter: drop-shadow(0 0 5px rgba(70, 213, 255, 0.45)) drop-shadow(0 0 16px rgba(29, 78, 158, 0.4));
+    }
+    50% {
+      filter: drop-shadow(0 0 10px rgba(70, 213, 255, 0.75)) drop-shadow(0 0 26px rgba(29, 78, 158, 0.65));
+    }
+  }
+  .remember-loader-ring { fill: none; stroke: rgba(150, 205, 255, 0.22); stroke-width: 3; }
+  .remember-loader-arc {
+    fill: none;
+    stroke: var(--crystal-cyan);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 54 197;
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: remember-loader-orbit 2.6s linear infinite;
+  }
+  .remember-loader-arc-inner {
+    fill: none;
+    stroke: var(--crystal-ice);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 24 171;
+    opacity: 0.55;
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: remember-loader-orbit-reverse 3.8s linear infinite;
+  }
+  @keyframes remember-loader-orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes remember-loader-orbit-reverse { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+  .remember-loader-handle {
+    transform-box: view-box;
+    transform-origin: 50px 50px;
+    animation: remember-loader-turn 4.5s linear infinite;
+  }
+  .remember-loader-handle line { stroke: var(--crystal); stroke-width: 3.5; stroke-linecap: round; }
+  .remember-loader-hub { fill: var(--obsidian-raised); stroke: var(--crystal-ice); stroke-width: 2; }
+  @keyframes remember-loader-turn { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
   /* Desktop: same hierarchy (title top, fields over lower body) */
   @media (min-width: 700px) {
     .login-form { width: 380px; }
@@ -540,10 +975,51 @@
     .vault-btn-core::before,
     .vault-btn-core::after,
     .vault-btn-sparkle { animation: none; }
+    .brand-title-halo,
+    .brand-title-crystal,
+    .brand-title-rim,
+    .brand-title-sparkle,
+    .brand-title-sparkle-b,
+    .brand-title-sparkle-c,
+    .brand-title-sparkle-d,
+    .brand-title-sparkle-e { animation: none; }
+    .brand-title-sparkle,
+    .brand-title-sparkle-b,
+    .brand-title-sparkle-c,
+    .brand-title-sparkle-d,
+    .brand-title-sparkle-e { opacity: 0; }
+    .brand-title-crystal { filter: brightness(1); }
+    .brand-title-halo { opacity: 0.42; }
+    .brand-title-rim { opacity: 0.34; }
+    .remember-loader-svg,
+    .remember-loader-arc,
+    .remember-loader-arc-inner,
+    .remember-loader-handle {
+      animation: none;
+    }
   }
 </style>
 </head>
 <body>
+<script>
+  // Runs synchronously, before anything below ever paints: if "זכור אותי"
+  // was set last time, the login form/fields/logo must never flash on
+  // screen at all while we check whether that remembered session is
+  // still valid (see the module script's auto-entry block near the
+  // bottom) -- this class hides .login-content and reveals #rememberLoader
+  // instead, from the very first frame. If the check later finds the
+  // session actually expired, the module script removes this class again
+  // and the visitor sees the normal login form exactly as if this never
+  // ran -- so a not-actually-remembered visitor is never stuck looking at
+  // a loader with nothing behind it.
+  (function () {
+    try {
+      if (localStorage.getItem('vault_remember') === '1') {
+        document.body.classList.add('remember-checking');
+      }
+    } catch (e) {}
+  })();
+</script>
 
   <div class="brand-stage" aria-hidden="true">
     <img src="assets/login-bg.png" alt="">
@@ -554,16 +1030,61 @@
   <div class="particles" aria-hidden="true">
     <span></span><span></span><span></span><span></span><span></span>
   </div>
+  <div class="pre-login-dim" id="preLoginDim" aria-hidden="true"></div>
+
+  <!-- Short, clean loader shown ONLY while a remembered session is being
+       confirmed (see the body.remember-checking rule below) -- same
+       vault-lock motif as the dashboard's own shared loader
+       (js/loader.js), a self-contained copy here since this page doesn't
+       otherwise load dashboard.css. -->
+  <div class="remember-loader" id="rememberLoader" aria-hidden="true">
+    <svg class="remember-loader-svg" viewBox="0 0 100 100">
+      <circle class="remember-loader-ring" cx="50" cy="50" r="40"></circle>
+      <circle class="remember-loader-arc" cx="50" cy="50" r="40"></circle>
+      <circle class="remember-loader-arc-inner" cx="50" cy="50" r="31"></circle>
+      <g class="remember-loader-handle">
+        <line x1="50" y1="27" x2="50" y2="73"></line>
+        <line x1="27" y1="50" x2="73" y2="50"></line>
+        <circle class="remember-loader-hub" cx="50" cy="50" r="8"></circle>
+      </g>
+    </svg>
+  </div>
 
   <div class="login-content" id="loginContent">
     <header class="brand-header">
-      <h1 class="brand-title">הכספת</h1>
-      <p class="brand-subtitle">מסך כניסה</p>
+      <h1 class="brand-title" aria-label="הכספת">
+        <span class="brand-title-sr">הכספת</span>
+        <span class="brand-title-halo"></span>
+        <span class="brand-title-crystal"></span>
+        <span class="brand-title-rim"></span>
+        <span class="brand-title-sparkle"></span>
+        <span class="brand-title-sparkle-b"></span>
+        <span class="brand-title-sparkle-c"></span>
+        <span class="brand-title-sparkle-d"></span>
+        <span class="brand-title-sparkle-e"></span>
+        <span class="brand-title-pointer-halo" aria-hidden="true"></span>
+        <span class="brand-title-pointer-glow" aria-hidden="true"></span>
+      </h1>
     </header>
 
-    <form id="loginForm" novalidate class="login-form">
-      <input type="text" id="username" name="username" placeholder="שם משתמש" aria-label="שם משתמש" autocomplete="username">
-      <input type="password" id="password" name="password" placeholder="סיסמה" aria-label="סיסמה" autocomplete="current-password">
+    <!-- autocomplete="off" on the form/fields + no name attributes (the
+         script only ever reads by id) -- reduces how strongly the browser
+         reads this as "a login form worth offering to save", per the
+         "לצמצם שמירת סיסמה של הדפדפן" requirement. This is a best-effort
+         reduction, not a guarantee: Chrome in particular has deliberately
+         ignored autocomplete="off" for password-save prompts since ~2014,
+         by design, so some browsers may still occasionally offer to save
+         regardless of anything markup-side can do. The app's own "זכור
+         אותי" is unrelated to any of this (it rides on the Supabase
+         session, not on browser-saved credentials) and is untouched. -->
+    <form id="loginForm" novalidate class="login-form" autocomplete="off">
+      <input type="email" id="username" placeholder="אימייל" aria-label="אימייל" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" dir="ltr">
+      <input type="password" id="password" placeholder="סיסמה" aria-label="סיסמה" autocomplete="new-password">
+
+      <!-- The reason a login failed shows here, small + red, right under
+           the password field, so the cause is read exactly where it's
+           looked for. -->
+      <div class="error-msg login-error" id="errorMsg" role="alert"></div>
 
       <label class="remember-row" for="rememberMe">
         <input type="checkbox" id="rememberMe">
@@ -571,18 +1092,46 @@
         <span>זכור אותי</span>
       </label>
 
-      <div class="error-msg" id="errorMsg" role="alert"></div>
-
       <button type="submit" class="login-btn" id="openVaultBtn">
         <span class="vault-btn-core" aria-hidden="true"></span>
         <span class="vault-btn-sparkle" aria-hidden="true"></span>
         <span class="vault-btn-label">פתח את הכספת</span>
       </button>
 
-      <a href="#" class="forgot-link" id="forgotLink">שכחתי סיסמה</a>
+      <a href="#" class="forgot-link" id="forgotLink">שכחתי סיסמה?</a>
 
       <div class="status-line" id="statusLine"></div>
     </form>
+
+    <!-- Self-service password reset. Hidden until "שכחתי סיסמה?" is
+         tapped, and only ever one of its two steps is visible at once --
+         the login form and both reset steps are mutually exclusive. -->
+    <div id="resetPanel" class="login-form reset-panel" hidden>
+
+      <!-- Step 1: request a code -->
+      <div class="reset-step" id="resetStepRequest">
+        <h2 class="reset-title">איפוס סיסמה</h2>
+        <input type="email" id="resetEmail" placeholder="האימייל שלך" aria-label="האימייל שלך"
+               autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" dir="ltr">
+        <div class="reset-error" id="resetRequestError" role="alert"></div>
+        <button type="button" class="reset-btn" id="sendCodeBtn">שלח קוד לאיפוס</button>
+        <a href="#" class="forgot-link" id="backToLoginFromRequest">חזרה להתחברות</a>
+      </div>
+
+      <!-- Step 2: enter the code + set a new password -->
+      <div class="reset-step" id="resetStepConfirm" hidden>
+        <h2 class="reset-title">איפוס סיסמה</h2>
+        <p class="reset-hint" id="resetSentHint">אם המייל קיים במערכת, נשלח אליו קוד לאיפוס סיסמה.</p>
+        <input type="text" id="resetCode" placeholder="קוד האימות (6 ספרות)" aria-label="קוד האימות"
+               inputmode="numeric" autocomplete="one-time-code" dir="ltr" maxlength="6">
+        <input type="password" id="resetNewPass" placeholder="סיסמה חדשה" aria-label="סיסמה חדשה" autocomplete="new-password">
+        <input type="password" id="resetConfirmPass" placeholder="אימות סיסמה חדשה" aria-label="אימות סיסמה חדשה" autocomplete="new-password">
+        <div class="reset-error" id="resetConfirmError" role="alert"></div>
+        <button type="button" class="reset-btn" id="confirmResetBtn">עדכן סיסמה</button>
+        <a href="#" class="forgot-link" id="resendCodeLink">לא קיבלת קוד? שלח שוב</a>
+        <a href="#" class="forgot-link" id="backToLoginFromConfirm">חזרה להתחברות</a>
+      </div>
+    </div>
   </div>
 
   <!-- Hidden until a successful login; never plays before/on failed auth -->
@@ -602,11 +1151,62 @@
   const forgotLink = document.getElementById('forgotLink');
   const statusLine = document.getElementById('statusLine');
   const loginContent = document.getElementById('loginContent');
+  const preLoginDim = document.getElementById('preLoginDim');
   const introLayer = document.getElementById('introLayer');
   const introVideo = document.getElementById('introVideo');
   const flashOverlay = document.getElementById('flashOverlay');
   const openVaultBtn = document.getElementById('openVaultBtn');
   const rememberMe = document.getElementById('rememberMe');
+  const brandHeader = document.querySelector('.brand-header');
+  const rememberRow = document.querySelector('.remember-row');
+
+  // Single-active-session enforcement (see auth.js's kickIfSuperseded) --
+  // every account, students included: this device's own session was just
+  // invalidated because a newer explicit login happened somewhere else on
+  // the same account -- "זכור אותי" was already cleared there, so this is
+  // purely a heads-up message, not a security gate on its own.
+  if (new URLSearchParams(window.location.search).get('kicked') === '1') {
+    errorMsg.textContent = 'התחברת ממכשיר אחר. יש להזין סיסמה מחדש.';
+    errorMsg.classList.add('show');
+  }
+
+  // --- Interactive touch/mouse glow on the הכספת logo: a light that
+  // answers the visitor's own hand, exactly where their finger/cursor is
+  // (see the .brand-title-pointer-halo/.brand-title-pointer-glow CSS
+  // above). Pointer Events unify mouse and touch -- the same listener
+  // drives a dragging finger on mobile and a moving cursor on desktop,
+  // per the "רספונסיבי, טאצ' או עכבר" requirement. Position is written as
+  // plain percentages into --px/--py so the CSS radial-gradients (one
+  // masked to the letters, one a soft unmasked bloom behind them) always
+  // read it live -- no animation loop, purely reactive to real input. */
+  const brandTitle = document.querySelector('.brand-title');
+  if (brandTitle && window.PointerEvent) {
+    let hideTimer = null;
+    function updatePointerGlow(e) {
+      const rect = brandTitle.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      const px = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      const py = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+      brandTitle.style.setProperty('--px', px + '%');
+      brandTitle.style.setProperty('--py', py + '%');
+      brandTitle.classList.add('is-glowing');
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+    }
+    function scheduleHideGlow() {
+      // A short grace period rather than an instant cut -- a finger
+      // lifting off touch fires pointerup/leave in the same instant as
+      // the last pointermove, so an immediate removal could flicker.
+      hideTimer = setTimeout(() => brandTitle.classList.remove('is-glowing'), 60);
+    }
+    brandHeader.addEventListener('pointermove', updatePointerGlow);
+    brandHeader.addEventListener('pointerdown', updatePointerGlow);
+    brandHeader.addEventListener('pointerleave', scheduleHideGlow);
+    brandHeader.addEventListener('pointerup', scheduleHideGlow);
+    brandHeader.addEventListener('pointercancel', scheduleHideGlow);
+  }
 
   // --- "זכור אותי": no password is ever stored. We keep only the
   // username + a flag; the auto-entry itself rides on Supabase's own
@@ -634,14 +1234,27 @@
   }
 
   let navigated = false;
-  function goDashboard() {
+  // `revealMode` -- flags dashboard.html to play its own already-built
+  // "entry-reveal" settle animation (a radial-gradient field that calms
+  // into the dashboard, see css/dashboard.css's .entry-reveal) right as
+  // it loads, instead of a plain instant cut. `true`/'full' is the bright
+  // version used after the intro video's own flash; 'lite' is the same
+  // mechanism's smaller/quieter variant, used only by the remember-me
+  // auto-entry path below (a short loader settling into the dashboard,
+  // not a video's dramatic flash).
+  function goDashboard(revealMode) {
     if (navigated) return;
     navigated = true;
+    if (revealMode) {
+      try { sessionStorage.setItem('vault_entry_reveal', revealMode === 'lite' ? 'lite' : 'full'); } catch (e) {}
+    }
     window.location.replace('dashboard.html');
   }
 
   // Timed so the flash peaks exactly at the video's final energy burst,
-  // then the dashboard takes over -- a hard cut hidden inside the light.
+  // then the dashboard takes over -- continuing smoothly into
+  // dashboard.html's own entry-reveal (see goDashboard above) instead of
+  // a sudden cut to black.
   let flashStarted = false;
   introVideo.addEventListener('timeupdate', () => {
     if (!flashStarted && introVideo.duration && introVideo.duration - introVideo.currentTime <= 0.45) {
@@ -651,23 +1264,49 @@
   });
   introVideo.addEventListener('ended', () => {
     flashOverlay.classList.add('on');
-    setTimeout(goDashboard, 300);
+    setTimeout(() => goDashboard(true), 300);
   });
   // If the video can't load/play for any reason, never trap the user here.
-  introVideo.addEventListener('error', goDashboard);
+  introVideo.addEventListener('error', () => goDashboard(true));
+
+  // Domino exit: button -> password -> username -> logo, each a quick
+  // directional slide, staggered ~90ms apart so the whole chain reads as
+  // one fast, deliberate sequence rather than a simultaneous fade. Fires
+  // the instant the video starts (see startIntro) -- never waits for any
+  // of this to finish before the video itself begins playing.
+  const DOMINO_STAGGER = 90;
+  function dominoExit() {
+    [errorMsg, forgotLink, statusLine, rememberRow].forEach((el) => {
+      if (el) el.classList.add('domino-exit-fade');
+    });
+    const sequence = [
+      [openVaultBtn, 'domino-exit-btn'],
+      [passwordInput, 'domino-exit-left'],
+      [usernameInput, 'domino-exit-right'],
+      [brandHeader, 'domino-exit-up'],
+    ];
+    sequence.forEach(([el, cls], i) => {
+      if (!el) return;
+      setTimeout(() => el.classList.add(cls), i * DOMINO_STAGGER);
+    });
+    // Once the whole chain has visually finished, stop the (now empty)
+    // form from intercepting any further pointer input -- same end state
+    // `.fade-out` already gave the simpler paths.
+    setTimeout(() => { loginContent.style.pointerEvents = 'none'; }, sequence.length * DOMINO_STAGGER + 260);
+  }
 
   function startIntro() {
     introLayer.classList.add('visible');
-    loginContent.classList.add('fade-out');
+    dominoExit();
 
     try {
       introVideo.currentTime = 0;
       const playPromise = introVideo.play();
       if (playPromise && playPromise.catch) {
-        playPromise.catch(goDashboard);
+        playPromise.catch(() => goDashboard(true));
       }
     } catch (e) {
-      goDashboard();
+      goDashboard(true);
       return;
     }
 
@@ -675,26 +1314,41 @@
     const budget = isFinite(introVideo.duration) && introVideo.duration > 0
       ? (introVideo.duration + 4) * 1000
       : 20000;
-    setTimeout(goDashboard, budget);
+    setTimeout(() => goDashboard(true), budget);
   }
 
   // Auto-entry: remember-me + a still-valid Supabase session means the
-  // vault recognizes its owner -- a quiet dissolve straight in, no video.
+  // vault already recognizes its owner. The login form/logo were hidden
+  // from the very first paint by the synchronous script at the top of
+  // <body> (body.remember-checking) -- ONLY the short loader is visible
+  // right now, no fields, no full intro animation. If the session really
+  // is still valid, this goes straight to the dashboard once the loader
+  // has had a brief, deliberate moment on screen (never an instant jump-
+  // cut, never a lingering wait). If it turns out NOT valid (expired/
+  // revoked since last visit), the remember-checking class comes back
+  // off, revealing the completely normal login form -- exactly what a
+  // never-remembered visitor already sees.
   (async () => {
-    if (store.get('vault_remember') !== '1') return;
+    if (!document.body.classList.contains('remember-checking')) return;
     try {
       const { data } = await supabase.auth.getSession();
-      if (!data || !data.session || navigated) return;
-      statusLine.textContent = 'הכספת מזהה אותך...';
-      loginContent.classList.add('fade-out');
-      setTimeout(goDashboard, 550);
-    } catch (e) { /* stay on the login form */ }
+      if (!data || !data.session || navigated) {
+        document.body.classList.remove('remember-checking');
+        return;
+      }
+      setTimeout(() => goDashboard('lite'), 420);
+    } catch (e) {
+      document.body.classList.remove('remember-checking');
+    }
   })();
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const username = usernameInput.value.trim();
+    // Lowercased defensively: mobile keyboards auto-capitalize the first
+    // letter of a plain-text field, which would otherwise silently turn a
+    // correctly-remembered email into a login failure.
+    const username = usernameInput.value.trim().toLowerCase();
     const password = passwordInput.value.trim();
 
     if (!username || !password) {
@@ -703,15 +1357,23 @@
     }
 
     // Living matter answers the touch immediately -- the mechanism
-    // engages before the network finishes.
+    // engages before the network finishes. Screen brightness answers the
+    // same touch: the 20%-dimmed resting state lifts back to normal right
+    // here, not after the network resolves.
     openVaultBtn.disabled = true;
     openVaultBtn.classList.add('is-awakening');
+    preLoginDim.classList.add('is-bright');
 
     const result = await auth.login(username, password);
     if (!result.ok) {
       openVaultBtn.disabled = false;
       openVaultBtn.classList.remove('is-awakening');
-      showError(result.reason === 'blocked' ? 'המשתמש חסום. יש לפנות למנהל המערכת' : 'שם משתמש או סיסמה שגויים');
+      preLoginDim.classList.remove('is-bright');
+      showError(
+        result.reason === 'blocked' ? 'החשבון חסום. יש לפנות למנהל המערכת'
+        : result.reason === 'expired' ? 'תוקף הגישה שלך פג. יש לפנות למנהל המערכת'
+        : 'האימייל או הסיסמה שגויים'
+      );
       return;
     }
 
@@ -731,9 +1393,161 @@
     input.addEventListener('input', clearError);
   });
 
+  // --- Self-service password reset via an emailed 6-digit code ---------
+  // Step 1 (request): resetPasswordForEmail(email) -- Supabase itself only
+  // actually sends mail for an address that exists, but always resolves
+  // the same way either way, so the UI shows one generic message
+  // regardless and never reveals whether the account exists.
+  // Step 2 (confirm): verifyOtp({type:'recovery'}) exchanges the code for
+  // a short-lived recovery session, updateUser sets the new password, then
+  // that session is deliberately signed out again -- the user lands back
+  // on the plain login form and signs in fresh with the new password,
+  // rather than being carried straight into the vault.
+  const loginForm = document.getElementById('loginForm');
+  const resetPanel = document.getElementById('resetPanel');
+  const resetStepRequest = document.getElementById('resetStepRequest');
+  const resetStepConfirm = document.getElementById('resetStepConfirm');
+  const resetEmail = document.getElementById('resetEmail');
+  const resetRequestError = document.getElementById('resetRequestError');
+  const sendCodeBtn = document.getElementById('sendCodeBtn');
+  const resetCode = document.getElementById('resetCode');
+  const resetNewPass = document.getElementById('resetNewPass');
+  const resetConfirmPass = document.getElementById('resetConfirmPass');
+  const resetConfirmError = document.getElementById('resetConfirmError');
+  const confirmResetBtn = document.getElementById('confirmResetBtn');
+  const resendCodeLink = document.getElementById('resendCodeLink');
+  const backToLoginFromRequest = document.getElementById('backToLoginFromRequest');
+  const backToLoginFromConfirm = document.getElementById('backToLoginFromConfirm');
+
+  function showStep(step) {
+    loginForm.hidden = step !== 'login';
+    resetPanel.hidden = step === 'login';
+    resetStepRequest.hidden = step !== 'request';
+    resetStepConfirm.hidden = step !== 'confirm';
+  }
+
+  function openResetFlow() {
+    resetRequestError.textContent = '';
+    resetConfirmError.textContent = '';
+    resetCode.value = '';
+    resetNewPass.value = '';
+    resetConfirmPass.value = '';
+    // Carry over whatever email they already typed on the login form.
+    if (!resetEmail.value && usernameInput.value) resetEmail.value = usernameInput.value.trim();
+    showStep('request');
+    resetEmail.focus();
+  }
+
+  function backToLogin(message) {
+    showStep('login');
+    clearError();
+    statusLine.textContent = message || '';
+  }
+
+  async function sendResetCode() {
+    const email = resetEmail.value.trim().toLowerCase();
+    resetRequestError.textContent = '';
+    if (!email) {
+      resetRequestError.textContent = 'יש להזין אימייל';
+      return;
+    }
+    sendCodeBtn.disabled = true;
+    sendCodeBtn.textContent = 'שולח...';
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    sendCodeBtn.disabled = false;
+    sendCodeBtn.textContent = 'שלח קוד לאיפוס';
+    if (error) {
+      resetRequestError.textContent = 'לא הצלחנו לשלוח כרגע, נסה שוב בעוד רגע';
+      return;
+    }
+    showStep('confirm');
+    resetCode.focus();
+  }
+
+  async function confirmReset() {
+    const email = resetEmail.value.trim().toLowerCase();
+    const token = resetCode.value.trim();
+    const newPassword = resetNewPass.value;
+    const confirmPassword = resetConfirmPass.value;
+    resetConfirmError.textContent = '';
+
+    if (token.length < 6) {
+      resetConfirmError.textContent = 'הזן את קוד האימות בן 6 הספרות';
+      return;
+    }
+    if (newPassword.length < 6) {
+      resetConfirmError.textContent = 'הסיסמה חייבת להכיל לפחות 6 תווים';
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      resetConfirmError.textContent = 'הסיסמאות אינן תואמות';
+      return;
+    }
+
+    confirmResetBtn.disabled = true;
+    confirmResetBtn.textContent = 'מאמת...';
+
+    const { data: verifyData, error: verifyErr } = await supabase.auth.verifyOtp({ email, token, type: 'recovery' });
+    if (verifyErr) {
+      confirmResetBtn.disabled = false;
+      confirmResetBtn.textContent = 'עדכן סיסמה';
+      resetConfirmError.textContent = 'הקוד שגוי או שפג תוקפו. בקש קוד חדש';
+      return;
+    }
+
+    const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword });
+    if (updateErr) {
+      confirmResetBtn.disabled = false;
+      confirmResetBtn.textContent = 'עדכן סיסמה';
+      resetConfirmError.textContent = 'עדכון הסיסמה נכשל, נסה שוב';
+      return;
+    }
+
+    // Notify the master: a small, best-effort log row -- never blocks the
+    // user's own flow if it fails for any reason.
+    try {
+      const userId = verifyData?.user?.id || verifyData?.session?.user?.id;
+      if (userId) {
+        await supabase.from('password_reset_events').insert({ user_id: userId, email });
+      }
+    } catch (e) { /* non-blocking */ }
+
+    // The recovery session is single-purpose -- sign out so the user
+    // returns to a normal, unauthenticated login screen.
+    await supabase.auth.signOut();
+
+    confirmResetBtn.disabled = false;
+    confirmResetBtn.textContent = 'עדכן סיסמה';
+    usernameInput.value = email;
+    passwordInput.value = '';
+    backToLogin('הסיסמה עודכנה בהצלחה. אפשר להתחבר עכשיו.');
+    passwordInput.focus();
+  }
+
   forgotLink.addEventListener('click', (e) => {
     e.preventDefault();
+    openResetFlow();
   });
+  backToLoginFromRequest.addEventListener('click', (e) => {
+    e.preventDefault();
+    backToLogin();
+  });
+  backToLoginFromConfirm.addEventListener('click', (e) => {
+    e.preventDefault();
+    backToLogin();
+  });
+  sendCodeBtn.addEventListener('click', sendResetCode);
+  confirmResetBtn.addEventListener('click', confirmReset);
+  resendCodeLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    resetConfirmError.textContent = '';
+    showStep('request');
+    sendResetCode();
+  });
+  [resetCode, resetNewPass, resetConfirmPass].forEach((input) => {
+    input.addEventListener('input', () => { resetConfirmError.textContent = ''; });
+  });
+  resetEmail.addEventListener('input', () => { resetRequestError.textContent = ''; });
 </script>
 </body>
 </html>

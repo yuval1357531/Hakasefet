@@ -76,6 +76,10 @@ export default async function handler(req, res) {
 
   const newUserId = created.user.id;
 
+  // ליווי אישי always implies הכספת access too (never the reverse) --
+  // same safety net data/usersStore.js's own update() enforces, applied
+  // here too since account creation goes through this endpoint instead.
+  const personalGuidance = !!permissions.personalGuidance;
   const { error: insertError } = await admin.from('profiles').insert({
     id: newUserId,
     email,
@@ -83,8 +87,9 @@ export default async function handler(req, res) {
     is_admin: false,
     status: status === 'blocked' ? 'blocked' : 'active',
     permission_survival_to_freedom: !!permissions.survivalToFreedom,
-    permission_vault: !!permissions.vault,
+    permission_vault: personalGuidance || !!permissions.vault,
     permission_jaurius_bot: !!permissions.jauriusBot,
+    permission_personal_guidance: personalGuidance,
   });
 
   if (insertError) {
@@ -102,8 +107,9 @@ export default async function handler(req, res) {
       fullName,
       permissions: {
         survivalToFreedom: !!permissions.survivalToFreedom,
-        vault: !!permissions.vault,
+        vault: personalGuidance || !!permissions.vault,
         jauriusBot: !!permissions.jauriusBot,
+        personalGuidance,
       },
       status: status === 'blocked' ? 'blocked' : 'active',
     },

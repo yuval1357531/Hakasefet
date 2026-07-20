@@ -27,6 +27,18 @@ export const SECTIONS = [
     description: 'העוזר החכם של הכספת. בקרוב תוכל לשוחח איתו ולקבל הכוונה.',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 7V3"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/></svg>',
   },
+  {
+    id: 'personalGuidance',
+    label: 'ליווי אישי',
+    description: 'תוכן ליווי אישי, בבנייה.',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.35-9.5-8.5C1 9 2.5 5.5 6 5c2-.3 3.5.8 4.5 2.2C11.5 5.8 13 4.7 15 5c3.5.5 5 4 3.5 7.5C16 16.65 12 21 12 21z"/></svg>',
+    // Unlike every other section, this one is always visible in the
+    // sidebar regardless of permission (dashboard.js's visibleSections
+    // filter) -- the button always shows; the section itself gates real
+    // content behind a "locked" placeholder (see personalGuidanceSection.js
+    // and router.js's own carve-out for this one section id).
+    alwaysVisibleLocked: true,
+  },
 ];
 
 export const ADMIN_SECTION = {
@@ -45,5 +57,20 @@ export const ADMIN_TOOLS = [
     id: 'manage-users',
     label: 'ניהול משתמשים',
     description: 'יצירה, עריכה, חסימה ומחיקה של משתמשים, וקביעת הרשאות גישה לסקשנים.',
+  },
+  {
+    id: 'student-folders',
+    label: 'תיקים ויומני תלמידים',
+    description: 'צפייה בתיק האישי, הודעות אישיות ופריטי צידה לדרך של כל תלמיד -- לצפייה בלבד.',
+  },
+  {
+    id: 'personal-area-preview',
+    label: 'אזור אישי — חוויית משתמש',
+    description: 'תצוגה מקדימה, ללא נתונים אמיתיים, של איך האזור האישי נראה למשתמש רגיל.',
+  },
+  {
+    id: 'login-history',
+    label: 'היסטוריית התחברויות',
+    description: 'מכשיר, מערכת הפעלה, דפדפן ו-IP (אם קיים) לכל התחברות של כל תלמיד/ה.',
   },
 ];

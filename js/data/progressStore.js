@@ -59,6 +59,18 @@ export const progressStore = {
     return toRecord(data);
   },
 
+  // Records that the user opened a lesson, without touching is_completed --
+  // upsert only sends last_watched_at, so an existing completed/incomplete
+  // state is left exactly as it was; a first-time visit inserts a fresh row
+  // (is_completed/progress_percent fall back to their column defaults).
+  // This is what lets the sidebar "resume where you left off" reminder work
+  // without any real video-position tracking.
+  async recordVisit(userId, lessonId) {
+    await supabase
+      .from('progress')
+      .upsert({ user_id: userId, lesson_id: lessonId, last_watched_at: new Date().toISOString() }, { onConflict: 'user_id,lesson_id' });
+  },
+
   // lessons: the already-fetched Lesson[] belonging to the course (caller
   // fetches via contentStore so this store doesn't need to know about it).
   async computeCourseProgress(userId, courseId, lessons) {

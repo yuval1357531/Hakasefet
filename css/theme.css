@@ -46,9 +46,36 @@
 
 * { box-sizing: border-box; }
 
+/* Hard site-wide bound: no horizontal scroll/drift, ever. `body` already
+   had its own overflow-x:hidden (dashboard.css) but `html` itself (the
+   actual root scrolling element in most browsers) didn't -- an element
+   that overflows horizontally could still let the WHOLE PAGE pan/rubber-
+   band sideways even with body clipped. overscroll-behavior-x:none kills
+   the horizontal rubber-band/swipe-navigation gesture itself (the "drag
+   the whole screen sideways" feeling), independent of any actual
+   overflow. Vertical scroll/zoom are untouched -- this only ever
+   constrains the X axis. */
 html, body {
   height: 100%;
   margin: 0;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+  /* Belt-and-suspenders for the viewport meta's user-scalable=no: some
+     mobile browsers (notably iOS Safari, even inside an installed PWA)
+     still allow a double-tap or pinch zoom gesture unless touch-action
+     itself also opts out. pan-x/pan-y keep normal panning/scrolling
+     (vertical scroll, horizontal drag on the lesson pills below) fully
+     working -- only the zoom gesture itself is disabled. */
+  touch-action: pan-x pan-y;
+  /* Dark safety net: `html`'s own background used to be the browser's
+     default white canvas. `body`'s own themed background (below) always
+     paints over it in normal layout, but on mobile, a `position:fixed`
+     element sized to the static 100vh unit can leave a sliver at the true
+     bottom of the screen uncovered by body's box (see .app-main/.sidebar
+     in dashboard.css for the matching 100dvh fix) -- that sliver used to
+     show `html`'s white default through as a thin white line. Now it's
+     dark regardless. */
+  background: var(--obsidian);
 }
 
 body {
@@ -73,15 +100,68 @@ a { color: inherit; }
 }
 ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #27364f, #182238); }
 
-/* Faceted-crystal title: white glint at the tip sinking into sapphire */
+/* ============================================================
+   Unified heading language — "glowing sapphire stone".
+   One heavy, clean, slightly-squared Hebrew face (Heebo ExtraBold)
+   filled like a lit turquoise-sapphire pebble: a cyan/turquoise
+   crystalline body with a deep sapphire dip for depth, irregular
+   dark flecks clipped into the glyphs (the "black touches" of the
+   stones), and a soft inner glow. Every main heading across the
+   site already carries .gold-title, so redefining it here re-skins
+   them all at once with zero markup changes. Kept readable: bright
+   fill on the obsidian canvas, glow deliberately restrained.
+   ============================================================ */
 .gold-title {
-  font-family: var(--font-serif);
-  font-weight: 700;
-  background: linear-gradient(180deg, #f4faff 0%, #cfe9ff 30%, #7db8ff 62%, #2f6fc4 100%);
+  font-family: 'Heebo', var(--font-body);
+  font-weight: 800;
+  letter-spacing: -0.005em;
+  background-image:
+    /* the moving darkness: two evenly-spaced soft dark bands inside one
+       seamless 240px tile (both ends transparent). Because the colour
+       body below is now kept bright everywhere, THIS is the only dark
+       tone -- so as the tile scrolls it reads as a shadow sweeping across
+       every letter of the whole line, not a patch stuck in the middle. */
+    linear-gradient(58deg,
+      transparent 0%,
+      transparent 12%,
+      rgba(2, 12, 24, 0.5) 27%,
+      transparent 42%,
+      transparent 62%,
+      rgba(3, 14, 27, 0.44) 77%,
+      transparent 92%,
+      transparent 100%),
+    /* turquoise → sapphire crystalline body -- bright all the way across,
+       no fixed dark dip, so nothing dark stays parked in the centre */
+    linear-gradient(150deg,
+      #e2fdff 0%,
+      #6cecf7 20%,
+      #2ac2e0 44%,
+      #17abd6 60%,
+      #4fe0f2 80%,
+      #8ff4ff 100%);
+  /* Only the flecks layer tiles + scrolls; the crystalline body stays
+     locked at 100% -- font, colours, size and depth are untouched. The
+     dark texture flows continuously in one direction across the whole
+     line (linear + one-tile shift = a seamless, always-moving flow, no
+     reversal, no seam). */
+  background-size: 240px 100%, 100% 100%;
+  background-position: 0px 50%, 0% 0%;
+  background-repeat: repeat, no-repeat;
   -webkit-background-clip: text;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: transparent;
-  filter: drop-shadow(0 0 18px rgba(90, 167, 255, 0.16));
+  filter:
+    drop-shadow(0 0 10px rgba(70, 210, 255, 0.3))
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+  animation: gold-title-flow 5s linear infinite;
+}
+@keyframes gold-title-flow {
+  from { background-position: 0px 50%, 0% 0%; }
+  to   { background-position: 240px 50%, 0% 0%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gold-title { animation: none; }
 }
 
 /* Primary action: polished obsidian stone with a live crystal core.

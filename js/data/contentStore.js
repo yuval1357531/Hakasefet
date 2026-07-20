@@ -31,6 +31,14 @@ function toSection(row) {
     id: row.id,
     title: row.title,
     description: row.description,
+    clarificationNote: row.clarification_note,
+    // "no access" screen content (currently used by ליווי אישי only) --
+    // deliberately separate from title/description above, which describe
+    // the real unlocked content.
+    lockedTitle: row.locked_title,
+    lockedDescription: row.locked_description,
+    lockedCta: row.locked_cta,
+    lockedMediaUrl: row.locked_media_url,
     isActive: row.is_active,
     requiredPermission: row.required_permission,
   };
@@ -73,24 +81,38 @@ function toLesson(row) {
   };
 }
 
+// Sections are read on nearly every navigation (route resolution, the
+// sidebar nav rebuild, and each section's own home page) but change only
+// when an admin edits a title/description inline -- so a simple in-memory
+// cache removes that repeated network round-trip from every click, and is
+// invalidated on the one write path (update) that can change it.
+let sectionsCache = null;
+
 const sectionsApi = {
   async getAll() {
+    if (sectionsCache) return sectionsCache;
     const { data, error } = await supabase.from('sections').select('*');
     if (error || !data) return [];
-    return data.map(toSection);
+    sectionsCache = data.map(toSection);
+    return sectionsCache;
   },
   async getById(id) {
-    const { data, error } = await supabase.from('sections').select('*').eq('id', id).maybeSingle();
-    if (error || !data) return null;
-    return toSection(data);
+    const all = await this.getAll();
+    return all.find((s) => s.id === id) || null;
   },
   async update(id, changes) {
     const payload = {};
     if (changes.title !== undefined) payload.title = changes.title;
     if (changes.description !== undefined) payload.description = changes.description;
+    if (changes.clarificationNote !== undefined) payload.clarification_note = changes.clarificationNote;
+    if (changes.lockedTitle !== undefined) payload.locked_title = changes.lockedTitle;
+    if (changes.lockedDescription !== undefined) payload.locked_description = changes.lockedDescription;
+    if (changes.lockedCta !== undefined) payload.locked_cta = changes.lockedCta;
+    if (changes.lockedMediaUrl !== undefined) payload.locked_media_url = changes.lockedMediaUrl;
     if (changes.isActive !== undefined) payload.is_active = changes.isActive;
     const { data, error } = await supabase.from('sections').update(payload).eq('id', id).select().single();
     if (error || !data) return null;
+    sectionsCache = null;
     return toSection(data);
   },
 };

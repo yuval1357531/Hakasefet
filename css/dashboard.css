@@ -16,11 +16,296 @@ body::before {
 
 .app-main {
   min-height: 100vh;
+  /* 100dvh (dynamic viewport height) as a progressive enhancement over
+     100vh: on mobile, the static `vh` unit is sized against the LARGEST
+     possible viewport (address bar hidden), so once the browser's
+     dynamic toolbar is actually showing, the page is shorter than 100vh
+     said it was -- the gap shows through as a white strip at the very
+     bottom of the screen (the plain white document canvas behind
+     everything). `100dvh` tracks the real, current viewport instead, so
+     the dark themed background always reaches the true bottom edge.
+     Browsers without dvh support simply ignore this line and keep the
+     100vh above. */
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   margin-right: 0;
   transition: margin-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ==========================================================
+     The living vault wall -- background of every internal page.
+     Energy tokens are the per-section colour hook: today they are
+     the blue fire baked into the wall image; in future, a section
+     can re-tint the whole wall (image cracks + living glow layers
+     together) by overriding ONLY these two custom properties --
+     e.g. `--wall-hue-shift: 120deg` turns the energy green with
+     zero markup/JS changes, since both pseudo-layers below read it.
+     ========================================================== */
+  --wall-hue-shift: 0deg;
+  /* Per-section intensity hook, same idea as --wall-hue-shift but for the
+     crack energy layers' brightness -- neutral (1, no change) everywhere
+     except sections that need to be toned down (see ג'אוריוס AI below). */
+  --wall-energy-brightness: 1;
+  /* Per-section vividness hook for the crack energy layers, same idea as
+     the two above -- neutral (1.2, the original single hard-coded value)
+     everywhere except sections that need a paler, less-saturated glow
+     (see האזור האישי below). */
+  --wall-saturate: 1.2;
+
+  /* The pseudo-layers below are z:-1/-2 inside this element's own
+     stacking context, keeping them behind the page content but in
+     front of the document canvas. */
+  position: relative;
+  z-index: 0;
 }
+/* מהישרדות לחופש -- the ONE place this section's colour actually gets
+   set: dashboard.js's setActive() stamps the active section id here
+   (data-active-section), and this single custom-property override is
+   all the wall/cracks layers above need to re-tint themselves -- the
+   exact extension point the comment above already anticipated. -34deg is
+   not a plain "212° base minus 186.4° target" subtraction (that gives the
+   wrong answer -- CSS hue-rotate is a fixed colour matrix, not true HSL
+   rotation): it's the delta that, run through that actual matrix against
+   --border-gold (rgba(99,171,255), the dominant crystal-blue token this
+   wall/border system is built from), lands within 0.4° of the diamond's
+   own precisely sampled hue (186.4°, see nav-item::before below). */
+.app-main[data-active-section="survivalToFreedom"] {
+  --wall-hue-shift: -34deg;
+}
+/* הכספת (vault) -- same precision method as מהישרדות לחופש above, applied
+   to the vault's OWN diamond (assets/nav-diamond-active.png, sampled hue
+   216.35° -- close to but not identical to the --crystal/--border-gold
+   design tokens' own ~212° base, since those were hand-picked to look
+   right, not colour-matched to the rendered diamond photo pixel-for-
+   pixel). +6.7deg is the matrix-precise delta from --border-gold's own
+   hue (212.31°) to the diamond's true sampled hue. */
+.app-main[data-active-section="vault"] {
+  --wall-hue-shift: 6.7deg;
+}
+/* האזור האישי (me) -- the WALL (this block) is calibrated separately from
+   the page content (--content-hue-shift further down, still -13.3deg,
+   matrix-precise to nav-diamond-personal.png's 202.3°): the user supplied
+   an exact reference photo of the wall they wanted (assets/personal-wall-
+   reference.png) -- a pale, low-saturation "ice-frost" glow, not the
+   vivid neon-cyan the shared 1.2 saturate boost produces on this asset.
+   Both hue-rotate AND saturate were re-solved by canvas-sampling the
+   reference photo's own glow pixels (HSL ~208°/32%, mid-luminance band,
+   avoiding the fully-clipped white sparkle centres) and grid-searching
+   stone-wall-bg.jpg through the real filter chain for the closest match:
+   9deg / 0.42 lands within ~0.5° hue and ~0.5% saturation of the
+   reference -- essentially exact, not a compromise. */
+.app-main[data-active-section="me"] {
+  --wall-hue-shift: 9deg;
+  --wall-saturate: 0.42;
+}
+/* ג'אוריוס AI (jauriusBot) -- same method, calibrated to
+   nav-diamond-bot.png's own sampled hue (334.3°, magenta/pink):
+   +113.9deg is the matrix-precise delta from --border-gold's hue
+   (212.31°) to that target -- by far the largest shift of any section so
+   far, since pink is much further around the wheel from crystal-blue
+   than any previous section's colour was. */
+.app-main[data-active-section="jauriusBot"] {
+  --wall-hue-shift: 113.9deg;
+  /* Colour is exact (334.3°), but pink at this section's default energy
+     level reads as much louder/brighter than the same intensity did in
+     blue or teal -- toned down here, hue untouched. */
+  --wall-energy-brightness: 0.62;
+}
+/* ליווי אישי (personalGuidance) -- calibrated to nav-diamond-
+   personalGuidance.png's own sampled hue: a circular-mean sample of the
+   diamond photo's red facets landed at 347.29° (weighted by saturation,
+   separated from the blue lightning cluster at 225.77°). 127deg is the
+   matrix-precise delta from --border-gold's hue (212.31°) to that target
+   (verified equal to -233deg, its periodic twin, through the real CSS
+   hue-rotate matrix) -- the largest shift of any section so far, deep
+   crimson being even further around the wheel from crystal-blue than
+   jauriusBot's pink. Same reasoning as jauriusBot above applies even more
+   here: saturated red reads louder/hotter than the same energy level did
+   in blue, and the brief explicitly asked for restrained, non-neon light
+   -- toned down the same way, hue untouched. */
+.app-main[data-active-section="personalGuidance"] {
+  --wall-hue-shift: 127deg;
+  --wall-energy-brightness: 0.62;
+}
+
+/* Layer 1 -- the wall itself. Static, fixed to the viewport (a real
+   position:fixed layer, not background-attachment:fixed, so it also
+   works on iOS): the stone never moves while the page scrolls over it,
+   like walking past a real wall. Deliberately pushed way down
+   (brightness ~half + vignette): the wall is atmosphere and tone, not
+   a picture to look at -- the stone should be sensed, and only the
+   living light layers above it should catch the eye. */
+.app-main::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(4, 6, 11, 0.4) 0%, rgba(4, 6, 11, 0.24) 38%, rgba(4, 6, 11, 0.5) 100%),
+    url("../assets/stone-wall-bg.jpg") center / cover no-repeat,
+    var(--obsidian);
+  filter: hue-rotate(var(--wall-hue-shift)) brightness(0.5);
+}
+
+/* Layers 2-4 -- the life inside the cracks. Each layer is the SAME wall
+   image, rendered with identical fixed/cover geometry so it lands pixel-
+   for-pixel on the darkened base wall, and blended with `screen`: only
+   pixels that are already bright in the photo (the crack energy) can add
+   light -- the stone itself never brightens. Animating a layer's opacity
+   therefore makes the CRACKS THEMSELVES flare and die down in place, as
+   part of the wall -- never a light floating on top of it. No layer is
+   ever translated or scaled (that would break the registration). */
+.app-main::after,
+.content-area::before,
+.content-area::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url("../assets/stone-wall-bg.jpg") center / cover no-repeat;
+  mix-blend-mode: screen;
+  filter: hue-rotate(var(--wall-hue-shift)) saturate(var(--wall-saturate)) brightness(var(--wall-energy-brightness));
+  opacity: 0;
+}
+
+/* Layer 2 -- upper crack cluster breathing. A soft static mask limits the
+   flare to the wall's upper joint region; only opacity animates. */
+.app-main::after {
+  -webkit-mask-image: radial-gradient(ellipse 60% 34% at 52% 22%, #fff 0%, transparent 78%);
+  mask-image: radial-gradient(ellipse 60% 34% at 52% 22%, #fff 0%, transparent 78%);
+  animation: wall-crack-breathe-a 11s ease-in-out infinite;
+}
+/* Layer 3 -- lower fork breathing, on its own uneven rhythm and phase so
+   the two regions never pulse together. */
+.content-area::after {
+  -webkit-mask-image: radial-gradient(ellipse 62% 36% at 50% 76%, #fff 0%, transparent 78%);
+  mask-image: radial-gradient(ellipse 62% 36% at 50% 76%, #fff 0%, transparent 78%);
+  animation: wall-crack-breathe-b 8s ease-in-out infinite 2.5s;
+}
+@keyframes wall-crack-breathe-a {
+  0%, 100% { opacity: 0.06; }
+  32% { opacity: 0.75; }
+  58% { opacity: 0.25; }
+  80% { opacity: 0.85; }
+}
+@keyframes wall-crack-breathe-b {
+  0%, 100% { opacity: 0.1; }
+  38% { opacity: 0.8; }
+  62% { opacity: 0.3; }
+  84% { opacity: 0.7; }
+}
+/* ליווי אישי (personalGuidance) only -- same two layers, same durations
+   (only animation-name is overridden below, so timing-function/iteration-
+   count/delay still come from the base .app-main::after/.content-area::after
+   rule), but with a few extra brief stops added into each curve: short
+   dips/bumps a couple of percent wide read as tiny sparks and flickers
+   catching inside the stone rather than one smooth pulse. Still opacity-
+   only (no new layer, no extra paint cost) and still governed by the
+   shared prefers-reduced-motion rule below, which turns animation off
+   for every section including this one. */
+@keyframes wall-crack-breathe-a-personalGuidance {
+  0%, 100% { opacity: 0.06; }
+  14% { opacity: 0.48; }
+  17% { opacity: 0.22; }
+  32% { opacity: 0.75; }
+  45% { opacity: 0.66; }
+  47% { opacity: 0.9; }
+  58% { opacity: 0.25; }
+  80% { opacity: 0.85; }
+}
+@keyframes wall-crack-breathe-b-personalGuidance {
+  0%, 100% { opacity: 0.1; }
+  20% { opacity: 0.55; }
+  23% { opacity: 0.24; }
+  38% { opacity: 0.8; }
+  62% { opacity: 0.3; }
+  70% { opacity: 0.44; }
+  72% { opacity: 0.2; }
+  84% { opacity: 0.7; }
+}
+.app-main[data-active-section="personalGuidance"]::after {
+  animation-name: wall-crack-breathe-a-personalGuidance;
+}
+.app-main[data-active-section="personalGuidance"] .content-area::after {
+  animation-name: wall-crack-breathe-b-personalGuidance;
+}
+
+/* Layer 4 -- a tiny light trail that runs ALONG the seams: a small soft
+   mask window travels down the image's central crack column, so only the
+   crack pixels passing under it ignite and fade behind it. Because the
+   layer is the registered wall image itself, the trail is physically
+   incapable of lighting anything but the seams -- it reads as energy
+   flowing through the wall, not a spot moving on the screen. */
+.content-area::before {
+  -webkit-mask-image: radial-gradient(circle 150px, #fff 0%, transparent 72%);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: 340px 340px;
+  mask-image: radial-gradient(circle 150px, #fff 0%, transparent 72%);
+  mask-repeat: no-repeat;
+  mask-size: 340px 340px;
+  animation: wall-crack-trail 19s ease-in-out infinite;
+}
+@keyframes wall-crack-trail {
+  0% { -webkit-mask-position: 52% 2%; mask-position: 52% 2%; opacity: 0; }
+  12% { opacity: 0.9; }
+  30% { -webkit-mask-position: 43% 30%; mask-position: 43% 30%; opacity: 0.55; }
+  52% { -webkit-mask-position: 50% 54%; mask-position: 50% 54%; opacity: 0.9; }
+  74% { -webkit-mask-position: 45% 76%; mask-position: 45% 76%; opacity: 0.5; }
+  92% { opacity: 0.75; }
+  100% { -webkit-mask-position: 55% 97%; mask-position: 55% 97%; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-main::after,
+  .content-area::after { animation: none; opacity: 0.35; }
+  .content-area::before { animation: none; opacity: 0; }
+}
+
+/* ליווי אישי (personalGuidance) -- the user supplied this exact wall
+   photo (a dark stone wall with its own baked-in ruby-red glowing cracks
+   and small faceted diamonds) and asked for THIS picture as the section's
+   background, not the shared stone-wall-bg.jpg recoloured to match --
+   every other section reuses one neutral wall image and re-tints it via
+   --wall-hue-shift, but here the colour is already correct in the source
+   photo itself, so all four layers below point at this asset instead and
+   drop the hue-rotate entirely (rotating an already-red photo by 127deg
+   would push it toward green). Same fixed/cover geometry, same screen-
+   blend/mask/opacity-breathing mechanism as every other section -- only
+   the image and the mask positions (re-aimed at THIS photo's own real
+   diamonds/cracks, not the shared image's) are different. Portrait source
+   (1023x1537): background-position shifts the cover-crop left instead of
+   centring it, since the photo's own diamonds sit in its left third. */
+.app-main[data-active-section="personalGuidance"]::before {
+  background:
+    linear-gradient(180deg, rgba(4, 6, 11, 0.4) 0%, rgba(4, 6, 11, 0.24) 38%, rgba(4, 6, 11, 0.5) 100%),
+    url("../assets/personalGuidance-wall-bg.png") 20% center / cover no-repeat,
+    var(--obsidian);
+  filter: brightness(0.55);
+}
+.app-main[data-active-section="personalGuidance"]::after,
+.app-main[data-active-section="personalGuidance"] .content-area::before,
+.app-main[data-active-section="personalGuidance"] .content-area::after {
+  background: url("../assets/personalGuidance-wall-bg.png") 20% center / cover no-repeat;
+  filter: saturate(1.1) brightness(0.8);
+}
+/* Upper breathing layer re-aimed at the photo's own large upper-left
+   diamond (real crop coordinates measured against the same 20%/center
+   cover-position used above), replacing the shared image's generic upper-
+   joint mask. */
+.app-main[data-active-section="personalGuidance"]::after {
+  -webkit-mask-image: radial-gradient(ellipse 42% 26% at 22% 32%, #fff 0%, transparent 78%);
+  mask-image: radial-gradient(ellipse 42% 26% at 22% 32%, #fff 0%, transparent 78%);
+}
+/* Lower breathing layer re-aimed at the photo's own lower-left diamond. */
+.app-main[data-active-section="personalGuidance"] .content-area::after {
+  -webkit-mask-image: radial-gradient(ellipse 44% 28% at 28% 82%, #fff 0%, transparent 78%);
+  mask-image: radial-gradient(ellipse 44% 28% at 28% 82%, #fff 0%, transparent 78%);
+}
+/* Trail layer keeps the same travelling-light path (it already runs
+   roughly along this photo's own central vertical seam too). */
+
 @media (min-width: 901px) {
   body.sidebar-open .app-main { margin-right: 280px; }
 }
@@ -31,6 +316,11 @@ body::before {
   right: 0;
   width: 280px;
   height: 100vh;
+  /* Same dynamic-viewport fix as .app-main above -- a `position:fixed`
+     sidebar sized to the static 100vh is exactly the kind of element that
+     leaves a gap (white strip) at the true bottom of the screen once the
+     mobile browser's own toolbar is accounted for. */
+  height: 100dvh;
   background: var(--panel-solid);
   border-left: 1px solid var(--border-gold-soft);
   display: flex;
@@ -51,46 +341,1631 @@ body.sidebar-open .sidebar { transform: translateX(0); }
   text-decoration: none;
 }
 .sidebar-logo {
+  position: relative;
   width: 38px;
   height: 38px;
   border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 14px rgba(56, 224, 214, 0.4), 0 0 3px rgba(170, 245, 238, 0.5);
+}
+.sidebar-logo-img {
+  position: absolute;
+  z-index: 1;
+  inset: 2px;
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-gold);
+  display: block;
+  background: var(--obsidian, #050405);
+}
+/* The light source sits BEHIND the image (z-index 0) and is masked to a
+   thin ring, so only the glow bleeding past the image's edge is visible --
+   never the point itself. It reads as radiance travelling the rim. */
+.sidebar-logo-ring {
+  position: absolute;
+  z-index: 0;
+  inset: -5px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(from 0deg,
+    transparent 0%, transparent 74%,
+    rgba(56, 224, 214, 0.85) 85%,
+    rgba(205, 255, 250, 1) 90%,
+    rgba(56, 224, 214, 0.85) 95%,
+    transparent 100%);
+  filter: blur(3.5px);
+  animation: sidebar-logo-orbit 7s linear infinite;
+}
+@keyframes sidebar-logo-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-logo-ring { animation: none; }
+}
+.sidebar-title { font-size: 20px; }
+
+/* מהישרדות לחופש -- brand-chrome recolour, precise to the diamond's own
+   sampled hue (186.4°, see nav-item::before below), while still keeping
+   every element that shares a class/base-colour with something else
+   consistent with THAT thing specifically (not one single number forced
+   onto every different starting colour -- that was tried and made things
+   LESS accurate, since -26/-34-style deltas calibrated for the ~212°
+   crystal-blue family badly overshoot a colour that already starts near
+   186°, like this glow or .gold-title below).
+
+   sidebar-logo's ring/glow base (rgba(56,224,214) etc., ~176° hue) is a
+   flat, known set of colours, not a photo or a many-coloured subtree --
+   so instead of an approximate hue-rotate() filter, these are the EXACT
+   HSL replacements (same saturation/lightness, hue swapped to precisely
+   186.4°). No filter, no counter-rotation needed: the portrait photo
+   below is untouched by construction, since only these specific
+   box-shadow/gradient colour values change. */
+body[data-active-section="survivalToFreedom"] .sidebar-logo {
+  box-shadow: 0 0 14px rgba(56, 206, 224, 0.4), 0 0 3px rgba(170, 237, 245, 0.5);
+}
+body[data-active-section="survivalToFreedom"] .sidebar-logo-ring {
+  background: conic-gradient(from 0deg,
+    transparent 0%, transparent 74%,
+    rgba(56, 206, 224, 0.85) 85%,
+    rgba(205, 250, 255, 1) 90%,
+    rgba(56, 206, 224, 0.85) 95%,
+    transparent 100%);
+}
+/* .gold-title's own precise compromise: its 6 gradient stops each need a
+   slightly different delta to land exactly on 186.4° (computed by running
+   every stop through the real CSS hue-rotate matrix, then picking the
+   saturation-weighted delta that lands all of them closest to it at
+   once) -- -2deg is that compromise. Applies equally to the sidebar
+   title AND (via the matching counter-rotation on .admin-page .gold-title
+   below) the in-page section heading, so both stay pixel-identical. */
+body[data-active-section="survivalToFreedom"] .sidebar-title.gold-title {
+  filter: hue-rotate(-2deg)
+    drop-shadow(0 0 10px rgba(70, 210, 255, 0.3))
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+
+/* הכספת (vault) -- same precision method, calibrated to the vault
+   diamond's own sampled hue (216.35°). sidebar-logo's box-shadow default
+   is actually rgba(56,216,208,0.12) (a later rule further down this file
+   wins the cascade over the two-shadow value declared next to
+   .sidebar-logo above) -- the HSL substitute below is computed from THAT
+   true rendered colour (H=177.0°, S=67.2%, L=53.3%), not the shadowed-out
+   one, so it lands exactly on target. */
+body[data-active-section="vault"] .sidebar-logo {
+  box-shadow: 0 0 18px rgba(56, 119, 216, 0.12);
+}
+body[data-active-section="vault"] .sidebar-logo-ring {
+  background: conic-gradient(from 0deg,
+    transparent 0%, transparent 74%,
+    rgba(56, 122, 224, 0.85) 85%,
+    rgba(205, 225, 255, 1) 90%,
+    rgba(56, 122, 224, 0.85) 95%,
+    transparent 100%);
+}
+/* .gold-title's crystalline-body gradient, EXACTLY recoloured (each of
+   the 6 stops individually HSL-substituted to precisely 216.35°, same
+   saturation/lightness as the original -- not a single compromise
+   hue-rotate() delta). A single delta unavoidably drifts some stops
+   further from the target than others (the compromise here landed the
+   most saturated stops 5-11° past 216.35°, which reads as visibly more
+   blue/violet than the diamond -- exactly the mismatch flagged). Direct
+   substitution has zero such drift: copied verbatim from .gold-title in
+   theme.css, only the crystalline-body gradient's 6 hex stops changed --
+   the moving dark-band sweep gradient is untouched (already neutral). */
+body[data-active-section="vault"] .sidebar-title.gold-title {
+  background-image:
+    linear-gradient(58deg,
+      transparent 0%, transparent 12%,
+      rgba(2, 12, 24, 0.5) 27%,
+      transparent 42%, transparent 62%,
+      rgba(3, 14, 27, 0.44) 77%,
+      transparent 92%, transparent 100%),
+    linear-gradient(150deg,
+      #e2edff 0%,
+      #6ca3f7 20%,
+      #2a72e0 44%,
+      #1762d6 60%,
+      #4f8ff2 80%,
+      #8fbbff 100%);
+  filter: drop-shadow(0 0 10px rgba(70, 210, 255, 0.3)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+/* האזור האישי (me) -- same method, target 202.3°. Same true-rendered-
+   colour caveat as vault above applies to the box-shadow base. */
+body[data-active-section="me"] .sidebar-logo {
+  box-shadow: 0 0 18px rgba(56, 157, 216, 0.12);
+}
+body[data-active-section="me"] .sidebar-logo-ring {
+  background: conic-gradient(from 0deg,
+    transparent 0%, transparent 74%,
+    rgba(56, 162, 224, 0.85) 85%,
+    rgba(205, 236, 255, 1) 90%,
+    rgba(56, 162, 224, 0.85) 95%,
+    transparent 100%);
+}
+/* .gold-title's crystalline body, EXACTLY recoloured per-stop (point 8.5
+   of the method -- upgraded from an earlier hue-rotate(24.6deg)
+   compromise, which drifted some stops several degrees off target). */
+body[data-active-section="me"] .sidebar-title.gold-title {
+  background-image:
+    linear-gradient(58deg,
+      transparent 0%, transparent 12%,
+      rgba(2, 12, 24, 0.5) 27%,
+      transparent 42%, transparent 62%,
+      rgba(3, 14, 27, 0.44) 77%,
+      transparent 92%, transparent 100%),
+    linear-gradient(150deg,
+      #e2f4ff 0%,
+      #6cc3f7 20%,
+      #2a9ce0 44%,
+      #178fd6 60%,
+      #4fb5f2 80%,
+      #8fd5ff 100%);
+  filter: drop-shadow(0 0 10px rgba(70, 210, 255, 0.3)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+/* ג'אוריוס AI (jauriusBot) -- same method, target 334.3° (magenta/pink).
+   Same true-rendered-colour caveat as vault above applies to the
+   box-shadow base. */
+body[data-active-section="jauriusBot"] .sidebar-logo {
+  box-shadow: 0 0 18px rgba(216, 56, 125, 0.09);
+}
+body[data-active-section="jauriusBot"] .sidebar-logo-ring {
+  background: conic-gradient(from 0deg,
+    transparent 0%, transparent 74%,
+    rgba(224, 56, 128, 0.55) 85%,
+    rgba(255, 205, 226, 0.75) 90%,
+    rgba(224, 56, 128, 0.55) 95%,
+    transparent 100%);
+}
+/* .gold-title's crystalline body, EXACTLY recoloured per-stop (point 8.5
+   of the method -- a single compromise delta drifts badly at this large
+   a shift, 122° away from crystal-blue, so each of the 6 stops is
+   individually HSL-substituted to precisely 334.3° instead). */
+body[data-active-section="jauriusBot"] .sidebar-title.gold-title {
+  background-image:
+    linear-gradient(58deg,
+      transparent 0%, transparent 12%,
+      rgba(2, 12, 24, 0.5) 27%,
+      transparent 42%, transparent 62%,
+      rgba(3, 14, 27, 0.44) 77%,
+      transparent 92%, transparent 100%),
+    linear-gradient(150deg,
+      #ffe2ee 0%,
+      #f76ca8 20%,
+      #e02a78 44%,
+      #d61769 60%,
+      #f24f95 80%,
+      #ff8fbf 100%);
+  filter: brightness(0.86) drop-shadow(0 0 10px rgba(70, 210, 255, 0.3)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+/* ליווי אישי (personalGuidance) -- same method, target 347.29° (deep
+   ruby/crimson). Same true-rendered-colour caveat as vault above applies
+   to the box-shadow base. */
+body[data-active-section="personalGuidance"] .sidebar-logo {
+  box-shadow: 0 0 18px rgba(216, 56, 90, 0.12);
+}
+body[data-active-section="personalGuidance"] .sidebar-logo-ring {
+  background: conic-gradient(from 0deg,
+    transparent 0%, transparent 74%,
+    rgba(224, 56, 92, 0.85) 85%,
+    rgba(255, 205, 216, 1) 90%,
+    rgba(224, 56, 92, 0.85) 95%,
+    transparent 100%);
+}
+/* .gold-title's crystalline body, EXACTLY recoloured per-stop (point 8.5
+   of the method -- this large a shift needs each of the 6 stops
+   individually HSL-substituted to precisely 347.29°, same as jauriusBot
+   above). Brightness toned down to match this section's own ambient
+   --wall-energy-brightness/content filter treatment (saturated red reads
+   louder than blue at the same value). */
+body[data-active-section="personalGuidance"] .sidebar-title.gold-title {
+  background-image:
+    linear-gradient(58deg,
+      transparent 0%, transparent 12%,
+      rgba(2, 12, 24, 0.5) 27%,
+      transparent 42%, transparent 62%,
+      rgba(3, 14, 27, 0.44) 77%,
+      transparent 92%, transparent 100%),
+    linear-gradient(150deg,
+      #ffe2e8 0%,
+      #f76c89 20%,
+      #e02a51 44%,
+      #d6173f 60%,
+      #f24f72 80%,
+      #ff8fa7 100%);
+  filter: brightness(0.88) drop-shadow(0 0 10px rgba(70, 210, 255, 0.3)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+
+/* Divider under the brand header -- bright, crystalline */
+.sidebar-divider {
+  height: 1px;
+  margin: 0 20px;
+  background: linear-gradient(90deg, transparent, var(--border-gold), transparent);
+}
+/* Softer divider between the personal area and the section list */
+.sidebar-divider-muted {
+  height: 1px;
+  margin: 2px 20px;
+  background: linear-gradient(90deg, transparent, rgba(150, 165, 185, 0.22), transparent);
+}
+
+/* Scrolls as one unit: the personal-area row, the muted divider, and the
+   section list all share this single scroll container (moved here from
+   .sidebar-nav) specifically so they share the exact same available width
+   and the exact same (non-flex, block) sizing context -- overflow-y:auto
+   reserves scrollbar-gutter space that shrinks a container's content
+   width, and a diamond's aspect-ratio box resolves inconsistently when
+   nested two flex levels deep vs. one. Keeping both .personal-nav-item and
+   .sidebar-nav's items as plain block children of one shared, non-flex
+   scroll container is what makes their rendered width AND height match
+   exactly, regardless of section-list length or nesting. */
+.sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  /* Tufted obsidian-leather backdrop lives only behind the personal area
+     + section list (not the brand header above or the footer below).
+     background-attachment defaults to "scroll", which for a box that is
+     itself the scrolling element means the image stays fixed to this box
+     and does not move with the nav list scrolling inside it. Sized to the
+     container's own width (not `cover`) so the image's own side edges are
+     always kept in full -- only the top/bottom crop if the box runs
+     taller than the scaled image, never the sides. */
+  background:
+    linear-gradient(180deg, rgba(4, 6, 11, 0.62) 0%, rgba(4, 6, 11, 0.78) 100%),
+    url("../assets/sidebar-panel-bg.jpg") center top / 100% auto no-repeat,
+    var(--panel-solid);
+}
+
+.personal-nav-item { margin: 0 12px 4px; }
+.personal-area-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle, rgba(99, 171, 255, 0.15), transparent 70%);
-  border: 1px solid var(--border-gold);
-  color: var(--gold-light);
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
 }
-.sidebar-logo svg { width: 20px; height: 20px; }
-.sidebar-title { font-size: 20px; }
-
-.sidebar-nav {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+/* Small + black & white: the same glowing mask used in colour next to the
+   personal page's own heading (see .personal-page-icon), grayscaled here
+   so it reads as a quiet monochrome nav icon rather than competing with
+   the diamond/greeting text. */
+.personal-area-icon-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  filter: grayscale(1);
+  /* The source PNG's visible mask sits slightly above center within its
+     own square canvas -- nudge it back down so it optically lines up with
+     the "שלום" text beside it instead of reading as floating a bit high. */
+  transform: translateY(1px);
 }
-.nav-item {
+
+/* Personal page (routed at '#/' and '#/me') */
+.personal-page .panel-card { margin-bottom: 18px; }
+.personal-block-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--gold-light);
+}
+.personal-progress-line { margin: 0; font-size: 13px; color: var(--text-muted); }
+
+/* Master's own quick indicator, deliberately just a line of text above
+   the heading -- not a card, not a metric block, nothing that competes
+   with "שלום ג'אוריוס האגדי" for attention. */
+.personal-mini-stats {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.personal-metrics { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+.metric-card {
+  flex: 1;
+  min-width: 160px;
+  padding: 18px 20px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  text-align: center;
+}
+.metric-value { display: block; font-size: 26px; font-weight: 700; color: var(--gold-light); font-family: var(--font-serif); }
+.metric-label { display: block; margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+
+/* ============================================================
+   Personal area (student) -- תיק אישי + לוח מודעות ועדכונים +
+   צידה לדרך והכלים שלי. See js/pages/personalArea.js.
+   ============================================================ */
+
+/* Top row: just the small "לוח מודעות ועדכונים" button, right-aligned
+   (flex-start lands on the right under dir=rtl). */
+.personal-topbar {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+/* "המשך צפייה" -- a continue-watching CARD (thumbnail + title + resume
+   link), not a percentage bar: there's no real video player wired in yet
+   to track an actual watched position (see resumeBannerHTML's own note),
+   so this deliberately never claims a specific % watched. Full page
+   width, but very low/fixed height -- a thin strip, not a block that
+   costs vertical space -- sitting between the board button and the
+   notebook. */
+.personal-resume-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 46px;
+  padding: 0 10px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, rgba(99, 171, 255, 0.12), rgba(99, 171, 255, 0.02));
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.personal-resume-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  text-decoration: none;
+  color: var(--text-main);
+}
+.personal-resume-thumb {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid var(--border-gold-soft);
+  background: linear-gradient(160deg, #1a2740 0%, #0e1728 100%);
+  color: var(--gold-light);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.personal-resume-text { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 1.3; }
+.personal-resume-label { font-size: 10px; color: var(--gold-light); }
+.personal-resume-title {
+  font-size: 12.5px;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.personal-resume-dismiss {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border-gold-soft);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+.personal-resume-dismiss:hover { border-color: var(--border-gold); color: var(--gold-light); }
+
+/* "המשך צפייה" takes the accent colour of the SECTION the lesson came
+   from (item 10) -- vault/ליווי אישי share the app's default crystal-blue
+   everywhere else already (see .nav-item[data-id="personalGuidance"]'s own
+   --diamond-active-filter: none, same as vault), so only מהישרדות לחופש
+   needs an explicit override here, matching that section's own cyan/
+   turquoise (sampled from its .lesson-tab-title gradient in this same
+   file). Scoped to data-section (set in resumeBannerHTML) rather than the
+   page's own ambient --content-hue-shift mechanism, since this banner can
+   reference a DIFFERENT section's colour than whichever page it's sitting
+   on. */
+.personal-resume-banner[data-section="survivalToFreedom"] {
+  border-color: rgba(23, 171, 214, 0.35);
+  background: linear-gradient(90deg, rgba(23, 171, 214, 0.16), rgba(23, 171, 214, 0.03));
+}
+.personal-resume-banner[data-section="survivalToFreedom"] .personal-resume-thumb {
+  border-color: rgba(23, 171, 214, 0.4);
+  color: #6cecf7;
+}
+.personal-resume-banner[data-section="survivalToFreedom"] .personal-resume-label { color: #6cecf7; }
+.personal-resume-banner[data-section="survivalToFreedom"] .personal-resume-dismiss:hover {
+  border-color: rgba(23, 171, 214, 0.5);
+  color: #6cecf7;
+}
+
+.notebook-block-title { margin-bottom: 10px; }
+
+/* Same premium obsidian-with-a-crystal-core material as .admin-manage-link
+   (the master's "ניהול מערכת ומשתמשים" button) -- a real pressable button,
+   not a quiet pill, at a scale matching its own placement in the topbar.
+   .personal-badge (the unseen-count dot) is untouched below. */
+.personal-board-btn {
+  position: relative;
+  padding: 9px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(99, 171, 255, 0.4);
+  background: linear-gradient(180deg, #1a2740 0%, #0e1728 55%, #080d17 100%);
+  color: var(--crystal-ice);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(214, 236, 255, 0.14),
+    inset 0 0 14px rgba(70, 150, 255, 0.12);
+  text-shadow: 0 0 10px rgba(120, 195, 255, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.3s ease, border-color 0.3s ease, color 0.2s ease;
+}
+.personal-board-btn:hover {
+  border-color: rgba(130, 195, 255, 0.65);
+  color: var(--white-glow, #fff);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(214, 236, 255, 0.18),
+    inset 0 0 20px rgba(70, 150, 255, 0.22);
+}
+.personal-board-btn:active { transform: translateY(1px) scale(0.98); }
+.personal-badge {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #e0433f;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #050405;
+}
+
+/* Small popup shared by "לוח מודעות ועדכונים" and "צידה לדרך + הכלים
+   שלי" -- same overlay language as the lesson-description popup
+   (.desc-modal-overlay), just with a header (title + ✕) and a
+   scrollable body instead of one centred paragraph. */
+.personal-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.personal-modal-overlay[hidden] { display: none; }
+.personal-modal-card {
+  max-width: 480px;
+  width: 100%;
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 22px 18px;
+}
+.personal-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-shrink: 0; }
+.personal-modal-header .personal-block-title { margin: 0; }
+.personal-modal-close {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border-gold-soft);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+.personal-modal-close:hover { border-color: var(--border-gold); color: var(--gold-light); }
+.personal-modal-body { overflow-y: auto; }
+
+/* Minimal "?" help layer (see js/helpTip.js) -- deliberately the quietest
+   possible mark: tiny, low opacity, no glow, no animation, plain theme
+   tokens (so it automatically picks up each section's own --content-hue-
+   shift ambient recolour like every other themed element, with zero
+   per-section CSS of its own). Meant to be almost unnoticed until someone
+   actually looks for it. */
+.help-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-gold-soft);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 9.5px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.help-tip:hover { opacity: 0.95; border-color: var(--border-gold); color: var(--gold-light); }
+
+/* The one JS-positioned exception (the mobile sidebar-peek's own help
+   mark, set from dashboard.js's updatePeek() since the peek itself has no
+   static markup this could sit next to declaratively) -- same mark, just
+   pinned to the viewport instead of flowing inline. Stays the default
+   crystal-blue rather than chasing each section's own diamond hue: it
+   lives outside .app-main entirely (the sidebar chrome, not page content),
+   so none of the existing per-section colour machinery reaches it anyway. */
+.help-tip-peek {
+  position: fixed;
+  z-index: 45;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+.help-tip-peek:hover { opacity: 1; }
+
+/* Thin wrapper pairing an existing label/button/heading with its own "?"
+   right beside it, without altering that element's own layout/spacing --
+   used at every inline call site (board button, journal heading, trail
+   button, wheel-drawer title, per-lesson trail heading, topic-filter
+   label). */
+.personal-help-row { display: inline-flex; align-items: center; gap: 6px; }
+
+.help-tip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.help-tip-bubble {
+  max-width: 300px;
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-gold);
+  background: var(--panel-solid);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  animation: rise 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.help-tip-text {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-main);
+  text-align: right;
+}
+.help-tip-actions { display: flex; gap: 8px; justify-content: flex-start; }
+.help-tip-close,
+.help-tip-dismiss {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-gold-soft);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+.help-tip-close:hover,
+.help-tip-dismiss:hover { border-color: var(--border-gold); color: var(--gold-light); }
+
+/* תיק אישי -- the notebook, the CENTRAL block of the personal area. Faint
+   ruled-paper lines instead of a flat panel fill; entries flow directly on
+   the page (no per-entry card), so it reads as one living writing surface
+   -- widened/heightened (52vh, up from 46vh) and given a touch more depth
+   (a soft corner glow layered under the ruled lines) so it visibly reads
+   as the page's dominant element now that the daily-wheel sits beside it,
+   without turning it into a heavier "card" look. */
+.personal-notebook {
+  position: relative;
+  min-height: 52vh;
+  padding: 24px 26px 22px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-lg);
+  background:
+    repeating-linear-gradient(180deg, transparent 0px, transparent 30px, rgba(99, 171, 255, 0.055) 31px),
+    radial-gradient(circle at 100% 0%, rgba(120, 190, 255, 0.05), transparent 55%),
+    linear-gradient(180deg, rgba(16, 22, 34, 0.5), rgba(8, 12, 20, 0.68));
+  margin-bottom: 16px;
+}
+/* Journal header: heading (right) + "צידה לדרך + הכלים שלי" (left) share
+   one row, then a thin divider starts the journal area proper -- reads as
+   one deliberate section instead of blocks landing separately on the
+   page. Heading nudged off the hard edge (small inline-end padding) and
+   given slightly more presence than the plain personal-block-title
+   default. */
+.personal-notebook-block { display: flex; flex-direction: column; }
+.personal-notebook-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding: 12px 14px;
+  padding-inline-end: 6px;
+}
+.personal-notebook-header .notebook-block-title {
+  margin: 0;
+  padding-inline-end: 4px;
+  font-size: 17px;
+}
+/* "צידה לדרך + הכלים שלי" now sits on its own row below the divider,
+   under the journal heading, instead of sharing the heading's row --
+   clearer hierarchy: heading -> divider -> trail-tools row -> the
+   journal itself. */
+.personal-notebook-subrow { margin-bottom: 14px; }
+.personal-notebook-divider {
+  height: 1px;
+  margin: 10px 0 16px;
+  background: linear-gradient(90deg, var(--border-gold) 0%, var(--border-gold-soft) 60%, transparent 100%);
+}
+.notebook-topline { text-align: right; margin-bottom: 10px; }
+.notebook-date { font-size: 11.5px; color: var(--text-dim); font-style: italic; }
+/* Compose: a small, clear block of its own (item 14) -- bounded card, not
+   just an underline floating on the page, but still light (no heading of
+   its own; the placeholder inside the field is the only label). */
+.notebook-compose {
+  position: relative;
+  margin-bottom: 18px;
+  padding: 14px 40px 14px 14px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  background: rgba(99, 171, 255, 0.03);
+}
+.notebook-textarea {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.7;
+  resize: vertical;
+  padding: 0;
+  outline: none;
+}
+.notebook-textarea::placeholder { color: var(--text-dim); }
+.notebook-save-btn {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border-gold-soft);
+  background: rgba(99, 171, 255, 0.08);
+  color: var(--gold-light);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+.notebook-save-btn:hover { border-color: var(--border-gold); background: rgba(99, 171, 255, 0.18); }
+.notebook-save-btn:active { transform: scale(0.9); }
+
+/* Entries: a dark, near-solid notebook page -- thin horizontal ruled
+   lines, and one continuous vertical margin line down the right side
+   (::before), matching a real ruled ledger: time sits to the line's
+   right, the entry's own text to its left. Individual entries stay a
+   light dashed separator, never a heavy boxed card. */
+.notebook-entries {
+  position: relative;
+  min-height: 160px;
+  flex: 1;
+  padding: 6px 18px 6px 0;
+  border-radius: var(--radius-md);
+  background:
+    repeating-linear-gradient(180deg, transparent 0px, transparent 35px, rgba(210, 225, 245, 0.07) 36px),
+    linear-gradient(180deg, #0a0d13 0%, #050608 100%);
+}
+.notebook-entries::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 62px;
+  width: 1px;
+  background: rgba(210, 225, 245, 0.16);
+}
+.notebook-entry-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 14px;
+  border-bottom: 1px dashed rgba(210, 225, 245, 0.08);
+}
+.notebook-entry-row:last-child { border-bottom: none; }
+.notebook-entry-time {
+  flex: 0 0 50px;
+  padding-top: 1px;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  white-space: pre-line;
+}
+.notebook-entry-body { flex: 1; min-width: 0; }
+.notebook-entry-text { margin: 0 0 4px; font-size: 13.5px; line-height: 1.65; color: var(--text-main); white-space: pre-wrap; }
+/* Master entries: a quiet accent, not a card -- a thin coloured edge and
+   a small tag, still flowing with everything else on the page. */
+.notebook-entry-row.notebook-entry-master { background: rgba(99, 171, 255, 0.05); }
+.notebook-entry-row.notebook-entry-master .notebook-entry-body { border-inline-start: 2px solid var(--gold-light); padding-inline-start: 10px; }
+.notebook-entry-tag {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-gold-soft);
+  color: var(--gold-light);
+  font-size: 10.5px;
+}
+.notebook-entry-title { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-main); margin-bottom: 2px; }
+.notebook-entry-master .focus-attachment-link,
+.notebook-entry-master .focus-done-btn,
+.notebook-entry-master .focus-task-done { margin: 6px 0 4px; }
+.notebook-empty { text-align: center; color: var(--text-dim); font-size: 13px; padding: 30px 10px; }
+
+/* "צידה לדרך + הכלים שלי" -- its own character, deliberately not the same
+   solid obsidian-button material as "לוח מודעות ועדכונים": a translucent
+   icy-crystal ghost pill (soft cyan-white fill/glow) instead of a dark
+   filled button, so the two read as related but distinct, both still
+   small/clean/premium. */
+.personal-trail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(140, 200, 255, 0.4);
+  background: linear-gradient(160deg, rgba(180, 220, 255, 0.1) 0%, rgba(90, 167, 255, 0.05) 100%);
+  color: var(--crystal-ice);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 14px rgba(120, 195, 255, 0.08);
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.3s ease, transform 0.15s ease;
+}
+.personal-trail-btn:hover { border-color: rgba(180, 220, 255, 0.65); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 0 20px rgba(120, 195, 255, 0.16); }
+.personal-trail-btn:active { transform: scale(0.97); }
+
+/* "דיוק יומי" -- the daily-wheel widget used to sit in its own column
+   beside the notebook, crowding the main content. It now lives in its own
+   left-side drawer (see .wheel-tab/.wheel-drawer-* below, mirrored off the
+   main nav sidebar's own fixed/overlay/transform mechanism on the RIGHT --
+   same weight/easing language, opposite edge, scoped to this page only),
+   so the notebook renders directly under the board with nothing beside or
+   between them. */
+
+/* Closed state: a small pull-tab fixed to the left edge, showing the same
+   live lock countdown the widget itself already computes (mountDailyWheel's
+   onLockChange hook in personalArea.js just mirrors it here -- the 24h
+   lock logic itself never changes). Sits low enough to clear the top
+   heading on mobile, high enough to stay reachable with a thumb. */
+.wheel-tab {
+  position: fixed;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  z-index: 47;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px 12px 6px;
+  border: 1px solid rgba(140, 200, 255, 0.35);
+  border-left: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: linear-gradient(160deg, var(--obsidian-raised) 0%, var(--obsidian) 100%);
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(230, 244, 255, 0.1);
+  cursor: pointer;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.wheel-tab:hover { box-shadow: 6px 0 26px rgba(0, 0, 0, 0.55), inset 0 0 14px rgba(90, 150, 255, 0.15); }
+.wheel-tab-mark {
+  font-size: 13px;
+  background: linear-gradient(160deg, #ffffff 0%, #d8ecff 28%, #8fd0ff 56%, #4a8fd6 80%, #1d4e9e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 0 8px rgba(140, 200, 255, 0.5));
+  animation: daily-wheel-breathe 3.4s ease-in-out infinite;
+}
+.wheel-tab-timer {
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  color: var(--crystal-ice);
+  text-shadow: 0 0 8px rgba(120, 195, 255, 0.35);
+  white-space: nowrap;
+}
+
+/* Dimming layer -- a single flat rgba(0,0,0,0.5) rectangle covering the
+   whole viewport, painted AFTER (so visually above) every other element on
+   this page in source order: the wall background, the board, the
+   notebook, every button and every line of text all sit underneath it and
+   read as darkened/muted as one unit, exactly like the main sidebar's own
+   .sidebar-overlay -- not a per-element opacity change. */
+.wheel-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 46;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.wheel-drawer-root.is-open .wheel-drawer-overlay { opacity: 1; pointer-events: auto; }
+.wheel-drawer-root.is-open .wheel-tab { transform: translateY(-50%) translateX(-4px); }
+
+/* The drawer itself -- fixed to the left edge, off-screen by default, the
+   same weighted ease-out-expo settle (never a bounce/snap) the main nav
+   sidebar's own transform transition already uses, just sliding from the
+   opposite side. Overlays the page rather than pushing it -- .content-area
+   never resizes/shifts when this opens. */
+.wheel-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 320px;
+  max-width: 86vw;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 48;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 20px;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  transform: translateX(-100%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 10px 0 40px rgba(0, 0, 0, 0.5);
+}
+.wheel-drawer.is-dragging { transition: none; }
+.wheel-drawer-root.is-open .wheel-drawer { transform: translateX(0); }
+.wheel-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+/* Same premium "gold-title" crystalline-gradient treatment every other
+   heading in the app already uses -- deliberately not a plain h2, per the
+   "לא כותרת רגילה ופשוטה" requirement. */
+.wheel-drawer-title { font-size: 20px; margin: 0; }
+.wheel-drawer-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.wheel-drawer-body .daily-wheel { width: 100%; box-sizing: border-box; }
+
+/* Small, quiet drag-hint chevrons (mobile only, see media query below) --
+   a subtle cue that the panel can be swiped shut, not a control itself. */
+.wheel-drawer-swipe-hint {
+  display: none;
+  align-self: center;
+  gap: 3px;
+  margin-bottom: 14px;
+  opacity: 0.4;
+}
+.wheel-drawer-swipe-hint span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--crystal-ice);
+}
+
+@media (max-width: 900px) {
+  .wheel-drawer { width: 84vw; max-width: 360px; }
+  .wheel-drawer-swipe-hint { display: flex; }
+}
+
+/* The daily-wheel widget itself: a small, dark crystal capsule -- a glass
+   reel window + a pull-handle on its right (RTL: first child in the row
+   below lands on the right), no label, understood by shape alone. Colour
+   is deliberately layered (near-white/silver highlight + ice-blue + deep
+   sapphire), not one flat theme-blue fill, so it reads as a faceted
+   crystal object rather than a plain themed button. Rest state shows a
+   slow-breathing diamond mark; spinning cycles sentence text quickly then
+   settles; revealed keeps that sentence visible until the next spin
+   unlocks. */
+.daily-wheel {
+  padding: 16px 13px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(205, 228, 255, 0.32);
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.07) 0%, transparent 26%),
+    linear-gradient(205deg, rgba(140, 200, 255, 0.09) 0%, transparent 42%),
+    linear-gradient(180deg, var(--obsidian-raised) 0%, var(--obsidian) 100%);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(230, 244, 255, 0.14),
+    inset 0 0 26px rgba(90, 150, 255, 0.08);
+}
+.daily-wheel-row { display: flex; align-items: stretch; gap: 9px; }
+.daily-wheel-glass {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(190, 220, 255, 0.22);
+  background:
+    radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.09), transparent 55%),
+    linear-gradient(180deg, rgba(16, 24, 38, 0.72) 0%, rgba(2, 6, 12, 0.88) 100%);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.6), inset 0 0 18px rgba(90, 150, 255, 0.1);
+  overflow: hidden;
+}
+/* Faint permanent glass reflection bands (top/bottom edge sheen) -- reads
+   as real glass even before anything spins. */
+.daily-wheel-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, transparent 18%, transparent 82%, rgba(255, 255, 255, 0.05) 100%);
+  pointer-events: none;
+}
+.daily-wheel-reel { position: relative; text-align: center; z-index: 1; }
+.daily-wheel-orb {
+  display: inline-block;
+  font-size: 27px;
+  background: linear-gradient(160deg, #ffffff 0%, #d8ecff 28%, #8fd0ff 56%, #4a8fd6 80%, #1d4e9e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 0 12px rgba(140, 200, 255, 0.5));
+  animation: daily-wheel-breathe 3.4s ease-in-out infinite;
+}
+@keyframes daily-wheel-breathe {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+.daily-wheel-sentence {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--crystal-ice);
+  text-shadow: 0 0 10px rgba(120, 195, 255, 0.3);
+}
+/* Per-tick "flip" -- restarted every swap via the JS reflow trick, so each
+   cycling line visibly slides/settles in like a real mechanical placard
+   instead of just replacing text. */
+.daily-wheel-cycling { animation: daily-wheel-tick 0.16s ease-out; }
+@keyframes daily-wheel-tick {
+  0% { transform: translateY(-7px); opacity: 0.15; filter: blur(1.5px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { transform: translateY(0); opacity: 1; }
+}
+/* A moving diagonal light sweep across the glass while spinning -- the
+   "an internal mechanism is turning" cue -- plus a very slight jitter on
+   the glass itself for a subtle mechanical vibration. */
+.daily-wheel.is-spinning .daily-wheel-glass {
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.6), inset 0 0 24px rgba(120, 190, 255, 0.28);
+  animation: daily-wheel-vibrate 0.14s linear infinite;
+}
+.daily-wheel.is-spinning .daily-wheel-glass::after {
+  content: '';
+  position: absolute;
+  inset: -50% -15%;
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.22) 48%, transparent 64%);
+  animation: daily-wheel-sheen 0.85s linear infinite;
+  pointer-events: none;
+}
+@keyframes daily-wheel-sheen {
+  0% { transform: translateY(-35%); }
+  100% { transform: translateY(35%); }
+}
+@keyframes daily-wheel-vibrate {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(0.6px); }
+}
+/* The "lock-in" moment: a bright flash that settles back to rest, replayed
+   on every reveal via the JS reflow trick (see showRevealed). */
+.daily-wheel.is-revealed .daily-wheel-glass { animation: daily-wheel-lock 0.7s ease-out; }
+@keyframes daily-wheel-lock {
+  0% { box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.6), inset 0 0 36px rgba(180, 225, 255, 0.65), 0 0 22px rgba(140, 200, 255, 0.5); }
+  100% { box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.6), inset 0 0 18px rgba(90, 150, 255, 0.1); }
+}
+.daily-wheel-handle {
+  flex: 0 0 32px;
+  width: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(200, 225, 255, 0.4);
+  background: linear-gradient(165deg, #2c3a58 0%, #182640 45%, #0a1220 100%);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 0 10px rgba(150, 200, 255, 0.1);
+  transition: transform 0.15s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.daily-wheel-handle-grip {
+  width: 3px;
+  height: 36px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #ffffff 0%, #c9e6ff 24%, var(--crystal-cyan) 55%, var(--crystal-deep) 100%);
+  box-shadow: 0 0 9px rgba(150, 210, 255, 0.6);
+}
+.daily-wheel-handle:hover:not(:disabled) { border-color: rgba(210, 235, 255, 0.7); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55), inset 0 0 16px rgba(120, 190, 255, 0.3); }
+.daily-wheel-handle:active:not(:disabled) { transform: scale(0.94) translateY(1px); }
+.daily-wheel-handle:disabled { cursor: default; opacity: 0.45; }
+/* Explicit press state (item 4) -- driven by JS pointerdown/up rather than
+   only :active, so touch and mouse feel identical: the handle compresses
+   deeper and its grip glows brighter, a clearly stronger response than the
+   plain hover/active states above. */
+.daily-wheel.is-pressed .daily-wheel-handle { transform: scale(0.88) translateY(2px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), inset 0 0 18px rgba(150, 210, 255, 0.4); }
+.daily-wheel.is-pressed .daily-wheel-handle-grip { box-shadow: 0 0 18px rgba(170, 220, 255, 0.9); }
+.daily-wheel-timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 12px 0 0;
+}
+.daily-wheel-timer-icon { width: 12px; height: 12px; color: var(--text-dim); flex-shrink: 0; }
+/* Small digital-clock box, not free text -- a distinct readout, not a
+   sentence-shaped label. */
+.daily-wheel-timer-value {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-gold-soft);
+  background: rgba(3, 8, 16, 0.55);
+  color: var(--crystal-ice);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  text-shadow: 0 0 8px rgba(120, 195, 255, 0.35);
+}
+
+@media (max-width: 900px) {
+  .daily-wheel-row { justify-content: center; }
+  .daily-wheel-glass { min-height: 64px; }
+}
+
+@media (max-width: 640px) {
+  .personal-notebook { padding: 18px 16px 16px; min-height: 40vh; }
+  .personal-modal-card { padding: 18px 16px 14px; }
+}
+
+/* "מה נשלח לאחרונה" trigger row inside "ניהול ושליחת עדכונים" -- a small
+   button, not another form field, so it reads as "open a list" rather
+   than part of the compose form above it. */
+.recent-sent-open-btn { display: block; margin-top: 14px; }
+
+/* "תיקים ויומני תלמידים" -- plain buttons, never a table; wraps freely,
+   no horizontal scroll at any width. */
+.student-folder-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.student-folder-btn {
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-gold-soft);
+  background: rgba(99, 171, 255, 0.05);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+.student-folder-btn:hover { border-color: var(--border-gold); color: var(--gold-light); background: rgba(99, 171, 255, 0.1); }
+/* Read-only admin view of a student's notebook (studentFolders.js) --
+   same ruled-paper card, just without the fixed min-height that made
+   sense as "the main body of the page" on the student's own screen; here
+   it's one section inside a compact popup. */
+.admin-notebook-preview { min-height: 0; }
+
+/* "היסטוריית התחברויות" -- one plain row per login event, same quiet
+   list-not-table language as the rest of this popup family. */
+.login-event-list { display: flex; flex-direction: column; gap: 2px; }
+.login-event-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px dashed rgba(99, 171, 255, 0.14);
+}
+.login-event-row:last-child { border-bottom: none; }
+.login-event-icon { flex-shrink: 0; font-size: 16px; }
+.login-event-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.login-event-time { font-size: 12.5px; color: var(--text-main); }
+.login-event-meta { font-size: 11px; color: var(--text-dim); }
+
+/* "התראות אבטחה" -- title (right) + a small run-check button (left) above
+   a thin full-width status strip (item 9). Sits right under the master's
+   own "ניהול מערכת ומשתמשים" button. */
+.security-alerts-block { margin-bottom: 22px; }
+.security-alerts-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.security-alerts-header .personal-block-title { margin: 0; }
+.security-alerts-strip {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-gold-soft);
+  background: rgba(99, 171, 255, 0.03);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  text-align: center;
+  cursor: default;
+}
+.security-alerts-strip.is-clear { color: #8fd6a3; border-color: rgba(122, 199, 140, 0.3); background: rgba(122, 199, 140, 0.05); }
+.security-alerts-strip.has-alerts {
+  cursor: pointer;
+  color: #e2957f;
+  border-color: rgba(226, 119, 90, 0.35);
+  background: rgba(226, 119, 90, 0.06);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.security-alerts-strip.has-alerts:hover { border-color: #e2775a; background: rgba(226, 119, 90, 0.1); }
+
+/* User bubble (manageUsers.js) -- grouped actions on top, visually
+   distinct by kind: "עריכה"/"חסימה" quiet neutral pills, "מחיקה" already
+   gets .btn-ghost.danger's own red treatment, and the expiry date sits in
+   its own small row so it doesn't read as just one more button among the
+   rest. */
+.user-bubble-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.user-bubble-expiry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--border-gold-soft);
+}
+.user-bubble-expiry label { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.user-bubble-expiry input[type="date"] { flex: 1; min-width: 0; }
+
+/* "סיסמה / כניסה" -- its own clearly-labelled block, not just one more
+   button among edit/block/delete. Auth passwords are hashed server-side
+   (no "current password" to reveal) so the only action here is generating
+   a fresh temporary one; the reveal only ever shows the freshly-generated
+   value, in local page state, never persisted or logged. */
+.user-bubble-password-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--border-gold-soft);
+}
+.user-bubble-password-block > .muted-note { font-size: 12px; }
+.user-bubble-password-reveal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-md);
+  background: rgba(99, 171, 255, 0.06);
+}
+.user-bubble-password-value { font-size: 14px; font-weight: 700; letter-spacing: 0.5px; color: var(--gold-light); }
+.user-bubble-password-hint { font-size: 11.5px; margin: 0; }
+.user-bubble-details { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.user-bubble-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-main);
+  padding-bottom: 6px;
+  border-bottom: 1px dashed rgba(99, 171, 255, 0.1);
+}
+.user-bubble-detail-row:last-child { border-bottom: none; padding-bottom: 0; }
+.user-bubble-edit-form { margin-bottom: 16px; }
+.user-bubble-edit-form .field-group { margin-bottom: 10px; }
+.user-bubble-permissions { padding-top: 4px; border-top: 1px dashed var(--border-gold-soft); }
+.user-bubble-permissions label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+
+/* Master-only "+" affordances inside a student's folder (studentFolders.js)
+   -- same small round crystal button as .notebook-save-btn, next to the
+   block heading instead of glued to a textarea. */
+.personal-block-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.personal-block-title-row .personal-block-title { margin: 0; }
+.folder-add-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border-gold-soft);
+  background: rgba(99, 171, 255, 0.08);
+  color: var(--gold-light);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+.folder-add-btn:hover { border-color: var(--border-gold); background: rgba(99, 171, 255, 0.16); }
+.folder-add-btn:active { transform: scale(0.9); }
+
+/* Small inline panel for the two folder "+" actions -- a bubble, not a
+   second overlay: sits right under its heading row, inside the same
+   modal, so it never competes with the personal-modal-overlay z-index/
+   scroll story. */
+.folder-bubble {
+  margin: 10px 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  background: rgba(99, 171, 255, 0.035);
+}
+.folder-bubble .field-group { margin-bottom: 10px; }
+.folder-bubble textarea { width: 100%; }
+
+/* "אזור אישי — חוויית משתמש" preview banner -- a quiet strip above the
+   reused student-page markup, just enough to remind the master this
+   isn't their own real data. */
+.admin-preview-banner {
+  margin-bottom: 16px;
+  padding: 8px 14px;
+  border: 1px dashed var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* חלוקה פנימית של שיעורים -- a clean text heading with a thin line above
+   it, then that group's own lesson pills right below (see
+   organizeLessonsByGroup in lessonGroups.js) -- deliberately NOT a card,
+   never feels like a separate section of the site. */
+.lesson-group-header {
+  margin: 20px 0 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-gold-soft);
+}
+.lesson-group-header:first-child { margin-top: 0; }
+.lesson-group-title { font-size: 13px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.2px; }
+
+.focus-list { display: flex; flex-direction: column; gap: 8px; }
+.focus-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+.focus-item.is-important {
+  border-color: rgba(226, 119, 90, 0.55);
+  background: linear-gradient(180deg, rgba(226, 119, 90, 0.07), var(--panel) 60%);
+}
+.focus-item-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.focus-item-label {
+  font-size: 11px;
+  color: var(--gold-light);
+  font-weight: 600;
+}
+.focus-item-title { font-size: 13px; color: var(--text-main); font-weight: 600; }
+.focus-audience-tag {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  white-space: nowrap;
+  border: 1px solid var(--border-gold-soft);
+  color: var(--text-dim);
+}
+/* Gold/subtle, never shouty -- a broadcast is still just an announcement,
+   not an alert. */
+.focus-audience-tag.tag-broadcast { border-color: var(--border-gold); color: var(--gold-light); background: rgba(99, 171, 255, 0.06); }
+.focus-audience-tag.tag-personal { color: var(--text-muted); }
+.focus-recipient { font-size: 10.5px; color: var(--text-dim); }
+.focus-item-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.focus-item-text { margin: 0; font-size: 13px; color: var(--text-main); line-height: 1.55; }
+.focus-task.is-done { opacity: 0.6; }
+.focus-task-done { align-self: flex-start; font-size: 11.5px; color: #8fd6a3; }
+.focus-done-btn { align-self: flex-start; padding: 5px 11px; font-size: 11.5px; }
+.focus-attachment-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px dashed var(--border-gold-soft);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  color: var(--gold-light);
+  cursor: pointer;
+}
+/* currentColor -- inherits the button's own themed gold-light, instead of
+   an emoji glyph's fixed, un-themeable native colour. */
+.focus-attachment-icon { width: 12px; height: 12px; flex-shrink: 0; }
+.focus-attachment-link:hover { border-color: var(--border-gold); }
+
+.focus-important-toggle { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-muted); margin-bottom: 12px; }
+.focus-important-toggle input { width: auto; }
+
+.admin-focus-subtitle { margin: -4px 0 12px; font-size: 11.5px; }
+.admin-focus-block { border-top: 1px dashed var(--border-gold-soft); padding-top: 14px; }
+.admin-focus-block .field-group { margin-bottom: 10px; }
+.admin-focus-block .field-group label { font-size: 11.5px; margin-bottom: 4px; }
+.admin-focus-block input,
+.admin-focus-block select,
+.admin-focus-block textarea { padding: 9px 10px; font-size: 13px; }
+.admin-focus-block .form-actions { margin-top: 4px; }
+.admin-focus-block .btn-gold.small { width: auto; padding: 8px 16px; font-size: 12.5px; }
+
+.admin-focus-existing { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.admin-focus-existing-title { font-size: 11px; color: var(--text-dim); margin: 0 0 2px; }
+.focus-task-status { align-self: flex-start; font-size: 11.5px; color: var(--text-dim); }
+.focus-task-status.is-done { color: #8fd6a3; }
+
+/* "יומן אישי" -- items saved from צידה לדרך, see journalStore.js. Same
+   quiet card language as .focus-item, just its own class since the data
+   shape (a highlight + where it was saved from) is different. */
+.journal-list { display: flex; flex-direction: column; gap: 8px; }
+/* Row layout: main content (text/source) is the actual point of the card
+   and stays on the reading (right) side; an attached media thumbnail, if
+   any, sits fixed-size on the left -- see .trail-note-item below, same
+   shape, same reasoning (this is deliberately NOT flex-direction:
+   row-reverse -- plain "row" already puts the first DOM child on the
+   right under dir=rtl, which is exactly the order written below). */
+.journal-item {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+.journal-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.journal-item-text { margin: 0; font-size: 13px; color: var(--text-main); line-height: 1.55; }
+.journal-item-source { font-size: 11px; color: var(--text-dim); }
+.journal-lesson-link { color: var(--gold-light); text-decoration: none; }
+.journal-lesson-link:hover { text-decoration: underline; }
+
+.sidebar-nav {
+  padding: 4px 0 16px;
+}
+/* Every row -- selected or not -- shares one height standard: the
+   diamond's own aspect ratio (640x170). Since every row already shares
+   the identical width (see margin below), locking this ratio on the base
+   .nav-item rather than only on the active diamond makes the diamond's
+   own proportions the standard every other row is built to match --
+   never the other way around. */
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  aspect-ratio: 640 / 170;
+  height: auto;
+  margin: 0 12px 4px;
+  padding: 13px 14px;
   border-radius: 10px;
   color: var(--text-muted);
   text-decoration: none;
-  font-size: 14.5px;
+  font-size: 16px;
+  line-height: 1.3;
+  text-align: center;
   border-right: 2px solid transparent;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  transition: color 0.25s ease;
+  /* Per-section hook: the filter applied to THIS section's stone when it
+     is the selected one. Blue source image as-is today (none). Override
+     per section below to recolour later -- markup and logic stay the
+     same, and the same token can drive that section's wider colour
+     language in future. */
+  --diamond-active-filter: none;
 }
-.nav-item:hover { background: rgba(99, 171, 255, 0.06); color: var(--text-main); }
-.nav-item.active {
-  background: linear-gradient(90deg, rgba(99, 171, 255, 0.16), rgba(99, 171, 255, 0.03));
-  color: var(--gold-light);
-  border-right-color: var(--gold);
+
+/* Four fixed stones, one per section -- NOT one diamond that moves. The
+   stone is a permanent layer on every row via ::before; keeping it on the
+   pseudo-element (not the row's own background) means desaturating it
+   never touches the label/icon sitting above it. Default state = "off":
+   greyed out and dimmed, so unselected sections read as quiet, unlit
+   stones on the leather. */
+.nav-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: url("../assets/nav-diamond-active.png?v=7");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: grayscale(1) brightness(0.62);
+  opacity: 0.5;
+  transition: filter 0.35s ease, opacity 0.35s ease;
+  pointer-events: none;
 }
+/* Label + icon always sit above the stone, in every state (not only when
+   selected) -- otherwise an unselected row's text would fall behind its
+   own greyed stone. */
+.nav-item .nav-label,
+.nav-item .nav-icon,
+.nav-item .personal-area-icon,
+.nav-item .personal-area-greeting {
+  position: relative;
+  z-index: 2;
+}
+.nav-item:hover { color: var(--text-main); }
+/* Hover on an unselected row: the stone stirs a little -- a hint of life,
+   never full selection. */
+.nav-item:hover::before { filter: grayscale(0.6) brightness(0.85); opacity: 0.7; }
+
+/* Selected section: only this row's stone wakes to full colour, taken
+   from the source image through --diamond-active-filter (none = the blue
+   stone exactly as it looks today). */
+.nav-item.active { color: var(--gold-light); }
+.nav-item.active-section-diamond::before {
+  filter: var(--diamond-active-filter);
+  opacity: 1;
+}
+.nav-item.active-section-diamond .nav-label,
+.nav-item.active-section-diamond .personal-area-greeting {
+  color: #bfe4ff;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-align: center;
+  text-shadow: 0 0 6px rgba(120, 195, 255, 0.65), 0 0 16px rgba(70, 150, 255, 0.35);
+}
+.nav-item.active-section-diamond .nav-icon,
+.nav-item.active-section-diamond .personal-area-icon {
+  color: #bfe4ff;
+}
+
+/* הכספת (vault) -- this is THE section the whole product is named for, so
+   its own stone gets one extra, exclusive touch none of the others have:
+   real internal sparkle, like light catching facets inside the gem, not
+   just a lit surface. Same technique as the login page's vault-button
+   sparkle (six tiny star-points, screen-blended so they only ever ADD
+   light, never tint or darken the diamond's own colour/dimensions --
+   those stay untouched, exactly as specified). Sits above the diamond
+   image but below the label text, and only shows while this row is the
+   selected one (mirrors --diamond-active-filter's own "only when active"
+   rule right below). */
+.nav-item[data-id="vault"].active-section-diamond::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background:
+    radial-gradient(1.6px 1.6px at 9% 42%, rgba(255, 255, 255, 0.95), transparent 62%),
+    radial-gradient(1.2px 1.2px at 22% 70%, rgba(214, 232, 255, 0.85), transparent 62%),
+    radial-gradient(1.4px 1.4px at 50% 18%, rgba(255, 255, 255, 0.95), transparent 62%),
+    radial-gradient(1.1px 1.1px at 63% 68%, rgba(214, 232, 255, 0.8), transparent 62%),
+    radial-gradient(1.3px 1.3px at 78% 32%, rgba(255, 255, 255, 0.9), transparent 62%),
+    radial-gradient(1.6px 1.6px at 91% 55%, rgba(255, 255, 255, 0.95), transparent 62%);
+  animation: vault-diamond-sparkle 5.2s ease-in-out infinite;
+}
+@keyframes vault-diamond-sparkle {
+  0%, 100% { opacity: 0.28; }
+  18% { opacity: 0.7; }
+  36% { opacity: 0.35; }
+  58% { opacity: 0.85; }
+  78% { opacity: 0.4; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-item[data-id="vault"].active-section-diamond::after { animation: none; opacity: 0.5; }
+}
+
+/* Per-section selected-stone colour. All blue today (none). To give a
+   section its own colour later, set only its value here -- e.g.
+   `filter: hue-rotate(120deg) saturate(1.1)` for a green stone -- and
+   nothing else in the markup or JS has to change. */
+.nav-item[data-id="me"] { --diamond-active-filter: none; }
+.nav-item[data-id="vault"] { --diamond-active-filter: none; }
+.nav-item[data-id="jauriusBot"] { --diamond-active-filter: brightness(0.82); }
+/* ליווי אישי -- own cut-out crystal image (assets/nav-diamond-
+   personalGuidance.png, same alpha-bbox cutout process as the other
+   sections' diamonds), sampled hue 347.29° (deep ruby/crimson) -- no
+   --diamond-active-filter value needed, same as every section with its
+   own native-coloured cutout. Deliberately NOT placed right under
+   ג'אוריוס AI: real vertical separation marks this as its own, more
+   advanced area rather than just the next item in the same list. */
+.nav-item[data-id="personalGuidance"] { --diamond-active-filter: none; margin-top: 30px; }
+/* מהישרדות לחופש -- this row's stone is its OWN cut-out crystal image
+   (assets/nav-diamond-freedom.png, same border-flood-fill cutout process
+   used for the login title diamond), not a filter over the shared blue
+   stone -- so no --diamond-active-filter value is needed here (stays at
+   the default none from .nav-item above; the swapped background-image
+   below carries the colour instead). */
+/* This crystal's own silhouette was a true ellipse, which -- unlike the
+   shared blue stone's stadium shape (flat top/bottom edges across most of
+   its width) -- tapers away from the canvas edge almost everywhere except
+   a few isolated facet-highlight peaks, so at background-size:100% 100%
+   it read visibly smaller on both axes: the left/right tips sat at
+   different X insets (4.8% left vs 2.1% right at centre-height), and the
+   bulk of the gem sat ~5% inset from the top and ~1.5-2% from the bottom
+   along nearly its whole width. Fixed at the source instead of papering
+   over it with a CSS zoom (which either left the mismatch or clipped real
+   facets): measured the actual opacity profile column-by-column and
+   row-by-row and re-cropped nav-diamond-freedom.png to the pixels where
+   the BULK of the gem (not just one lucky highlight spike) touches full
+   opacity on all four sides, matching the reference stone's flat-edge
+   footprint on both the X and Y axis -- no zoom or scale needed here. */
+.nav-item[data-id="survivalToFreedom"]::before {
+  background-image: url("../assets/nav-diamond-freedom.png?v=7");
+}
+/* Precise target hue for this section, sampled directly from the button's
+   own asset (nav-diamond-freedom.png, avg. hue 186.4°) -- the ground
+   truth every other freedom-themed element is calibrated against. This
+   rule isn't nested inside anything else with its own filter, so instead
+   of an approximate hue-rotate(), these are the exact HSL replacements of
+   the base rule's colour/text-shadow (same saturation/lightness, hue
+   swapped to precisely 186.4°). */
+.nav-item[data-id="survivalToFreedom"].active-section-diamond .nav-label {
+  color: #bff8ff;
+  text-shadow: 0 0 6px rgba(120, 241, 255, 0.65), 0 0 16px rgba(70, 235, 255, 0.35);
+}
+/* הכספת (vault) -- exact HSL replacements of the same base rule, hue
+   swapped to the vault diamond's own precisely sampled 216.35° (was
+   ~205-214° -- close, but this makes it exact rather than approximate). */
+.nav-item[data-id="vault"].active-section-diamond .nav-label {
+  color: #bfd8ff;
+  text-shadow: 0 0 6px rgba(120, 173, 255, 0.65), 0 0 16px rgba(70, 143, 255, 0.35);
+}
+/* האזור האישי (me) -- own cut-out crystal image (assets/nav-diamond-
+   personal.png, same border-flood-fill + bulk-edge-crop process as
+   מהישרדות לחופש's diamond above), sampled hue 202.3°. Uses
+   .personal-area-greeting instead of .nav-label (see dashboard.html) but
+   is otherwise the identical pattern. */
+.nav-item[data-id="me"]::before {
+  background-image: url("../assets/nav-diamond-personal.png?v=7");
+}
+.nav-item[data-id="me"].active-section-diamond .personal-area-greeting {
+  color: #bfe7ff;
+  text-shadow: 0 0 6px rgba(120, 205, 255, 0.65), 0 0 16px rgba(70, 186, 255, 0.35);
+}
+/* ג'אוריוס AI (jauriusBot) -- own cut-out crystal image (assets/
+   nav-diamond-bot.png, same process), sampled hue 334.3°. */
+.nav-item[data-id="jauriusBot"]::before {
+  background-image: url("../assets/nav-diamond-bot.png?v=7");
+}
+.nav-item[data-id="jauriusBot"].active-section-diamond .nav-label {
+  color: #ffbfda;
+  text-shadow: 0 0 6px rgba(255, 120, 178, 0.42), 0 0 16px rgba(255, 70, 149, 0.2);
+}
+/* ליווי אישי (personalGuidance) -- own cut-out crystal image (assets/
+   nav-diamond-personalGuidance.png, same process), sampled hue 347.29°.
+   Exact HSL replacement of the same base rule, same lowered shadow
+   opacity as ג'אוריוס AI above (saturated red/magenta reads louder than
+   blue at the same intensity -- hue is exact, only the glow's loudness is
+   toned down, matching this codebase's own precedent for this side of the
+   colour wheel). */
+.nav-item[data-id="personalGuidance"]::before {
+  background-image: url("../assets/nav-diamond-personalGuidance.png");
+}
+.nav-item[data-id="personalGuidance"].active-section-diamond .nav-label {
+  color: #ffbfcd;
+  text-shadow: 0 0 6px rgba(255, 120, 149, 0.42), 0 0 16px rgba(255, 70, 109, 0.2);
+}
+
 .nav-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .nav-icon svg { width: 18px; height: 18px; }
 .nav-divider { height: 1px; background: var(--border-gold-soft); margin: 10px 6px; }
@@ -120,42 +1995,15 @@ body.sidebar-open .sidebar { transform: translateX(0); }
 .user-role { font-size: 12px; color: var(--text-dim); }
 .logout-btn { padding: 9px; font-size: 13px; width: 100%; }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-gold-soft);
-  position: sticky;
-  top: 0;
-  background: rgba(6, 9, 15, 0.85);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  z-index: 20;
-}
-.icon-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  border: 1px solid var(--border-gold-soft);
-  background: transparent;
-  color: var(--gold-light);
+/* Master-only edit/user-experience mode toggle -- lives in the sidebar
+   footer next to the user chip and logout button, so it takes their
+   full-width pill treatment instead of the old topbar's auto-margined,
+   icon-sized one. */
+.mode-toggle-btn {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease;
-  flex-shrink: 0;
-}
-.icon-btn:hover { background: rgba(99, 171, 255, 0.08); border-color: var(--border-gold); }
-.icon-btn svg { width: 18px; height: 18px; }
-.topbar-title { font-family: var(--font-serif); font-size: 18px; color: var(--text-main); margin: 0; }
-
-/* Master-only edit/user-experience mode toggle */
-.mode-toggle-btn {
-  margin-inline-start: auto;
-  display: flex;
-  align-items: center;
   gap: 8px;
   padding: 9px 16px;
   border-radius: 999px;
@@ -181,10 +2029,6 @@ body.sidebar-open .sidebar { transform: translateX(0); }
   background: rgba(226, 119, 90, 0.08);
 }
 .mode-toggle-icon { font-size: 14px; line-height: 1; }
-@media (max-width: 600px) {
-  .mode-toggle-btn span:not(.mode-toggle-icon) { display: none; }
-  .mode-toggle-btn { padding: 9px 12px; }
-}
 
 .content-area {
   flex: 1;
@@ -192,6 +2036,333 @@ body.sidebar-open .sidebar { transform: translateX(0); }
   max-width: 1000px;
   width: 100%;
   margin: 0 auto;
+}
+/* Same per-section recolour hook as --wall-hue-shift above, extended to
+   the page CONTENT itself (headings, borders, glows, highlights): a
+   single hue-rotate on .admin-page (every mount function's own top-level
+   wrapper -- see pages/*.js) shifts every crystal-blue pixel inside it
+   together, whether that pixel's colour came from a var(--border-gold)
+   token or a hardcoded rgba() -- no need to touch or duplicate any of
+   the section's own component CSS. Deliberately scoped to .admin-page
+   and NOT .content-area: the lesson description popup
+   (.desc-modal-overlay, position:fixed) renders as .admin-page's own
+   SIBLING inside .content-area, so filtering .content-area would turn
+   it into that popup's containing block and silently break its
+   fullscreen positioning (the exact bug class already hit once on the
+   login page) -- filtering .admin-page instead sidesteps that entirely
+   since the popup never lives inside it. Neutral (0deg) everywhere
+   except מהישרדות לחופש, below. */
+.admin-page {
+  --content-hue-shift: 0deg;
+  filter: hue-rotate(var(--content-hue-shift));
+}
+/* Upgraded to the same header/ticker-exclusion architecture as ג'אוריוס
+   AI (point 8.7): the counter-rotation trick this used to rely on
+   (+32deg countering a -34deg parent) works fine for the gold-title text
+   itself, but broke down for the ticker separator icon added later
+   (.insights-sep img -- checked the same way: chained through an actual
+   canvas render, the best achievable counter still landed ~28° off
+   target). Rather than have the heading and the ticker use two different
+   fix strategies, both are now simply excluded from the ancestor filter
+   and given their own precise, direct values -- no counter-rotation
+   maths needed for either. */
+.app-main[data-active-section="survivalToFreedom"] .admin-page {
+  filter: none;
+}
+.app-main[data-active-section="survivalToFreedom"] .admin-page > *:not(.admin-page-header):not(.insights-ticker) {
+  /* -34deg, not -26 -- see --wall-hue-shift above for why: precise to
+     --border-gold (the dominant crystal-blue token this subtree's
+     borders/glows are built from) via the real CSS hue-rotate matrix,
+     landing within 0.4° of the diamond's own sampled hue (186.4°). */
+  filter: hue-rotate(-34deg);
+}
+/* A hue-rotate this size barely touches red/green, but semantic colour
+   (delete = red, save/success = green) should never drift by section --
+   these few elements counter-rotate by the same amount in the other
+   direction, cancelling the parent's shift back to their true colour
+   (CSS filters compound down the tree, so +34deg here + the parent's
+   own -34deg nets to 0deg for exactly these elements). */
+.app-main[data-active-section="survivalToFreedom"] .admin-page .lesson-row-delete,
+.app-main[data-active-section="survivalToFreedom"] .admin-page .btn-ghost.danger,
+.app-main[data-active-section="survivalToFreedom"] .admin-page .edit-save,
+.app-main[data-active-section="survivalToFreedom"] .admin-page .edit-cancel,
+.app-main[data-active-section="survivalToFreedom"] .admin-page .badge-active,
+.app-main[data-active-section="survivalToFreedom"] .admin-page .badge-blocked,
+.app-main[data-active-section="survivalToFreedom"] .admin-page .watch-btn.completed {
+  filter: hue-rotate(34deg);
+}
+/* .gold-title now sits inside .admin-page-header, which is excluded from
+   the ancestor filter above -- no more counter-rotation needed, just the
+   exact same -2deg the sidebar title already uses directly (both share
+   this class, so this stays pixel-identical to it). */
+.app-main[data-active-section="survivalToFreedom"] .admin-page .gold-title {
+  filter: hue-rotate(-2deg)
+    drop-shadow(0 0 10px rgba(70, 210, 255, 0.3))
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+/* The ticker separator (see the equivalent vault comment above) is ALSO
+   now excluded from the ancestor filter, so this is its own solo,
+   browser-verified delta -- no compounding with anything else. */
+.app-main[data-active-section="survivalToFreedom"] .insights-sep img {
+  filter: hue-rotate(5.5deg);
+}
+/* Video titles made to match the section heading above, precisely (same
+   hue/colour, not the heading's own weight/size/animation -- that wasn't
+   asked for). Two spots share the .lesson-tab-title class: the plain
+   lesson-tab pills students click through, and the same-class title
+   inside edit-mode's .lesson-row-title management rows -- one rule
+   covers both. Reuses .gold-title's own crystalline-body gradient
+   verbatim (no flecks/animation layer -- that texture is tuned for large
+   heading type, not small ellipsis-truncated pill text) so the colour
+   itself is byte-identical to the heading's, not a re-approximation.
+
+   Both this and the lesson-detail heading below sit UNDER a direct child
+   of .admin-page that isn't (and, for the tabs, structurally can't
+   cleanly be) in the .admin-page-header exclusion list, so they still
+   inherit the ambient -34deg. Counter-rotating +32deg here cancels that
+   back to exactly the heading's own -2deg net (-34 + 32 = -2) -- same
+   maths already used for the delete/save colours above, just landing on
+   -2deg instead of 0deg. */
+.app-main[data-active-section="survivalToFreedom"] .admin-page .lesson-tab-title {
+  background-image: linear-gradient(150deg,
+    #e2fdff 0%, #6cecf7 20%, #2ac2e0 44%, #17abd6 60%, #4fe0f2 80%, #8ff4ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: hue-rotate(32deg) drop-shadow(0 0 6px rgba(70, 210, 255, 0.25));
+}
+/* Lesson-detail page's own big heading (.lesson-title-heading, also
+   .gold-title): its wrapper (.lesson-page-title) lives inside
+   .panel-card.lesson-panel, a normal (non-excluded) direct child of
+   .admin-page, so the ambient -34deg above compounds with the -2deg the
+   shared ".admin-page .gold-title" rule already gives it (-36deg net --
+   verified by nesting two real hue-rotate filters and comparing the
+   rendered pixels against a single -36deg filter: identical, confirming
+   CSS filters do compound down the tree). This same +32deg counter used
+   for the tab titles above cancels it back to the heading's exact -2deg,
+   so this heading now matches the section heading pixel-for-pixel too. */
+.app-main[data-active-section="survivalToFreedom"] .admin-page .lesson-title-heading {
+  filter: hue-rotate(32deg)
+    drop-shadow(0 0 10px rgba(70, 210, 255, 0.3))
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+/* הכספת (vault) -- same mechanism, calibrated to +6.7deg (see
+   --wall-hue-shift above for the precise-delta method). */
+.app-main[data-active-section="vault"] .admin-page {
+  --content-hue-shift: 6.7deg;
+}
+.app-main[data-active-section="vault"] .admin-page .lesson-row-delete,
+.app-main[data-active-section="vault"] .admin-page .btn-ghost.danger,
+.app-main[data-active-section="vault"] .admin-page .edit-save,
+.app-main[data-active-section="vault"] .admin-page .edit-cancel,
+.app-main[data-active-section="vault"] .admin-page .badge-active,
+.app-main[data-active-section="vault"] .admin-page .badge-blocked,
+.app-main[data-active-section="vault"] .admin-page .watch-btn.completed {
+  filter: hue-rotate(-6.7deg);
+}
+/* Same exact per-stop substitution as the sidebar title, but PRE-
+   compensated for this element's own ancestor filter (.admin-page's
+   +6.7deg, applied on top of whatever this rule paints): each stop here
+   is the colour that, after the parent's +6.7deg hue-rotate runs on it,
+   lands EXACTLY on the same precise value the sidebar title shows
+   directly (verified by round-tripping every stop through the real CSS
+   matrix -- with a shift this small there's no clamping loss, unlike the
+   -34deg case in מהישרדות לחופש, so this is genuinely exact, not a
+   compromise). */
+.app-main[data-active-section="vault"] .admin-page .gold-title {
+  background-image:
+    linear-gradient(58deg,
+      transparent 0%, transparent 12%,
+      rgba(2, 12, 24, 0.5) 27%,
+      transparent 42%, transparent 62%,
+      rgba(3, 14, 27, 0.44) 77%,
+      transparent 92%, transparent 100%),
+    linear-gradient(150deg,
+      #e0eefe 0%,
+      #62a7f1 20%,
+      #1d77d8 44%,
+      #0967cd 60%,
+      #4393eb 80%,
+      #87befa 100%);
+  filter: drop-shadow(0 0 10px rgba(70, 210, 255, 0.3)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+/* The ticker separator (.insights-sep img, the small ג'אוריוס mask
+   between phrases -- see insightsTicker.js) inherits this section's
+   ambient +6.7deg like everything else in .admin-page, but that alone
+   barely nudges its own fairly different baked-in hue -- same "own colour
+   family needs its own delta" rule as the gold-title fix above. 51deg is
+   the counter value, browser-verified (rendered through an offscreen
+   canvas with BOTH this filter and the +6.7deg ancestor chained, then
+   re-sampled) so it lands on the diamond's exact hue after both filters
+   compound, not just calculated on paper. */
+.app-main[data-active-section="vault"] .insights-sep img {
+  filter: hue-rotate(51deg);
+}
+/* האזור האישי (me) -- upgraded to the same header-exclusion architecture
+   as ג'אוריוס AI (point 8.7): .admin-page-header (heading + neutral-grey
+   description only) never inherits --content-hue-shift, so the heading
+   below can use the exact same precise per-stop gradient as the sidebar
+   title directly, with zero counter-rotation drift. */
+.app-main[data-active-section="me"] .admin-page {
+  filter: none;
+}
+.app-main[data-active-section="me"] .admin-page > *:not(.admin-page-header) {
+  filter: hue-rotate(-13.3deg);
+}
+.app-main[data-active-section="me"] .admin-page .lesson-row-delete,
+.app-main[data-active-section="me"] .admin-page .btn-ghost.danger,
+.app-main[data-active-section="me"] .admin-page .edit-save,
+.app-main[data-active-section="me"] .admin-page .edit-cancel,
+.app-main[data-active-section="me"] .admin-page .badge-active,
+.app-main[data-active-section="me"] .admin-page .badge-blocked,
+.app-main[data-active-section="me"] .admin-page .watch-btn.completed {
+  filter: hue-rotate(13.3deg);
+}
+.app-main[data-active-section="me"] .admin-page .gold-title {
+  background-image:
+    linear-gradient(58deg,
+      transparent 0%, transparent 12%,
+      rgba(2, 12, 24, 0.5) 27%,
+      transparent 42%, transparent 62%,
+      rgba(3, 14, 27, 0.44) 77%,
+      transparent 92%, transparent 100%),
+    linear-gradient(150deg,
+      #e2f4ff 0%,
+      #6cc3f7 20%,
+      #2a9ce0 44%,
+      #178fd6 60%,
+      #4fb5f2 80%,
+      #8fd5ff 100%);
+  filter: drop-shadow(0 0 10px rgba(70, 210, 255, 0.3)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+/* ג'אוריוס AI (jauriusBot) -- this section's shift (+113.9deg) is too
+   large for the counter-rotation trick above: checked numerically (same
+   method as point 6/8.5), even the BEST possible counter value still
+   lands the heading's dominant stop as orange/coral instead of pink --
+   real information loss from double-clamping a rotation this big, not a
+   calibration issue. Fix: don't let the heading inherit the ancestor
+   filter AT ALL. .admin-page-header only ever contains the gold-title
+   heading + a neutral-grey description (.placeholder-desc, uses
+   var(--text-muted), no crystal-blue involved) -- nothing in it needs
+   --content-hue-shift -- so the filter is moved from .admin-page itself
+   onto ":not(.admin-page-header)" directly-child content instead. Same
+   net effect on every bordered/glowing element (filter compounding is
+   transitive through unfiltered intermediate elements, so nothing
+   downstream of this new selector changes), but the heading now has ZERO
+   ancestor filter to fight and can use the exact same precise per-stop
+   gradient as the sidebar title -- pixel-identical, not a compromise. */
+.app-main[data-active-section="jauriusBot"] .admin-page {
+  filter: none;
+}
+.app-main[data-active-section="jauriusBot"] .admin-page > *:not(.admin-page-header) {
+  filter: hue-rotate(113.9deg) brightness(0.88);
+}
+.app-main[data-active-section="jauriusBot"] .admin-page .lesson-row-delete,
+.app-main[data-active-section="jauriusBot"] .admin-page .btn-ghost.danger,
+.app-main[data-active-section="jauriusBot"] .admin-page .edit-save,
+.app-main[data-active-section="jauriusBot"] .admin-page .edit-cancel,
+.app-main[data-active-section="jauriusBot"] .admin-page .badge-active,
+.app-main[data-active-section="jauriusBot"] .admin-page .badge-blocked,
+.app-main[data-active-section="jauriusBot"] .admin-page .watch-btn.completed {
+  filter: hue-rotate(-113.9deg);
+}
+.app-main[data-active-section="jauriusBot"] .admin-page .gold-title {
+  background-image:
+    linear-gradient(58deg,
+      transparent 0%, transparent 12%,
+      rgba(2, 12, 24, 0.5) 27%,
+      transparent 42%, transparent 62%,
+      rgba(3, 14, 27, 0.44) 77%,
+      transparent 92%, transparent 100%),
+    linear-gradient(150deg,
+      #ffe2ee 0%,
+      #f76ca8 20%,
+      #e02a78 44%,
+      #d61769 60%,
+      #f24f95 80%,
+      #ff8fbf 100%);
+  filter: brightness(0.86) drop-shadow(0 0 10px rgba(70, 210, 255, 0.3)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+/* ליווי אישי (personalGuidance) -- same large-rotation method as
+   ג'אוריוס AI above (+127deg is too large for the counter-rotation trick;
+   heading excluded from the ancestor filter entirely instead). Brightness
+   toned down for the same "saturated red reads louder" reason. */
+.app-main[data-active-section="personalGuidance"] .admin-page {
+  filter: none;
+}
+.app-main[data-active-section="personalGuidance"] .admin-page > *:not(.admin-page-header) {
+  filter: hue-rotate(127deg) brightness(0.88);
+}
+.app-main[data-active-section="personalGuidance"] .admin-page .lesson-row-delete,
+.app-main[data-active-section="personalGuidance"] .admin-page .btn-ghost.danger,
+.app-main[data-active-section="personalGuidance"] .admin-page .edit-save,
+.app-main[data-active-section="personalGuidance"] .admin-page .edit-cancel,
+.app-main[data-active-section="personalGuidance"] .admin-page .badge-active,
+.app-main[data-active-section="personalGuidance"] .admin-page .badge-blocked,
+.app-main[data-active-section="personalGuidance"] .admin-page .watch-btn.completed {
+  filter: hue-rotate(-127deg);
+}
+.app-main[data-active-section="personalGuidance"] .admin-page .gold-title {
+  background-image:
+    linear-gradient(58deg,
+      transparent 0%, transparent 12%,
+      rgba(2, 12, 24, 0.5) 27%,
+      transparent 42%, transparent 62%,
+      rgba(3, 14, 27, 0.44) 77%,
+      transparent 92%, transparent 100%),
+    linear-gradient(150deg,
+      #ffe2e8 0%,
+      #f76c89 20%,
+      #e02a51 44%,
+      #d6173f 60%,
+      #f24f72 80%,
+      #ff8fa7 100%);
+  filter: brightness(0.88) drop-shadow(0 0 10px rgba(70, 210, 255, 0.3)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+/* Same exact colour as the heading above, reused verbatim for the lesson
+   tab pills (see the vault/מהישרדות לחופש equivalents earlier in this
+   file for the identical base pattern) -- but unlike vault's small
+   +6.7deg shift, this element sits under a normal (non-excluded)
+   ancestor that already carries the full +127deg/brightness(0.88)
+   ambient filter, so these exact stops need a -127deg counter-rotation
+   to cancel that back to net 0deg (the semantic danger/success colours
+   below use the identical trick) -- the inherited brightness(0.88) is
+   left alone on purpose, giving this text the same restrained loudness
+   as the heading without recalculating it. */
+.app-main[data-active-section="personalGuidance"] .admin-page .lesson-tab-title {
+  background-image: linear-gradient(150deg,
+    #ffe2e8 0%, #f76c89 20%, #e02a51 44%, #d6173f 60%, #f24f72 80%, #ff8fa7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: hue-rotate(-127deg) drop-shadow(0 0 6px rgba(224, 42, 81, 0.25));
+}
+/* Lesson-detail heading (.lesson-title-heading, also .gold-title): its
+   wrapper (.lesson-page-title) lives inside .panel-card.lesson-panel, a
+   NORMAL direct child of .admin-page that also holds the video embed/
+   hint/watch-button -- content that DOES need the ambient rotation. So
+   the ambient filter is pulled off that whole card and re-applied only to
+   its non-heading children (same "exclude just the exact-coloured text,
+   keep everything else rotated" move as .admin-page-header above, one
+   level deeper). With the ambient gone, this heading needs zero counter-
+   rotation and can reuse the shared ".admin-page .gold-title" rule's
+   background-image/filter untouched. */
+.app-main[data-active-section="personalGuidance"] .admin-page .panel-card.lesson-panel {
+  filter: none;
+}
+.app-main[data-active-section="personalGuidance"] .admin-page .panel-card.lesson-panel > *:not(.lesson-page-title) {
+  filter: hue-rotate(127deg) brightness(0.88);
+}
+/* .watch-btn.completed lives inside that same card (a direct sibling of
+   the heading), so the rule above would otherwise rotate its semantic
+   green by +127deg same as everything else in the card -- this selector
+   is more specific (5 classes vs. 4), so it wins and gives this one
+   element true colour, no rotation at all, matching the semantic
+   danger/success list elsewhere on the page. */
+.app-main[data-active-section="personalGuidance"] .admin-page .panel-card.lesson-panel .watch-btn.completed {
+  filter: none;
 }
 
 .placeholder-page {
@@ -206,6 +2377,59 @@ body.sidebar-open .sidebar { transform: translateX(0); }
 }
 .placeholder-title { font-size: 24px; margin: 0 0 12px; }
 .placeholder-desc { color: var(--text-muted); font-size: 14.5px; line-height: 1.7; margin: 0 0 22px; }
+
+/* Small, quiet clarification note -- פורטל תוכן הכספת only, between the
+   title and the existing description. Deliberately not a banner/popup: a
+   thin red accent border (never a filled/loud background) + a small
+   minimal warning-triangle icon, editable inline exactly like the title/
+   description above it (see editableField in vaultSection.js). */
+.vault-clarification-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  max-width: 560px;
+  margin: 10px auto 16px;
+  padding: 10px 14px;
+  border-inline-start: 2px solid rgba(255, 92, 92, 0.45);
+  background: rgba(255, 92, 92, 0.04);
+  border-radius: 4px;
+  text-align: right;
+}
+.vault-clarification-icon { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; }
+.vault-clarification-text { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--text-muted); }
+
+/* Small, quiet count badge for the master -- new journal entries, pending
+   comments, etc. Deliberately dark/desaturated red (never the bright
+   alert red used for real errors) and tiny, per the "עדין, לא צועק"
+   requirement: it should help scanning, not demand attention. */
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  margin-inline-start: 6px;
+  border-radius: 999px;
+  background: rgba(190, 60, 60, 0.5);
+  border: 1px solid rgba(255, 130, 130, 0.35);
+  color: #ffdede;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}
+/* Neutral variant -- a plain count, not something awaiting master action
+   (e.g. "how many sentences exist"), so it stays the site's own crystal-
+   blue rather than the red "needs attention" tone above. */
+.admin-badge-neutral {
+  background: rgba(99, 171, 255, 0.16);
+  border-color: var(--border-gold);
+  color: var(--gold-light);
+}
+/* "משפטים קיימים" / other compact-list triggers -- a plain quiet row
+   button, not the primary action of its accordion. */
+.compact-list-open-btn { margin-top: 4px; }
 .placeholder-badge {
   display: inline-block;
   padding: 8px 18px;
@@ -251,17 +2475,246 @@ body.sidebar-open .sidebar { transform: translateX(0); }
 body.sidebar-open .sidebar-overlay { opacity: 1; pointer-events: auto; }
 @media (min-width: 901px) { .sidebar-overlay { display: none; } }
 
+/* Mobile, sidebar closed: a small sliver of the active section's diamond
+   peeks in from the right edge, at the same height that diamond sits at
+   when the sidebar is open, and doubles as the open affordance. Its
+   width/height/top are set inline by dashboard.js from the real active
+   nav-item's own rendered size -- never re-stretched, just clipped. */
+.sidebar-peek {
+  position: fixed;
+  z-index: 45;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background-color: transparent;
+  background-image: url("../assets/nav-diamond-active.png?v=7");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  /* drop-shadow (not box-shadow) traces the diamond's real silhouette, so
+     the sliver reads as a glowing gemstone edge -- not a generic pill
+     handle. The glow breathes gently to invite a tap. */
+  filter: drop-shadow(-3px 0 9px rgba(90, 167, 255, 0.5));
+  animation: diamond-peek-breathe 3s ease-in-out infinite;
+}
+@keyframes diamond-peek-breathe {
+  0%, 100% { filter: drop-shadow(-3px 0 8px rgba(80, 160, 255, 0.4)); }
+  50% { filter: drop-shadow(-4px 0 16px rgba(120, 190, 255, 0.72)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-peek { animation: none; }
+}
+/* Closed-sidebar peek was hard-coded to the shared blue diamond/glow
+   regardless of which section is actually active -- wrong the moment any
+   section gets its own colour. Same precision method as everywhere else
+   in this section (HSL substitutes of these exact colours, hue swapped to
+   each section's own precisely sampled diamond hue), applied here too so
+   the peek always matches whichever diamond is currently selected. */
+body[data-active-section="survivalToFreedom"] .sidebar-peek {
+  background-image: url("../assets/nav-diamond-freedom.png?v=7");
+  filter: drop-shadow(-3px 0 9px rgba(90, 237, 255, 0.5));
+  animation-name: diamond-peek-breathe-freedom;
+}
+@keyframes diamond-peek-breathe-freedom {
+  0%, 100% { filter: drop-shadow(-3px 0 8px rgba(80, 236, 255, 0.4)); }
+  50% { filter: drop-shadow(-4px 0 16px rgba(120, 241, 255, 0.72)); }
+}
+body[data-active-section="vault"] .sidebar-peek {
+  filter: drop-shadow(-3px 0 9px rgba(90, 155, 255, 0.5));
+  animation-name: diamond-peek-breathe-vault;
+}
+@keyframes diamond-peek-breathe-vault {
+  0%, 100% { filter: drop-shadow(-3px 0 8px rgba(80, 149, 255, 0.4)); }
+  50% { filter: drop-shadow(-4px 0 16px rgba(120, 173, 255, 0.72)); }
+}
+body[data-active-section="me"] .sidebar-peek {
+  background-image: url("../assets/nav-diamond-personal.png?v=7");
+  filter: drop-shadow(-3px 0 9px rgba(90, 194, 255, 0.5));
+  animation-name: diamond-peek-breathe-me;
+}
+@keyframes diamond-peek-breathe-me {
+  0%, 100% { filter: drop-shadow(-3px 0 8px rgba(80, 190, 255, 0.4)); }
+  50% { filter: drop-shadow(-4px 0 16px rgba(120, 205, 255, 0.72)); }
+}
+body[data-active-section="jauriusBot"] .sidebar-peek {
+  background-image: url("../assets/nav-diamond-bot.png?v=7");
+  filter: brightness(0.82) drop-shadow(-3px 0 9px rgba(255, 90, 161, 0.35));
+  animation-name: diamond-peek-breathe-jauriusBot;
+}
+@keyframes diamond-peek-breathe-jauriusBot {
+  0%, 100% { filter: brightness(0.82) drop-shadow(-3px 0 8px rgba(255, 80, 155, 0.28)); }
+  50% { filter: brightness(0.82) drop-shadow(-4px 0 16px rgba(255, 120, 178, 0.5)); }
+}
+body[data-active-section="personalGuidance"] .sidebar-peek {
+  background-image: url("../assets/nav-diamond-personalGuidance.png");
+  filter: brightness(0.88) drop-shadow(-3px 0 9px rgba(255, 120, 149, 0.4));
+  animation-name: diamond-peek-breathe-personalGuidance;
+}
+@keyframes diamond-peek-breathe-personalGuidance {
+  0%, 100% { filter: brightness(0.88) drop-shadow(-3px 0 8px rgba(255, 120, 149, 0.32)); }
+  50% { filter: brightness(0.88) drop-shadow(-4px 0 16px rgba(255, 70, 109, 0.58)); }
+}
+@media (min-width: 901px) { .sidebar-peek { display: none !important; } }
+body.sidebar-open .sidebar-peek { display: none; }
+
 @media (max-width: 900px) {
-  .sidebar { width: 82%; max-width: 320px; }
-  .content-area { padding: 22px 16px 50px; }
+  .sidebar { width: 53%; max-width: 235px; }
+  /* More air above the page opening (no topbar sits here anymore) so the
+     title isn't glued to the screen edge. calc()+env() adds the iPhone
+     status-bar/notch safe area on top of the usual padding (0px on
+     devices without one), now that the page background is allowed to
+     extend behind it (see viewport-fit=cover in dashboard.html). */
+  .content-area { padding: calc(40px + env(safe-area-inset-top)) 18px 54px; }
   .placeholder-page { padding: 32px 20px; margin: 20px auto; }
-  .topbar-title { font-size: 16px; }
+  .sidebar-nav { padding: 2px 0 16px; }
+  .nav-item { margin: 0 8px 4px; padding: 10px 10px; font-size: 14.5px; gap: 8px; }
+  .personal-nav-item { margin: 0 8px 2px; }
+  .sidebar-header { padding: calc(18px + env(safe-area-inset-top)) 14px 14px; gap: 8px; }
+  .sidebar-logo { width: 32px; height: 32px; }
 }
 
 /* Admin: manage users */
 .admin-page { max-width: 920px; margin: 0 auto; }
 .admin-page-header { text-align: center; margin-bottom: 26px; }
+.personal-page-header {
+  display: flex;
+  /* flex-start, not center: .gold-title (h1) carries its own 12px bottom
+     margin (spacing before the content below), and that margin counts
+     toward this row's cross-size for align-items:center -- centering
+     against that inflated, margin-padded height was pushing the icon
+     ~6-7px lower than the text's own actual line box. flex-start anchors
+     both items to the row's true top instead (h1 already has 0 top
+     margin, so this doesn't change its own position at all), leaving the
+     icon's offset below entirely driven by its own transform. */
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+}
+/* Sized to match the heading's own glyph-ink height exactly (measured via
+   canvas TextMetrics: Heebo 800 24px's ink spans ~23px, vs. this source
+   PNG's own visible-mask content occupying 61.7% of its square canvas --
+   34px undersized it to ~21px of visible content, short of the text).
+   37.6px brings the visible mask back to ~23px, matching the text. */
+.personal-page-icon {
+  width: 37.6px;
+  height: 37.6px;
+  object-fit: contain;
+  flex-shrink: 0;
+  /* Precisely measured (not eyeballed): with flex-start above, translateY
+     is the only thing positioning the icon's own visible content (which
+     sits 14.6%-76.25% down its own square canvas) so it starts and ends
+     at exactly the same Y as the heading text's glyph ink. */
+  transform: translateY(1.6px);
+  /* Colour precision: this source PNG's own baked-in tint sampled at
+     ~186.6° hue -- close to but not exactly this section's own diamond
+     hue (202.3°). The delta here is the browser-VERIFIED value (rendered
+     through an offscreen canvas with this exact filter, then re-sampled),
+     not just the Node.js matrix estimate -- canvas/CSS filter rendering
+     showed a small but real ~3-4° gap from the matrix model's prediction
+     for this particular image, enough to read as "still not quite it".
+     hue-rotate() alone preserves the source pixels' own luminance, so the
+     mask (a mid-tone photographic-style asset) still read visibly duller
+     and darker than the heading's own bright gradient text (light stops up
+     to #e2f4ff) beside it -- brightness/saturate lift it to match that
+     vividness (canvas-sampled avg lightness raised from ~0.70 to ~0.75,
+     confirmed visually against the heading, without shifting the hue).
+     The heading's own "living" quality is its soft drop-shadow glow
+     (see .gold-title's filter for this section) -- the icon had none of
+     that at all, which is why it read as flat/disconnected next to a
+     heading that visibly glows. Same glow colour added here, gently
+     (smaller blur/lower opacity, since the icon itself is much smaller
+     than the heading's own type), so it now feels lit from the same
+     source as the text beside it instead of just being tinted to match
+     it. Size/position untouched -- glow only. */
+  filter: hue-rotate(41.5deg) brightness(1.3) saturate(1.1) drop-shadow(0 0 5px rgba(70, 210, 255, 0.28));
+}
 .admin-page .panel-card { padding: 28px 26px; margin-bottom: 22px; }
+/* Minor master-only management panels (accordionHTML: ticker/trail-notes/
+   topics/bot-knowledge/comment-moderation/add-lesson/compose forms) are
+   small, dense tools, not flagship content blocks -- tighter padding than
+   a regular panel-card, and tighter field spacing/button distance inside
+   them, scoped to ONLY these panels (not the global .field-group token
+   every other form, including login, still uses at full size). */
+.admin-page .panel-card.admin-accordion { padding: 18px 20px; }
+.admin-accordion-body .field-group { margin-bottom: 12px; }
+.admin-accordion-body .field-group label { margin-bottom: 4px; }
+.admin-accordion-body .form-actions { margin-top: 4px; }
+
+/* Master-only: replaces the old sidebar "ניהול המערכת" nav item -- it now
+   always lives on the master's own personal page instead of being gated to
+   edit mode. Centered to match the header above it on desktop, right-
+   aligned to match it on mobile (see the mobile override below). Sits
+   right under the heading -- the header's own bottom margin is tightened
+   for this page only (see .personal-page-master below) so it doesn't read
+   as a detached, separate block. */
+.personal-page-actions { display: flex; justify-content: center; margin: 0 0 20px; }
+.personal-page-master .personal-page-header { margin-bottom: 10px; }
+/* A real, pressable button rather than a quiet pill link -- still small,
+   still not shouty, but with the same obsidian-stone-with-a-crystal-core
+   material .btn-gold uses elsewhere, at a reduced scale that fits this
+   compact placement under the heading. */
+.admin-manage-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 22px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(99, 171, 255, 0.4);
+  background: linear-gradient(180deg, #1a2740 0%, #0e1728 55%, #080d17 100%);
+  color: var(--crystal-ice);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(214, 236, 255, 0.14),
+    inset 0 0 14px rgba(70, 150, 255, 0.12);
+  text-shadow: 0 0 10px rgba(120, 195, 255, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.3s ease, border-color 0.3s ease, color 0.2s ease;
+}
+.admin-manage-link:hover {
+  border-color: rgba(130, 195, 255, 0.65);
+  color: var(--white-glow, #fff);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(214, 236, 255, 0.18),
+    inset 0 0 20px rgba(70, 150, 255, 0.22);
+}
+.admin-manage-link:active { transform: translateY(1px) scale(0.98); }
+
+/* Mobile: page openings read right-to-left instead of hard-centred, and
+   get more breathing room before the forms/cards below. Placed AFTER the
+   base header rules above so it actually wins on mobile (media queries add
+   no specificity -- source order decides). Desktop is untouched. */
+@media (max-width: 900px) {
+  .admin-page-header { text-align: right; margin: 6px 2px 34px; }
+  .personal-page-header { justify-content: flex-start; }
+  .personal-page-actions { justify-content: flex-start; }
+  /* Master's personal page only: a bit more breathing room before the
+     heading, so the opening doesn't feel jammed against the top edge. */
+  .personal-page-master .personal-page-header { margin-top: 44px; margin-bottom: 10px; }
+}
+
+/* Small round "back" affordance on internal/secondary pages only (admin
+   tools, lesson views) -- the four main section landings never get one,
+   the diamond peek is their only way back. Sits above the page's own
+   heading, so no page module needs to know about it. */
+.page-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--border-gold-soft);
+  background: rgba(99, 171, 255, 0.05);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+.page-back-btn:hover { border-color: var(--border-gold); color: var(--gold-light); background: rgba(99, 171, 255, 0.09); }
+.page-back-btn svg { width: 16px; height: 16px; display: block; }
 
 .form-title {
   font-family: var(--font-serif);
@@ -275,6 +2728,31 @@ body.sidebar-open .sidebar-overlay { opacity: 1; pointer-events: auto; }
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 4px 16px;
 }
+
+/* One compact <select> per linked lesson (ticker phrase management) --
+   never the full lesson list dumped open. "+ הוסף קישור לעוד שיעור" adds
+   another row of these at runtime; only rows beyond the first carry a
+   remove button (the first stays as the permanent "קישור לשיעור" picker,
+   left on "ללא קישור" for a general phrase). */
+.hl-lesson-links { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.hl-lesson-link-row { display: flex; align-items: center; gap: 8px; }
+.hl-lesson-link-row select { flex: 1; }
+.hl-lesson-link-row .btn-ghost.small { flex-shrink: 0; padding: 6px 9px; }
+
+/* Ticker phrase list (inside "ניהול משפטים בצג העליון") -- simple stacked
+   cards instead of a wide table, so it reads cleanly on mobile with no
+   horizontal scroll. Order isn't editable here (phrases just run in the
+   ticker regardless of list order); visibility lives in the edit form. */
+.hl-card-list { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.hl-card {
+  padding: 12px 14px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  background: rgba(99, 171, 255, 0.03);
+}
+.hl-card-text { margin: 0 0 6px; font-size: 14px; color: var(--text-main); line-height: 1.6; }
+.hl-card-meta { margin: 0 0 10px; font-size: 12px; color: var(--text-dim); }
+.hl-card-actions { display: flex; gap: 8px; }
 
 .checkbox-row { display: flex; flex-wrap: wrap; gap: 10px; }
 .checkbox-pill {
@@ -314,7 +2792,9 @@ body.sidebar-open .sidebar-overlay { opacity: 1; pointer-events: auto; }
 .sections-cell { color: var(--text-muted); white-space: normal; max-width: 220px; }
 .actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
 
+
 .btn-ghost.small { padding: 6px 10px; font-size: 12px; }
+.btn-gold.small { width: auto; padding: 8px 16px; font-size: 12.5px; }
 .btn-ghost.danger { color: #e2775a; border-color: rgba(226, 119, 90, 0.35); }
 .btn-ghost.danger:hover { color: #f0967a; border-color: #e2775a; background: rgba(226, 119, 90, 0.08); }
 .muted-note { font-size: 12px; color: var(--text-dim); }
@@ -434,6 +2914,12 @@ body.sidebar-open .sidebar-overlay { opacity: 1; pointer-events: auto; }
 
 .lesson-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .lesson-header .placeholder-title { margin: 0; }
+
+/* Lesson title, right above the video/embed -- a clear per-lesson
+   heading, deliberately smaller than the section-wide title so it never
+   reads as "another section header". */
+.lesson-page-title { margin-bottom: 14px; text-align: right; }
+.lesson-title-heading { font-size: 20px; margin: 0; }
 .lesson-text { color: var(--text-main); font-size: 15px; line-height: 1.8; margin: 0 0 22px; }
 .lesson-attachments { margin: 0 0 22px; padding-inline-start: 20px; color: var(--text-muted); font-size: 13.5px; }
 
@@ -466,19 +2952,258 @@ body.sidebar-open .sidebar-overlay { opacity: 1; pointer-events: auto; }
   background: var(--panel);
   padding: 12px 0;
   margin-bottom: 22px;
+  /* Grabbable: the marquee is JS-driven (insightsTicker.js) so a finger
+     or mouse can scrub it. touch-action pan-y keeps vertical page scroll
+     free while we own the horizontal drag. Isolated to LTR so the strip's
+     own layout/scroll direction is never ambiguous under the page's RTL
+     base direction (display:flex reverses child order under RTL by spec)
+     -- see the long comment on wireTicker() in insightsTicker.js. */
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  direction: ltr;
 }
+.insights-ticker.is-dragging { cursor: grabbing; }
+/* JS (insightsTicker.js) drives `transform` every frame via
+   requestAnimationFrame -- no CSS animation/keyframes at all, so there is
+   no shorthand/duration race to worry about. */
 .insights-ticker-track {
   display: flex;
-  gap: 48px;
-  white-space: nowrap;
   width: max-content;
-  animation: insights-scroll 35s linear infinite;
+  white-space: nowrap;
+  will-change: transform;
 }
-.insights-item { color: var(--gold-light); font-size: 13px; padding: 0 12px; }
-@keyframes insights-scroll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+.insights-ticker-set { display: flex; align-items: center; }
+/* direction:rtl + isolate put each Hebrew phrase's own letters back in
+   the right order/alignment, independent of the strip's own LTR flow
+   direction. No margin of its own -- the separator between items (below)
+   carries the spacing on both sides, so the rhythm stays even whether
+   it's item-to-separator or separator-to-item. */
+.insights-item { color: var(--gold-light); font-size: 13px; direction: rtl; unicode-bidi: isolate; }
+/* Separator between phrases: the small ג'אוריוס mask, replacing the old
+   "✦" star. Equal margin on both sides is what makes the spacing between
+   every phrase and the logo feel uniform. */
+.insights-sep { display: inline-flex; align-items: center; margin: 0 20px; }
+.insights-sep img {
+  height: 14px;
+  width: auto;
+  display: block;
+  opacity: 0.85;
+  /* The source PNG's visible mask sits slightly above center within its
+     own square canvas -- nudge it back down so it optically centers on
+     the phrase text's own line instead of reading as "floating high". */
+  transform: translateY(0.75px);
 }
+/* "צידה לדרך" -- per-lesson notes/phrases (insightsTicker.js). Static
+   cards, not a marquee: a single lesson usually links only a couple of
+   phrases, so a running strip would be more motion than content. Reuses
+   the existing .badge / .panel-card language -- no new visual system. */
+.trail-notes { margin-bottom: 22px; }
+.trail-note-list { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+/* Row layout: the sentence (+ save button) is the actual point of the
+   card and stays on the reading (right) side; an attached media
+   thumbnail, if any, sits fixed-size on the left -- plain "row" (not
+   row-reverse) already puts the first DOM child on the right under
+   dir=rtl, matching the markup order (text first, thumbnail second). */
+.trail-note-item {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  background: rgba(99, 171, 255, 0.03);
+}
+.trail-note-main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.trail-note-text { margin: 0; font-size: 14px; color: var(--text-main); line-height: 1.6; }
+/* A very long sentence is truncated (see trailTextHTML) with this link
+   opening the full text in the shared lightbox below instead of letting
+   the card grow to fit it. */
+.trail-text-more {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--gold-light);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Attached media (image/video/file) -- a small, fixed-size clickable
+   thumbnail, never a full-width block: the sentence stays the point of
+   the card, the thumbnail is just an affordance to open the real thing
+   in the lightbox below. */
+.trail-media-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  background: rgba(99, 171, 255, 0.05);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+.trail-media-thumb:hover { border-color: var(--border-gold); }
+.trail-media-thumb img,
+.trail-media-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.trail-media-thumb-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--gold-light);
+  pointer-events: none;
+}
+.trail-media-expand-icon {
+  position: absolute;
+  bottom: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(5, 6, 10, 0.75);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Shared lightbox (wireTrailExpand) -- one instance per page, reused by
+   every media thumbnail and "הצגת הכל" button: opens "on screen like a
+   notification", closeable via ✕, Escape, or clicking outside the box. */
+.trail-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 4, 8, 0.86);
+}
+.trail-lightbox-overlay[hidden] { display: none; }
+.trail-lightbox-box {
+  position: relative;
+  max-width: min(560px, 92vw);
+  max-height: 86vh;
+  overflow: auto;
+  padding: 34px 18px 18px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.trail-lightbox-close {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: 50%;
+  background: rgba(5, 6, 10, 0.6);
+  color: var(--text-main);
+  font-size: 14px;
+  cursor: pointer;
+}
+.trail-lightbox-close:hover { border-color: var(--border-gold); color: var(--gold-light); }
+.trail-lightbox-content img,
+.trail-lightbox-content video { display: block; width: 100%; max-height: 70vh; object-fit: contain; border-radius: var(--radius-md); }
+.trail-lightbox-file { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 10px; }
+.trail-lightbox-file .trail-media-thumb-icon { position: static; font-size: 40px; }
+.trail-lightbox-text { margin: 0; font-size: 15px; line-height: 1.75; color: var(--text-main); white-space: pre-wrap; }
+
+/* Master-only "צידה לדרך" media upload picker (trailManagerHTML) -- "+
+   הוסף מדיה" clicks straight into a native <input type=file> (no accept
+   restriction), so the OS/browser's own gallery/camera/files sheet is
+   what opens, with no extra menu of ours in the way first. */
+.trail-media-picker { position: relative; }
+.trail-media-selected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.trail-media-selected[hidden] { display: none; }
+.trail-media-selected button {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.trail-media-existing { margin-bottom: 8px; }
+.trail-media-existing-remove {
+  display: block;
+  margin-top: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+/* "שמירה ליומן" -- quiet by default (this is a personal-journal action,
+   not the main point of the card), turns a soft confirmed-green once
+   saved so the state reads at a glance without shouting. */
+.trail-note-save {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-gold-soft);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+.trail-note-save:hover:not(:disabled) { border-color: var(--border-gold); color: var(--gold-light); }
+.trail-note-save.is-saved {
+  border-color: rgba(122, 199, 140, 0.4);
+  color: #8fd6a3;
+  background: rgba(122, 199, 140, 0.08);
+  cursor: default;
+}
+.trail-note-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* "הצג הכל" -- deliberately a plain text link, not another pill button
+   like "שמירה ליומן" beside it: only appears when there's an optional
+   description to actually reveal (see trailNotesHTML). */
+.trail-reveal-all-link {
+  align-self: center;
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.trail-reveal-all-link:hover { color: var(--gold-light); }
+/* "הצג הכל" bubble content (opens in the shared trail-lightbox). */
+.trail-reveal-media { margin: 14px 0; }
+.trail-reveal-desc {
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border-gold-soft);
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
 .insights-empty {
   text-align: center;
   color: var(--text-dim);
@@ -488,6 +3213,54 @@ body.sidebar-open .sidebar-overlay { opacity: 1; pointer-events: auto; }
   border-radius: 999px;
   margin-bottom: 22px;
 }
+
+/* Collapsible admin management panels (adminAccordion.js). The header
+   button reuses whichever heading class the panel already used
+   (.form-title / .personal-block-title) so typography is untouched --
+   only the pointer, flex row and chevron are new. Higher specificity
+   (two classes) than the plain heading rule, so it wins regardless of
+   source order without duplicating any font/color/margin declaration. */
+.admin-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: right;
+}
+/* A small round crystal button, not a bare glyph -- reads as "click here
+   to open/close" the same way every other round icon-button on the site
+   already does (.notebook-save-btn, .folder-add-btn), instead of a loose
+   triangle floating in the header row. */
+.admin-accordion-chevron {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border-gold-soft);
+  background: rgba(99, 171, 255, 0.06);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: transform 0.25s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+.admin-accordion-header:hover .admin-accordion-chevron {
+  border-color: var(--border-gold);
+  color: var(--gold-light);
+  background: rgba(99, 171, 255, 0.12);
+}
+.admin-accordion-header:active .admin-accordion-chevron { transform: scale(0.92); }
+.admin-accordion.is-open .admin-accordion-chevron { transform: rotate(180deg); border-color: var(--border-gold); color: var(--gold-light); }
+.admin-accordion.is-open .admin-accordion-header:active .admin-accordion-chevron { transform: rotate(180deg) scale(0.92); }
+.admin-accordion:not(.is-open) .admin-accordion-header { margin-bottom: 0; }
 
 /* Inline content editing (edit mode only) */
 .editable-wrap { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
@@ -539,17 +3312,52 @@ textarea.editable-input { display: block; resize: vertical; }
 .reorder-row { display: flex; gap: 6px; margin-top: 10px; }
 .lesson-embed-edit { font-size: 12.5px; color: var(--text-dim); margin: -8px 0 18px; }
 
-/* Lesson tabs (הכספת / מהישרדות לחופש) */
+/* Clear video-link control (item 5): a visible button below the video,
+   toggling to an inline "paste + save" form -- no reload either way. */
+.lesson-embed-manage { margin: -8px 0 18px; }
+.lesson-embed-manage form { margin: 0; }
+.lesson-embed-manage .field-group { margin-bottom: 10px; }
+
+/* Lesson tabs (הכספת / מהישרדות לחופש / ליווי אישי) -- a normal VERTICAL
+   list, one lesson under the next, never a horizontal row/carousel. Long
+   lesson names are handled by the OUTER .lesson-tabs-scroll wrapper below,
+   not by this list itself: the wrapper can scroll sideways as one piece,
+   but the list inside it always stays a column. */
 .lesson-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 18px;
+}
+/* Student-facing lists only (edit mode's own vertical management rows,
+   .lesson-tabs.is-editing, are untouched -- see that rule further below).
+   `width: max-content` + `min-width: 100%` makes the column exactly as
+   wide as its widest row needs (at least the full available width, more
+   only if a long name requires it) -- that's what gives the WRAPPER
+   something to actually scroll when it does. Dragging anywhere in the
+   wrapper moves the whole column sideways at once, so every row (short or
+   long) shifts by the identical offset -- never one row scrolling on its
+   own. */
+.lesson-tabs-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  margin-bottom: 18px;
+}
+.lesson-tabs-scroll::-webkit-scrollbar { height: 4px; }
+.lesson-tabs-scroll::-webkit-scrollbar-thumb { background: rgba(150, 200, 255, 0.3); border-radius: 3px; }
+.lesson-tabs-scroll .lesson-tabs {
+  align-items: flex-start;
+  width: max-content;
+  min-width: 100%;
+  margin-bottom: 0;
 }
 .lesson-tab {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
   padding: 11px 18px;
   border-radius: 999px;
   border: 1px solid var(--border-gold-soft);
@@ -567,8 +3375,203 @@ textarea.editable-input { display: block; resize: vertical; }
 }
 .lesson-tab.is-done { border-color: rgba(150, 200, 255, 0.4); color: #a9d4ff; }
 .lesson-tab-check { width: 14px; color: var(--gold); font-weight: 700; flex-shrink: 0; }
-.lesson-tab-edit { display: flex; flex-direction: column; gap: 6px; }
-.lesson-tab-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Pinned explicitly (not just inherited from .lesson-tab) so every lesson
+   name in the list renders at the exact same size -- some mobile browsers
+   auto-boost/shrink inline text size per-element based on its box width
+   (varies pill-to-pill with `width: max-content` on the list), which is
+   what caused names to visually read as different sizes even though the
+   underlying font-size was always 13.5px. text-size-adjust:100% disables
+   that per-element auto-adjustment. */
+.lesson-tab-title {
+  display: inline-block;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-size: 13.5px;
+  line-height: 1.3;
+  font-weight: 400;
+  letter-spacing: normal;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+.lesson-tab-title::-webkit-scrollbar { height: 3px; }
+.lesson-tab-title::-webkit-scrollbar-thumb { background: rgba(150, 200, 255, 0.3); border-radius: 3px; }
+
+/* "מערכת סינון שיעורים" -- topic filter (js/topicsFilter.js), sits below
+   the top ticker and above the lesson list. Lives inside .admin-page, so
+   it automatically inherits each section's own --content-hue-shift the
+   exact same way every other element on this page already does -- no
+   per-section colour rule needed here or when מהישרדות לחופש adopts the
+   same module later. */
+.topics-filter { margin-bottom: 14px; }
+.topics-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-muted);
+  user-select: none;
+}
+/* Native checkbox stays for real keyboard/click semantics, just visually
+   replaced by the small diamond below (sibling selector, no JS needed for
+   the visual state itself). */
+.topics-filter-toggle input[type="checkbox"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+/* Rest = quiet, dark, closed facet. Checked = the small crystal glow --
+   same visual family as the diamonds elsewhere in the app, just a plain
+   CSS shape (no image asset) since this is a tiny inline control, not a
+   nav-level piece of chrome. */
+.topics-filter-diamond {
+  position: relative;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  border: 1px solid var(--border-gold-soft);
+  background: rgba(255, 255, 255, 0.02);
+  transform: rotate(45deg);
+  transition: border-color 0.25s ease, background 0.3s ease, box-shadow 0.3s ease;
+}
+.topics-filter-toggle input:checked + .topics-filter-diamond {
+  border-color: var(--border-gold);
+  background: radial-gradient(circle at 34% 30%, var(--crystal-ice), var(--crystal) 55%, var(--crystal-deep) 100%);
+  box-shadow: 0 0 8px rgba(90, 167, 255, 0.55), 0 0 2px rgba(201, 230, 255, 0.75);
+}
+.topics-filter-toggle input:checked ~ .topics-filter-label-text { color: var(--gold-light); }
+/* Small, compact, filled chips -- deliberately NOT styled like
+   .lesson-tab (smaller padding/font, filled not outlined by default) so
+   they read as filters, not as more lessons to click. Wraps freely on
+   mobile instead of ever scrolling horizontally. */
+.topics-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.topic-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-gold-soft);
+  background: rgba(99, 171, 255, 0.06);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+.topic-chip:hover { border-color: var(--border-gold); color: var(--text-main); }
+.topic-chip.is-active {
+  border-color: var(--border-gold);
+  background: rgba(99, 171, 255, 0.22);
+  color: var(--crystal-ice);
+  box-shadow: 0 0 10px rgba(90, 167, 255, 0.28);
+}
+
+/* Edit mode: lesson list becomes a stack of clean management rows instead
+   of wrapped pills -- reorder buttons lead (right, RTL start), title +
+   inline pencil in the middle, hide/show + a small round delete icon
+   trail (left, RTL end). */
+.lesson-tabs.is-editing { flex-direction: column; flex-wrap: nowrap; }
+.lesson-row-manage {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-gold-soft);
+  background: var(--panel);
+  transition: border-color 0.2s ease;
+}
+.lesson-row-manage:hover { border-color: var(--border-gold); }
+.lesson-row-manage.lesson-row-inactive { opacity: 0.6; }
+.lesson-row-reorder { display: flex; gap: 4px; flex-shrink: 0; }
+.lesson-row-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-decoration: none;
+  color: var(--text-main);
+  font-size: 13.5px;
+}
+/* Same fix as the student-facing pill above -- scrolls internally instead
+   of truncating; the reorder/edit/hide/delete icons beside it are all
+   flex-shrink:0 already, so they stay put regardless of title length. */
+.lesson-row-title .lesson-tab-title { flex: 1; min-width: 0; display: block; overflow-x: auto; overflow-y: hidden; white-space: nowrap; scrollbar-width: thin; }
+.lesson-row-edit {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--gold-light);
+  opacity: 0.7;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px;
+  transition: opacity 0.2s ease;
+}
+.lesson-row-edit:hover { opacity: 1; }
+/* Inline title-rename form: same input/save/cancel language as the
+   shared inline-edit affordance (inlineEdit.js), just triggered from the
+   fixed pencil above instead of a pencil glued to the text. */
+.lesson-row-title-form { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.lesson-row-toggle {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+.lesson-row-toggle:hover { opacity: 1; color: var(--gold-light); }
+.lesson-row-toggle.is-hidden { color: var(--text-dim); }
+.lesson-row-delete {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(226, 119, 90, 0.35);
+  background: rgba(226, 119, 90, 0.12);
+  color: #e2957f;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.lesson-row-delete:hover { background: rgba(226, 119, 90, 0.28); color: #ffb199; }
+
+/* "הוספת שיעור חדש" -- rendered via adminAccordion.js, collapsed to a row
+   the same size as a lesson row (with a bit more glow), expands in place
+   to the add-lesson form -- no page reload either way. */
+.admin-accordion.lesson-row-add:not(.is-open) {
+  background: rgba(99, 171, 255, 0.06);
+  border: 1px dashed var(--border-gold);
+  border-radius: 999px;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 0;
+  margin-bottom: 0;
+}
+.admin-accordion.lesson-row-add:not(.is-open) .admin-accordion-header {
+  padding: 9px 16px;
+  color: var(--gold-light);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.admin-accordion.lesson-row-add:not(.is-open):hover {
+  border-color: var(--gold);
+  background: rgba(99, 171, 255, 0.1);
+  animation: crystal-breathe 2.6s ease-in-out infinite;
+}
+.admin-accordion.lesson-row-add.is-open { margin-top: 8px; }
 
 /* Watch-lesson toggle: live blue fire while waiting, extinguished
    stone once marked complete — the interaction meaning is unchanged
@@ -680,6 +3683,33 @@ textarea.editable-input { display: block; resize: vertical; }
 .comment-author { display: block; font-size: 12.5px; color: var(--gold-light); font-weight: 600; margin-bottom: 4px; }
 .comment-text { margin: 0; font-size: 14px; color: var(--text-main); line-height: 1.6; }
 
+/* Compact comments area on a lesson page -- tighter padding than a
+   regular panel-card, and a minimal add-comment form (field + button, no
+   redundant "הוסף תגובה" heading restating what the placeholder already
+   says) sharing the SAME card as the comment list right above it instead
+   of a second full panel-card just for one field -- one less border/
+   padding/margin block on a page that didn't need it. */
+.admin-page .comments-panel { padding: 18px 20px; margin-bottom: 14px; }
+.comments-panel .form-title { margin-bottom: 10px; }
+.comment-list + .comment-form-compact { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-gold-soft); }
+.comment-form-compact { display: flex; flex-direction: column; gap: 8px; }
+.comment-form-compact textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(6, 10, 18, 0.55);
+  border: 1px solid rgba(99, 171, 255, 0.2);
+  border-radius: var(--radius-md);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  resize: vertical;
+  outline: none;
+}
+.comment-form-compact textarea:focus { border-color: var(--gold); }
+.comment-form-compact .btn-gold { align-self: flex-start; }
+.comment-form-compact .comment-status { margin: 0; }
+.comment-form-compact .error-msg { margin: 0; }
+
 /* ============================================================
    Material upgrades — obsidian & crystal finish.
    Additive layer only: same classes, same layout, richer matter.
@@ -716,7 +3746,7 @@ textarea.editable-input { display: block; resize: vertical; }
 
 /* Sidebar: active item = light trapped in the stone's edge */
 .nav-item.active { box-shadow: inset 0 0 20px rgba(80, 160, 255, 0.07); }
-.sidebar-logo { box-shadow: 0 0 18px rgba(80, 160, 255, 0.12); }
+.sidebar-logo { box-shadow: 0 0 18px rgba(56, 216, 208, 0.12); }
 
 /* Ticker phrases glow softly from within */
 .insights-item { text-shadow: 0 0 14px rgba(120, 195, 255, 0.35); }
@@ -754,4 +3784,200 @@ textarea.editable-input { display: block; resize: vertical; }
   .progress-bar-fill,
   .watch-btn:hover,
   .insights-ticker-track { animation: none; }
+}
+
+/* --- Site-wide tap/click feedback ---------------------------------------
+   Every primary interactive control gets a small, brief scale-down on
+   press so the whole site reads as alive/reactive -- purely additive
+   (only ever a transform, never touching any element's own colours,
+   borders or backgrounds). Elements that already declare a richer,
+   more-specific :active rule of their own (.notebook-save-btn,
+   .admin-manage-link, .personal-board-btn, .folder-add-btn,
+   .daily-wheel-handle, .watch-btn, .btn-gold, ...) are untouched here --
+   a single-class selector always beats this shared fallback on
+   specificity, so those keep using their own richer feedback. Deliberately
+   just `transform` with no new `transition` on these shared selectors (to
+   avoid silently overriding any of their own carefully-tuned transition
+   lists elsewhere in this file) -- the press itself is still instantly
+   visible even without an eased transition into it. */
+.btn-ghost:not(:disabled):active,
+.nav-item:active,
+.lesson-tab:active,
+.lesson-row-title:active,
+.page-back-btn:active,
+.student-folder-btn:active,
+.personal-modal-close:active,
+.lesson-row-edit:active,
+.lesson-row-toggle:active,
+.lesson-row-delete:active,
+.reorder-btn:active,
+.edit-pencil:active {
+  transform: scale(0.96);
+}
+
+/* =====================================================================
+   Shared loading component (js/loader.js) -- the ONE loader for the whole
+   app, replacing every page's old "טוען..." text, and wired ONLY to a
+   short whitelist of genuinely heavy operations (see isHeavyRoute() in
+   js/loader.js) -- most of the app stays exactly as fast/instant as it
+   already was, with no loader involved at all. A small vault-lock motif:
+   a faint static ring, two energy arcs counter-orbiting it at different
+   speeds, four quiet dial ticks, and a central cross "handle" turning
+   steadily -- reads as "the vault mechanism is working", not a generic
+   spinner. Two contexts share the exact same component:
+     - .content-loader-overlay -- one static element (dashboard.html), a
+       fixed, full-viewport overlay so the loader is ALWAYS dead-centre on
+       the actual screen (not just the content column, and never drifting
+       lower on a tall/scrolled page -- the previous position:absolute-
+       within-.app-main version could end up centred on the page's full
+       scrollable height instead of the visible viewport). Fades in/out
+       (js/loader.js toggles .is-visible), never a hard cut/flash.
+     - .vault-loader-modal -- the same visual, sized down, available for
+       any future scoped use (not currently wired to any popup -- opening
+       one is never "heavy" on its own).
+   ===================================================================== */
+.content-loader-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 5, 10, 0.68);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.content-loader-overlay.is-visible { opacity: 1; pointer-events: auto; }
+.content-loader-overlay[hidden] { display: none; }
+
+.vault-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vault-loader-modal { padding: 34px 0; }
+.vault-loader-page .vault-loader-svg { width: 88px; height: 88px; }
+.vault-loader-modal .vault-loader-svg { width: 46px; height: 46px; }
+
+/* Two-tone breathing glow -- a tight electric-cyan core plus a wider,
+   deeper sapphire bloom, so the light reads as coming from something
+   dense/gem-like rather than a single flat blur. */
+.vault-loader-svg {
+  overflow: visible;
+  animation: vault-loader-breathe 2.4s ease-in-out infinite;
+}
+@keyframes vault-loader-breathe {
+  0%, 100% {
+    filter:
+      drop-shadow(0 0 5px rgba(70, 213, 255, 0.45))
+      drop-shadow(0 0 16px rgba(29, 78, 158, 0.4));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 10px rgba(70, 213, 255, 0.75))
+      drop-shadow(0 0 26px rgba(29, 78, 158, 0.65));
+  }
+}
+
+/* Faint static frame -- the vault's own ring, always present. */
+.vault-loader-ring {
+  fill: none;
+  stroke: rgba(150, 205, 255, 0.22);
+  stroke-width: 3;
+}
+/* Two energy arcs orbiting at different radii/speeds/directions -- reads
+   as layered light moving around the frame (a small "orbit" of energy),
+   not the flat "one arc chasing its tail" look of a default spinner.
+   Outer = brighter/faster/clockwise, inner = fainter/slower/counter-
+   clockwise, so the two never move in lockstep. */
+.vault-loader-arc {
+  fill: none;
+  stroke: var(--crystal-cyan);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 54 197;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: vault-loader-orbit 2.6s linear infinite;
+  filter: drop-shadow(0 0 3px rgba(70, 213, 255, 0.7));
+}
+.vault-loader-arc-inner {
+  fill: none;
+  stroke: var(--crystal-ice);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 24 171;
+  opacity: 0.55;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: vault-loader-orbit-reverse 3.8s linear infinite;
+}
+@keyframes vault-loader-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes vault-loader-orbit-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+/* Four quiet dial ticks -- the vault's own calibration marks, pulsing one
+   at a time on a slow, staggered rhythm (never all at once, never a
+   flashing ring of lights). */
+.vault-loader-ticks line {
+  stroke: var(--crystal-ice);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0.15;
+  animation: vault-loader-tick 3.2s ease-in-out infinite;
+}
+.vault-loader-ticks line:nth-child(1) { animation-delay: 0s; }
+.vault-loader-ticks line:nth-child(2) { animation-delay: 0.8s; }
+.vault-loader-ticks line:nth-child(3) { animation-delay: 1.6s; }
+.vault-loader-ticks line:nth-child(4) { animation-delay: 2.4s; }
+@keyframes vault-loader-tick {
+  0%, 70%, 100% { opacity: 0.15; }
+  15% { opacity: 0.85; }
+}
+
+/* The central handle -- a small cross, turning steadily like a vault dial
+   being worked, slow enough to feel deliberate rather than "spinning". */
+.vault-loader-handle {
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+  animation: vault-loader-turn 4.5s linear infinite;
+}
+.vault-loader-handle line {
+  stroke: var(--crystal);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 2px rgba(90, 167, 255, 0.6));
+}
+.vault-loader-hub {
+  fill: var(--obsidian-raised);
+  stroke: var(--crystal-ice);
+  stroke-width: 2;
+}
+@keyframes vault-loader-turn {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vault-loader-svg,
+  .vault-loader-arc,
+  .vault-loader-arc-inner,
+  .vault-loader-handle,
+  .vault-loader-ticks line {
+    animation: none;
+  }
+  .vault-loader-svg {
+    filter:
+      drop-shadow(0 0 8px rgba(70, 213, 255, 0.55))
+      drop-shadow(0 0 20px rgba(29, 78, 158, 0.5));
+  }
+  .vault-loader-ticks line { opacity: 0.4; }
 }

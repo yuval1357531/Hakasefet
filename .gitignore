@@ -11,3 +11,10 @@ node_modules
 .agents/
 .claude/skills/
 skills-lock.json
+
+# Raw reference images pasted into chat during design work (diamond/wall
+# color sampling, etc.) -- scratch inputs for a past session, not real site
+# assets. The actual deployed images live under assets/.
+.claude/*.png
+.claude/*.jpeg
+.claude/*.jpg

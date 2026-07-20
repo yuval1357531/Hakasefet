@@ -1,8 +1,9 @@
-// Data layer for the "הכספת" section's lesson list. Same flat lesson
-// engine shape as data/freedomStore.js's lessons API, now backed by the
-// Supabase 'vault_lessons' table. Also owns the section's admin-authored
-// ticker phrases ('vault_highlights'), which are blended with approved
-// student comments in the top ticker (see pages/vaultSection.js).
+// Data layer for the "ליווי אישי" section. Byte-for-byte the same shape
+// as data/vaultStore.js (lessons/highlights/topics/groups) -- this
+// section reuses the exact same content-portal engine as הכספת, just
+// pointed at its own 'personal_guidance_*' tables/bucket-media, per the
+// "לשכפל/להרחיב את המנוע הקיים" requirement (a new engine was NOT built;
+// this is the same engine, applied a second time).
 
 import { supabase } from '../supabaseClient.js';
 
@@ -33,10 +34,9 @@ function toHighlight(row) {
   };
 }
 
-// Lesson topics (מערכת סינון שיעורים) -- a topic just carries the array of
-// lesson ids it applies to, same "linked_lesson_ids on the many side"
-// shape vault_highlights already uses for its own lesson links, so no new
-// join-table pattern is introduced.
+// Topics (lesson filter) and lesson groups (display headers) share the
+// exact same "name + linked_lesson_ids" row shape -- see vaultStore.js's
+// own toTopic for the identical reasoning.
 function toTopic(row) {
   return {
     id: row.id,
@@ -50,10 +50,9 @@ function makeId(prefix) {
   return prefix + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-// A trail note's media is now a real uploaded file (image/video/document),
-// not a manually-typed link -- stored in the public 'trail-media' bucket
-// and referenced by its public URL, so trailMediaHTML/journalStore need no
-// changes at all (mediaUrl stays a plain string either way).
+// Shares the SAME public 'trail-media' bucket vaultStore.js uploads to --
+// one bucket for every section's trail-note media, no per-section bucket
+// needed since paths are already unique (makeId('trail')-prefixed).
 async function uploadTrailMedia(file) {
   const path = `${makeId('trail')}-${file.name}`;
   const { error } = await supabase.storage.from('trail-media').upload(path, file);
@@ -68,11 +67,8 @@ function trailMediaPath(url) {
   return idx === -1 ? null : decodeURIComponent(url.slice(idx + marker.length));
 }
 
-// Cleans up the storage object behind a highlight's current media before
-// it's replaced or cleared, so re-uploading/removing never leaks orphaned
-// files in the bucket.
 async function removeTrailMediaFor(id) {
-  const { data } = await supabase.from('vault_highlights').select('media_url').eq('id', id).maybeSingle();
+  const { data } = await supabase.from('personal_guidance_highlights').select('media_url').eq('id', id).maybeSingle();
   const path = data && trailMediaPath(data.media_url);
   if (path) await supabase.storage.from('trail-media').remove([path]);
 }
@@ -92,7 +88,7 @@ async function reorder(table, id, direction) {
 
 const lessonsApi = {
   async getAll() {
-    const { data, error } = await supabase.from('vault_lessons').select('*').order('order', { ascending: true });
+    const { data, error } = await supabase.from('personal_guidance_lessons').select('*').order('order', { ascending: true });
     if (error || !data) return [];
     return data.map(toLesson);
   },
@@ -100,7 +96,7 @@ const lessonsApi = {
     return (await this.getAll()).filter((l) => l.isActive);
   },
   async getById(id) {
-    const { data, error } = await supabase.from('vault_lessons').select('*').eq('id', id).maybeSingle();
+    const { data, error } = await supabase.from('personal_guidance_lessons').select('*').eq('id', id).maybeSingle();
     if (error || !data) return null;
     return toLesson(data);
   },
@@ -108,9 +104,9 @@ const lessonsApi = {
     const all = await this.getAll();
     const order = all.length ? Math.max(...all.map((l) => l.order)) + 1 : 0;
     const { data: row, error } = await supabase
-      .from('vault_lessons')
+      .from('personal_guidance_lessons')
       .insert({
-        id: makeId('vlesson'),
+        id: makeId('pglesson'),
         title: data.title,
         description: data.description || '',
         embed_url: data.embedUrl || '',
@@ -133,27 +129,25 @@ const lessonsApi = {
     if (changes.descriptionMode !== undefined) payload.description_mode = changes.descriptionMode;
     if (changes.isActive !== undefined) payload.is_active = changes.isActive;
     if (changes.order !== undefined) payload.order = changes.order;
-    const { data, error } = await supabase.from('vault_lessons').update(payload).eq('id', id).select().single();
+    const { data, error } = await supabase.from('personal_guidance_lessons').update(payload).eq('id', id).select().single();
     if (error || !data) return null;
     return toLesson(data);
   },
   async remove(id) {
-    // comments.lesson_id has ON DELETE CASCADE, so this also removes the
-    // lesson's comments at the DB level.
-    const { error } = await supabase.from('vault_lessons').delete().eq('id', id);
+    const { error } = await supabase.from('personal_guidance_lessons').delete().eq('id', id);
     return !error;
   },
   async moveUp(id) {
-    await reorder('vault_lessons', id, 'up');
+    await reorder('personal_guidance_lessons', id, 'up');
   },
   async moveDown(id) {
-    await reorder('vault_lessons', id, 'down');
+    await reorder('personal_guidance_lessons', id, 'down');
   },
 };
 
 const highlightsApi = {
   async getAll() {
-    const { data, error } = await supabase.from('vault_highlights').select('*').order('order', { ascending: true });
+    const { data, error } = await supabase.from('personal_guidance_highlights').select('*').order('order', { ascending: true });
     if (error || !data) return [];
     return data.map(toHighlight);
   },
@@ -165,9 +159,9 @@ const highlightsApi = {
     const order = all.length ? Math.max(...all.map((h) => h.order)) + 1 : 0;
     const mediaUrl = data.file ? await uploadTrailMedia(data.file) : data.mediaUrl || '';
     const { data: row, error } = await supabase
-      .from('vault_highlights')
+      .from('personal_guidance_highlights')
       .insert({
-        id: makeId('vhl'),
+        id: makeId('pghl'),
         text: data.text,
         order,
         is_active: data.isActive !== false,
@@ -201,26 +195,26 @@ const highlightsApi = {
       if (changes.mediaUrl === '') await removeTrailMediaFor(id);
       payload.media_url = changes.mediaUrl;
     }
-    const { data, error } = await supabase.from('vault_highlights').update(payload).eq('id', id).select().single();
+    const { data, error } = await supabase.from('personal_guidance_highlights').update(payload).eq('id', id).select().single();
     if (error || !data) return null;
     return toHighlight(data);
   },
   async remove(id) {
     await removeTrailMediaFor(id);
-    const { error } = await supabase.from('vault_highlights').delete().eq('id', id);
+    const { error } = await supabase.from('personal_guidance_highlights').delete().eq('id', id);
     return !error;
   },
   async moveUp(id) {
-    await reorder('vault_highlights', id, 'up');
+    await reorder('personal_guidance_highlights', id, 'up');
   },
   async moveDown(id) {
-    await reorder('vault_highlights', id, 'down');
+    await reorder('personal_guidance_highlights', id, 'down');
   },
 };
 
 const topicsApi = {
   async getAll() {
-    const { data, error } = await supabase.from('vault_topics').select('*').order('order', { ascending: true });
+    const { data, error } = await supabase.from('personal_guidance_topics').select('*').order('order', { ascending: true });
     if (error || !data) return [];
     return data.map(toTopic);
   },
@@ -228,8 +222,8 @@ const topicsApi = {
     const all = await this.getAll();
     const order = all.length ? Math.max(...all.map((t) => t.order)) + 1 : 0;
     const { data: row, error } = await supabase
-      .from('vault_topics')
-      .insert({ id: makeId('vtopic'), name, order, linked_lesson_ids: linkedLessonIds || [] })
+      .from('personal_guidance_topics')
+      .insert({ id: makeId('pgtopic'), name, order, linked_lesson_ids: linkedLessonIds || [] })
       .select()
       .single();
     if (error || !row) return null;
@@ -239,26 +233,19 @@ const topicsApi = {
     const payload = {};
     if (changes.name !== undefined) payload.name = changes.name;
     if (changes.linkedLessonIds !== undefined) payload.linked_lesson_ids = changes.linkedLessonIds;
-    const { data, error } = await supabase.from('vault_topics').update(payload).eq('id', id).select().single();
+    const { data, error } = await supabase.from('personal_guidance_topics').update(payload).eq('id', id).select().single();
     if (error || !data) return null;
     return toTopic(data);
   },
   async remove(id) {
-    const { error } = await supabase.from('vault_topics').delete().eq('id', id);
+    const { error } = await supabase.from('personal_guidance_topics').delete().eq('id', id);
     return !error;
   },
 };
 
-// Internal lesson groups/headers (חלוקה פנימית של שיעורים לכותרות) --
-// same exact shape as topics (a group just carries the lesson ids under
-// it, see toTopic above), so toTopic/lessonLinkRow reuse is legitimate,
-// not a coincidence: it's the same "name + linked_lesson_ids" pattern,
-// just a different table/purpose (fixed display grouping vs a togglable
-// filter). A lesson with no group falls into the default/ungrouped
-// bucket purely in the UI -- no DB flag needed for that.
 const groupsApi = {
   async getAll() {
-    const { data, error } = await supabase.from('vault_lesson_groups').select('*').order('order', { ascending: true });
+    const { data, error } = await supabase.from('personal_guidance_lesson_groups').select('*').order('order', { ascending: true });
     if (error || !data) return [];
     return data.map(toTopic);
   },
@@ -266,8 +253,8 @@ const groupsApi = {
     const all = await this.getAll();
     const order = all.length ? Math.max(...all.map((g) => g.order)) + 1 : 0;
     const { data: row, error } = await supabase
-      .from('vault_lesson_groups')
-      .insert({ id: makeId('vgroup'), name, order, linked_lesson_ids: linkedLessonIds || [] })
+      .from('personal_guidance_lesson_groups')
+      .insert({ id: makeId('pggroup'), name, order, linked_lesson_ids: linkedLessonIds || [] })
       .select()
       .single();
     if (error || !row) return null;
@@ -277,17 +264,17 @@ const groupsApi = {
     const payload = {};
     if (changes.name !== undefined) payload.name = changes.name;
     if (changes.linkedLessonIds !== undefined) payload.linked_lesson_ids = changes.linkedLessonIds;
-    const { data, error } = await supabase.from('vault_lesson_groups').update(payload).eq('id', id).select().single();
+    const { data, error } = await supabase.from('personal_guidance_lesson_groups').update(payload).eq('id', id).select().single();
     if (error || !data) return null;
     return toTopic(data);
   },
   async remove(id) {
-    const { error } = await supabase.from('vault_lesson_groups').delete().eq('id', id);
+    const { error } = await supabase.from('personal_guidance_lesson_groups').delete().eq('id', id);
     return !error;
   },
 };
 
-export const vaultStore = {
+export const personalGuidanceStore = {
   lessons: lessonsApi,
   highlights: highlightsApi,
   topics: topicsApi,

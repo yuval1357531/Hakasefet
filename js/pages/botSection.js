@@ -12,6 +12,9 @@
 
 import { auth } from '../auth.js';
 import { botKnowledgeStore } from '../data/botKnowledgeStore.js';
+import { contentStore } from '../data/contentStore.js';
+import { editableField, wireEditableFields } from '../inlineEdit.js';
+import { accordionHTML, wireAccordions } from '../adminAccordion.js';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -77,9 +80,7 @@ function knowledgeListHTML(items) {
     .join('');
 
   return `
-    <div class="panel-card">
-      <h2 class="form-title">ניהול בסיס הידע של הבוט</h2>
-      <p class="placeholder-desc">חומרים אלו ישמשו בעתיד את ג׳אוריוס כדי להשתפר בתשובותיו.</p>
+    <p class="placeholder-desc">חומרים אלו ישמשו בעתיד את ג׳אוריוס כדי להשתפר בתשובותיו.</p>
 
       <div class="form-grid">
         <div>
@@ -131,25 +132,56 @@ function knowledgeListHTML(items) {
           <thead><tr><th>סוג</th><th>כותרת</th><th>פעולות</th></tr></thead>
           <tbody>${rows || '<tr><td colspan="3">עדיין לא נוספו חומרים.</td></tr>'}</tbody>
         </table>
-      </div>
-    </div>`;
+      </div>`;
 }
 
 export async function mountBotHome(container, section, session) {
+  // Which collapsible management panels are open -- kept across re-renders
+  // (submitting a knowledge-base form re-renders the whole page).
+  const openAccordions = new Set();
+  // Section title/description live in the same 'sections' table every
+  // other main page reads from (contentStore.sections) -- same
+  // editableField pattern as vaultSection.js/freedomSection.js, so edit
+  // mode gets a consistent pencil here too.
+  let sectionRecord = null;
+
   async function render() {
     const editMode = auth.isEditMode();
+    sectionRecord = await contentStore.sections.getById(section.id);
+    const label = (sectionRecord && sectionRecord.title) || section.label;
+    const description = (sectionRecord && sectionRecord.description) || section.description;
     const messages = loadMessages(session);
-    const knowledgeHTML = editMode ? knowledgeListHTML(await botKnowledgeStore.getAll()) : '';
+    const knowledgeHTML = editMode
+      ? accordionHTML(
+          'bot-knowledge',
+          'ניהול בסיס הידע של הבוט',
+          knowledgeListHTML(await botKnowledgeStore.getAll()),
+          { isOpen: openAccordions.has('bot-knowledge') }
+        )
+      : '';
+
+    const titleHTML = editMode ? editableField(section.id, 'title', label) : escapeHtml(label);
+    const descHTML = editMode
+      ? editableField(section.id, 'description', description, { multiline: true })
+      : escapeHtml(description);
 
     container.innerHTML = `
       <div class="admin-page">
         <div class="admin-page-header">
-          <h1 class="gold-title placeholder-title">${escapeHtml(section.label)}</h1>
-          <p class="placeholder-desc">${escapeHtml(section.description)}</p>
+          <h1 class="gold-title placeholder-title">${titleHTML}</h1>
+          <p class="placeholder-desc">${descHTML}</p>
         </div>
         ${chatHTML(messages)}
         ${knowledgeHTML}
       </div>`;
+
+    wireEditableFields(container, {
+      onSave: async (id, field, value) => {
+        const updated = await contentStore.sections.update(id, { [field]: value });
+        if (updated) sectionRecord = updated;
+      },
+      rerender: render,
+    });
 
     const chatLog = container.querySelector('#chatLog');
     const chatForm = container.querySelector('#chatForm');
@@ -172,6 +204,7 @@ export async function mountBotHome(container, section, session) {
       chatLog.scrollTop = chatLog.scrollHeight;
     });
     chatLog.scrollTop = chatLog.scrollHeight;
+    wireAccordions(container, { state: openAccordions, rerender: render });
 
     if (!editMode) return;
 
