@@ -47,6 +47,7 @@ import {
 } from '../lessonGroups.js';
 import { accordionHTML, wireAccordions } from '../adminAccordion.js';
 import { backButtonHTML, wirePageBackButton } from '../pageBackButton.js';
+import { personalGuidanceFaqStore } from '../data/personalGuidanceFaqStore.js';
 
 const STATUS_LABELS = { pending: 'ממתין', approved: 'מאושר', hidden: 'מוסתר' };
 const STATUS_BADGE = { pending: '', approved: 'badge-active', hidden: 'badge-blocked' };
@@ -59,7 +60,7 @@ const STATUS_BADGE = { pending: '', approved: 'badge-active', hidden: 'badge-blo
 // section's own title/description, just under its own locked_* columns --
 // deliberately separate fields, since this message is for a completely
 // different audience than the real unlocked content.
-function lockedHTML(sectionRecord, section, editable) {
+function lockedHTML(sectionRecord, section, editable, faqs = [], editingFaqId = null, isManagerOpen = false) {
   const lockedTitle = (sectionRecord && sectionRecord.lockedTitle) || 'ליווי אישי';
   const lockedDescription =
     (sectionRecord && sectionRecord.lockedDescription) ||
@@ -89,7 +90,147 @@ function lockedHTML(sectionRecord, section, editable) {
       <div class="placeholder-badge">🔒 אין לך גישה לאזור זה כרגע</div>
       <p class="lesson-text" style="margin-top: 18px;">${ctaHTML}</p>
       ${mediaHTML}
+      ${lockedFaqHTML(faqs)}
+      ${editable ? accordionHTML('locked-faq-manage', 'ניהול שאלות ותשובות', lockedFaqManagerHTML(faqs, editingFaqId), { isOpen: isManagerOpen }) : ''}
     </div>`;
+}
+
+// Student-facing (and master-preview) FAQ accordion -- a quiet, minimal
+// block under the CTA/media, meant to read as part of the same locked
+// screen rather than a separate widget. Returns '' when there are no
+// questions yet, so an empty section never renders.
+function lockedFaqHTML(faqs) {
+  if (!faqs || !faqs.length) return '';
+  const items = faqs
+    .map(
+      (f) => `
+      <div class="locked-faq-item" data-faq-id="${f.id}">
+        <button type="button" class="locked-faq-question" data-faq-toggle aria-expanded="false">
+          <span>${escapeHtml(f.question)}</span>
+          <span class="locked-faq-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="locked-faq-answer" hidden>${escapeHtml(f.answer)}</div>
+      </div>`
+    )
+    .join('');
+  return `
+    <div class="locked-faq-block">
+      <h3 class="personal-block-title">שאלות ותשובות</h3>
+      <div class="locked-faq-list">${items}</div>
+    </div>`;
+}
+
+function wireLockedFaqToggle(root) {
+  root.querySelectorAll('[data-faq-toggle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.locked-faq-item');
+      const answer = item.querySelector('.locked-faq-answer');
+      const willOpen = answer.hidden;
+      answer.hidden = !willOpen;
+      btn.setAttribute('aria-expanded', String(willOpen));
+      item.classList.toggle('is-open', willOpen);
+    });
+  });
+}
+
+// Master-only management (inside "תצוגת בלי גישה"): add/edit/delete +
+// reorder, same shape as every other small managed list in this app
+// (daily-wheel sentences etc.) -- a form up top (doubles as add/edit),
+// existing rows below with the same reorderButtonsHTML pair every other
+// reorderable list already uses.
+function lockedFaqManagerHTML(faqs, editingId) {
+  const editing = editingId ? faqs.find((f) => f.id === editingId) : null;
+  const formHTML = `
+    <form id="lockedFaqForm" novalidate>
+      <div class="field-group">
+        <label for="lockedFaqQuestion">שאלה</label>
+        <input type="text" id="lockedFaqQuestion" value="${editing ? escapeAttr(editing.question) : ''}">
+      </div>
+      <div class="field-group">
+        <label for="lockedFaqAnswer">תשובה</label>
+        <textarea id="lockedFaqAnswer" rows="3">${editing ? escapeHtml(editing.answer) : ''}</textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn-gold small">${editing ? 'שמירת שינויים' : 'הוספת שאלה'}</button>
+        ${editing ? '<button type="button" class="btn-ghost small" id="lockedFaqCancelEdit">ביטול</button>' : ''}
+      </div>
+    </form>`;
+  const rows = (faqs || [])
+    .map(
+      (f) => `
+      <div class="hl-card" data-id="${f.id}">
+        <p class="hl-card-text">${escapeHtml(f.question)}</p>
+        <div class="hl-card-actions">
+          ${reorderButtonsHTML(f.id)}
+          <button type="button" class="btn-ghost small" data-faq-action="edit">עריכה</button>
+          <button type="button" class="btn-ghost small danger" data-faq-action="delete">מחיקה</button>
+        </div>
+      </div>`
+    )
+    .join('');
+  return `${formHTML}<div class="hl-card-list">${rows || '<p class="placeholder-desc">אין עדיין שאלות.</p>'}</div>`;
+}
+
+function wireLockedFaqManager(root, { faqs, rerender, getEditingId, setEditingId }) {
+  const form = root.querySelector('#lockedFaqForm');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const question = root.querySelector('#lockedFaqQuestion').value.trim();
+      const answer = root.querySelector('#lockedFaqAnswer').value.trim();
+      if (!question || !answer) return;
+      const editingId = getEditingId();
+      if (editingId) {
+        const updated = await personalGuidanceFaqStore.update(editingId, { question, answer });
+        if (updated) {
+          const idx = faqs.findIndex((f) => f.id === editingId);
+          if (idx !== -1) faqs[idx] = updated;
+        }
+        setEditingId(null);
+      } else {
+        const created = await personalGuidanceFaqStore.create({ question, answer });
+        if (created) faqs.push(created);
+      }
+      await rerender();
+    });
+  }
+  const cancel = root.querySelector('#lockedFaqCancelEdit');
+  if (cancel) {
+    cancel.addEventListener('click', async () => {
+      setEditingId(null);
+      await rerender();
+    });
+  }
+  root.querySelectorAll('[data-faq-action]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.closest('[data-id]').dataset.id;
+      const action = btn.dataset.faqAction;
+      if (action === 'edit') {
+        setEditingId(id);
+        await rerender();
+        return;
+      }
+      if (action === 'delete') {
+        if (!window.confirm('למחוק את השאלה?')) return;
+        await personalGuidanceFaqStore.remove(id);
+        const idx = faqs.findIndex((f) => f.id === id);
+        if (idx !== -1) faqs.splice(idx, 1);
+      }
+      await rerender();
+    });
+  });
+  wireReorderButtons(root, {
+    onMove: async (id, dir) => {
+      if (dir === 'up') await personalGuidanceFaqStore.moveUp(id, faqs);
+      else await personalGuidanceFaqStore.moveDown(id, faqs);
+      const idx = faqs.findIndex((f) => f.id === id);
+      const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+      if (idx !== -1 && swapIdx >= 0 && swapIdx < faqs.length) {
+        [faqs[idx], faqs[swapIdx]] = [faqs[swapIdx], faqs[idx]];
+      }
+    },
+    rerender,
+  });
 }
 
 // Master-only, edit mode only -- lets the master preview the "no access"
@@ -137,10 +278,14 @@ export async function mountPersonalGuidanceHome(container, section, session) {
   const editMode = auth.isEditMode();
   if (!editMode && !auth.hasAccess('personalGuidance')) {
     // Real (non-admin) visitor without access: only the lightweight
-    // section row is fetched (for the editable locked-screen text) --
-    // never lessons/highlights/comments/topics/groups.
-    const sectionRecordOnly = await contentStore.sections.getById(section.id);
-    container.innerHTML = lockedHTML(sectionRecordOnly, section, false);
+    // section row + FAQ list are fetched (both are the locked screen's own
+    // content) -- never lessons/highlights/comments/topics/groups.
+    const [sectionRecordOnly, faqsOnly] = await Promise.all([
+      contentStore.sections.getById(section.id),
+      personalGuidanceFaqStore.getAll(),
+    ]);
+    container.innerHTML = lockedHTML(sectionRecordOnly, section, false, faqsOnly);
+    wireLockedFaqToggle(container);
     return;
   }
 
@@ -150,6 +295,10 @@ export async function mountPersonalGuidanceHome(container, section, session) {
   // screen above regardless of this, since it's never even reached for
   // them.
   let viewAsLocked = false;
+  // "שאלות ותשובות" on the locked screen -- kept in local state like every
+  // other managed list on this page (fetched once, patched in place).
+  let lockedFaqs = [];
+  let editingFaqId = null;
 
   // Which ticker phrase (if any) the master is currently editing -- kept
   // across re-renders so the edit form stays populated.
@@ -187,7 +336,7 @@ export async function mountPersonalGuidanceHome(container, section, session) {
 
   async function loadData() {
     const editMode = auth.isEditMode();
-    const [sr, ls, up, ac, hl, tp, gr] = await Promise.all([
+    const [sr, ls, up, ac, hl, tp, gr, faqs] = await Promise.all([
       contentStore.sections.getById(section.id),
       editMode ? personalGuidanceStore.lessons.getAll() : personalGuidanceStore.lessons.getActive(),
       progressStore.getForUser(session.id),
@@ -195,6 +344,7 @@ export async function mountPersonalGuidanceHome(container, section, session) {
       editMode ? personalGuidanceStore.highlights.getAll() : personalGuidanceStore.highlights.getActive(),
       personalGuidanceStore.topics.getAll(),
       personalGuidanceStore.groups.getAll(),
+      personalGuidanceFaqStore.getAll(),
     ]);
     topics = tp;
     groups = gr;
@@ -203,6 +353,7 @@ export async function mountPersonalGuidanceHome(container, section, session) {
     userProgress = up;
     approvedComments = ac;
     highlights = hl;
+    lockedFaqs = faqs;
   }
 
   function wireViewToggle() {
@@ -219,7 +370,9 @@ export async function mountPersonalGuidanceHome(container, section, session) {
     // Master preview toggle: show the (editable) locked screen instead of
     // the real content, without touching any real permission.
     if (editMode && viewAsLocked) {
-      container.innerHTML = viewModeToggleHTML(viewAsLocked) + lockedHTML(sectionRecord, section, true);
+      container.innerHTML =
+        viewModeToggleHTML(viewAsLocked) +
+        lockedHTML(sectionRecord, section, true, lockedFaqs, editingFaqId, openAccordions.has('locked-faq-manage'));
       wireEditableFields(container, {
         onSave: async (id, field, value) => {
           const updated = await contentStore.sections.update(id, { [field]: value });
@@ -228,6 +381,14 @@ export async function mountPersonalGuidanceHome(container, section, session) {
         rerender: paint,
       });
       wireViewToggle();
+      wireLockedFaqToggle(container);
+      wireLockedFaqManager(container, {
+        faqs: lockedFaqs,
+        rerender: paint,
+        getEditingId: () => editingFaqId,
+        setEditingId: (v) => { editingFaqId = v; },
+      });
+      wireAccordions(container, { state: openAccordions, rerender: paint });
       return;
     }
     const label = (sectionRecord && sectionRecord.title) || section.label;
@@ -532,8 +693,12 @@ export async function mountPersonalGuidanceLesson(container, section, lesson, se
     // direct lesson URL back to the home (locked) screen before this ever
     // mounts; kept here too in case this is ever reached another way, and
     // never fetches any lesson/comment/trail data either way.
-    const sectionRecordOnly = await contentStore.sections.getById(section.id);
-    container.innerHTML = lockedHTML(sectionRecordOnly, section, false);
+    const [sectionRecordOnly, faqsOnly] = await Promise.all([
+      contentStore.sections.getById(section.id),
+      personalGuidanceFaqStore.getAll(),
+    ]);
+    container.innerHTML = lockedHTML(sectionRecordOnly, section, false, faqsOnly);
+    wireLockedFaqToggle(container);
     return;
   }
 
