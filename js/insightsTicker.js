@@ -22,6 +22,12 @@ function escapeAttr(value) {
   return String(value || '').replace(/"/g, '&quot;');
 }
 
+// Only http(s) links are ever rendered as a real src/href -- blocks
+// javascript:/data:/vbscript: and any other scheme from reaching the DOM.
+function isSafeUrl(url) {
+  return /^https?:\/\//i.test(String(url || '').trim());
+}
+
 // Decides which phrases a viewer actually sees:
 //   - showInTicker === false always excludes a phrase from the main ticker,
 //     no matter what -- this is what keeps "צידה לדרך" (per-lesson notes,
@@ -376,7 +382,7 @@ function trailMediaKind(mediaUrl) {
 // silent, controls-less <video> is enough to show a first-frame thumbnail
 // without needing a separate poster-image pipeline.
 export function trailMediaHTML(mediaUrl) {
-  if (!mediaUrl) return '';
+  if (!mediaUrl || !isSafeUrl(mediaUrl)) return '';
   const kind = trailMediaKind(mediaUrl);
   const inner =
     kind === 'image'
@@ -454,6 +460,7 @@ function openTrailLightbox(html) {
 // reveal-all bubble (trailNotesHTML) can reuse it verbatim instead of
 // duplicating the image/video/file branches.
 function trailMediaFullHTML(url, kind) {
+  if (!isSafeUrl(url)) return '';
   return kind === 'image'
     ? `<img src="${escapeAttr(url)}" alt="">`
     : kind === 'video'

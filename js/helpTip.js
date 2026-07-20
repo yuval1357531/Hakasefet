@@ -18,6 +18,10 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;');
 }
 
+function escapeAttr(value) {
+  return String(value || '').replace(/"/g, '&quot;');
+}
+
 export function isHelpDismissed(id) {
   try {
     return localStorage.getItem(DISMISS_KEY_PREFIX + id) === '1';
@@ -41,7 +45,7 @@ function dismiss(id) {
 // extra branching of their own.
 export function helpTipHTML(id, text) {
   if (isHelpDismissed(id)) return '';
-  return `<button type="button" class="help-tip" data-help-id="${id}" data-help-text="${escapeHtml(text)}" aria-label="הסבר" aria-haspopup="dialog">?</button>`;
+  return `<button type="button" class="help-tip" data-help-id="${id}" data-help-text="${escapeAttr(text)}" aria-label="הסבר" aria-haspopup="dialog">?</button>`;
 }
 
 let openOverlay = null;
@@ -56,7 +60,12 @@ function closeBubble() {
 function openBubble(trigger) {
   closeBubble();
   const id = trigger.dataset.helpId;
-  const text = trigger.dataset.helpText;
+  // `.dataset` gives back the attribute's already HTML-decoded value (so
+  // any `<`/`>` that were literally part of the text come back un-escaped)
+  // -- this is a DIFFERENT rendering context (HTML body) than the
+  // attribute context helpTipHTML's own escapeAttr protects, so it needs
+  // its own escaping here before going into innerHTML.
+  const text = escapeHtml(trigger.dataset.helpText);
 
   const overlay = document.createElement('div');
   overlay.className = 'help-tip-overlay';

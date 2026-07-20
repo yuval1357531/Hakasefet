@@ -62,12 +62,18 @@ function escapeAttr(value) {
   return String(value || '').replace(/"/g, '&quot;');
 }
 
+// Only http(s) links are ever rendered as a real src/href -- blocks
+// javascript:/data:/vbscript: and any other scheme from reaching the DOM.
+function isSafeUrl(url) {
+  return /^https?:\/\//i.test(String(url || '').trim());
+}
+
 function firstName(name) {
   return (name || 'משתמש').trim().split(/\s+/)[0];
 }
 
 function embedHTML(embedUrl) {
-  if (!embedUrl) {
+  if (!embedUrl || !isSafeUrl(embedUrl)) {
     return `
       <div class="video-placeholder">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" stroke="none"/></svg>

@@ -22,6 +22,16 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;');
 }
 
+function escapeAttr(value) {
+  return String(value || '').replace(/"/g, '&quot;');
+}
+
+// Only http(s) links are ever rendered as a real href -- blocks
+// javascript:/data:/vbscript: and any other scheme from reaching the DOM.
+function isSafeUrl(url) {
+  return /^https?:\/\//i.test(String(url || '').trim());
+}
+
 async function getCourseLessons(courseId, includeInactive) {
   const modules = await contentStore.modules.getByCourseId(courseId);
   let lessons = [];
@@ -208,7 +218,13 @@ export async function mountLessonView(container, section, course, lesson, sessio
 
     const attachmentsHTML =
       freshLesson.attachments && freshLesson.attachments.length
-        ? `<ul class="lesson-attachments">${freshLesson.attachments.map((a) => `<li><a href="${a.url || '#'}">${a.label || a.url}</a></li>`).join('')}</ul>`
+        ? `<ul class="lesson-attachments">${freshLesson.attachments
+            .map((a) =>
+              isSafeUrl(a.url)
+                ? `<li><a href="${escapeAttr(a.url)}">${escapeHtml(a.label || a.url)}</a></li>`
+                : ''
+            )
+            .join('')}</ul>`
         : '';
 
     const titleHTML = editMode ? editableField(freshLesson.id, 'title', freshLesson.title) : escapeHtml(freshLesson.title);
