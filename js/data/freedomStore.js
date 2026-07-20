@@ -47,11 +47,16 @@ function makeId(prefix) {
   return prefix + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-// A trail note's media is now a real uploaded file (image/video/document),
-// not a manually-typed link -- stored in the public 'trail-media' bucket
-// (shared with vaultStore.js) and referenced by its public URL, so
-// trailMediaHTML/journalStore need no changes at all (mediaUrl stays a
-// plain string either way).
+// A trail note's media is a real uploaded file (image/video/document),
+// stored in the now-PRIVATE 'trail-media' bucket (shared with
+// vaultStore.js). The DB column keeps storing the same public-URL-shaped
+// string it always has (no data migration needed for existing rows) --
+// but since the bucket is no longer public, that stored string is only
+// ever used as a stable KEY to derive the object path (trailMediaPath),
+// never fetched directly. Actual display always goes through a
+// freshly-minted signed URL (see resolveTrailMediaUrl in
+// highlightsApi.getAll below), scoped by the same RLS this section's
+// highlights already enforce.
 async function uploadTrailMedia(file) {
   const path = `${makeId('trail')}-${file.name}`;
   const { error } = await supabase.storage.from('trail-media').upload(path, file);
@@ -64,6 +69,19 @@ function trailMediaPath(url) {
   const marker = '/trail-media/';
   const idx = (url || '').indexOf(marker);
   return idx === -1 ? null : decodeURIComponent(url.slice(idx + marker.length));
+}
+
+// Turns a stored (public-URL-shaped) media reference into a short-lived
+// signed URL -- 10-minute expiry, matching focus-attachments/bot-knowledge's
+// own signed-URL convention. Storage RLS ("trail media readable with
+// section permission") re-checks this section's permission before issuing
+// the signed URL.
+async function resolveTrailMediaUrl(url) {
+  const path = trailMediaPath(url);
+  if (!path) return url || '';
+  const { data, error } = await supabase.storage.from('trail-media').createSignedUrl(path, 600);
+  if (error || !data?.signedUrl) return '';
+  return data.signedUrl;
 }
 
 // Cleans up the storage object behind a highlight's current media before
@@ -203,7 +221,13 @@ const highlightsApi = {
   async getAll() {
     const { data, error } = await supabase.from('freedom_highlights').select('*').order('order', { ascending: true });
     if (error || !data) return [];
-    return data.map(toHighlight);
+    const highlights = data.map(toHighlight);
+    await Promise.all(
+      highlights.map(async (h) => {
+        if (h.mediaUrl) h.mediaUrl = await resolveTrailMediaUrl(h.mediaUrl);
+      })
+    );
+    return highlights;
   },
   async getActive() {
     return (await this.getAll()).filter((h) => h.isActive);
