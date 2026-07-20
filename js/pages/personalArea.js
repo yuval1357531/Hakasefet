@@ -35,6 +35,7 @@ import {
 } from '../dailyWheel.js';
 import { dailyWheelStore } from '../data/dailyWheelStore.js';
 import { loginEventsStore, computeSecurityAlerts } from '../data/loginEventsStore.js';
+import { masterLoginAlertsStore } from '../data/masterLoginAlertsStore.js';
 import { helpTipHTML } from '../helpTip.js';
 
 const RESUME_DISMISS_KEY = 'vault_resume_dismissed_lesson';
@@ -559,13 +560,50 @@ function recentSentModalHTML(items, studentNameById, isOpen, editingKey) {
 // every other popup on this page already uses, listing each flagged
 // student + reason. Never locks/blocks anyone -- purely informational,
 // per the "רק להציג התראה למאסטר" requirement.
-function securityAlertsHTML(alerts, isBubbleOpen) {
-  const hasAlerts = alerts.length > 0;
+const MATCH_LABEL = {
+  strong: 'זוהה מכשיר תואם לתלמיד',
+  partial: 'נמצאה התאמה אפשרית לתלמיד',
+};
+
+// Failed-brute-force-against-master alert (see data/masterLoginAlertsStore.js
+// + api/record-failed-login.js) -- never locks/blocks anyone by itself; only
+// shows a "חסום משתמש" button when a likely student device was found, and
+// even then only after the master explicitly confirms.
+function masterLoginAlertItemHTML(a, studentNameById) {
+  const studentName = a.matchedStudentId ? studentNameById.get(a.matchedStudentId) : null;
+  const matchLine = a.matchedStudentId && studentName
+    ? `${MATCH_LABEL[a.matchConfidence] || 'נמצאה התאמה אפשרית לתלמיד'}: ${escapeHtml(studentName)}`
+    : 'לא נמצא תלמיד תואם למכשיר הזה';
+  const metaParts = [
+    a.deviceType ? `מכשיר: ${escapeHtml(a.deviceType)}` : '',
+    a.browser ? `דפדפן: ${escapeHtml(a.browser)}` : '',
+    a.os ? `מערכת הפעלה: ${escapeHtml(a.os)}` : '',
+  ].filter(Boolean).join(' · ');
+  const blockBtn = a.matchedStudentId && studentName
+    ? `<button type="button" class="btn-ghost small master-alert-block-btn" data-student-id="${escapeAttr(a.matchedStudentId)}" data-student-name="${escapeAttr(studentName)}">חסום משתמש</button>`
+    : '';
+  return `
+    <div class="focus-item master-login-alert-item">
+      <span class="focus-item-title">ניסיונות כניסה כושלים לחשבון מאסטר</span>
+      <p class="focus-item-text">
+        ${a.attemptCount} ניסיונות כושלים · ניסיון אחרון: ${formatEntryTime(a.lastAttemptAt)}<br>
+        ${a.ip ? `IP: ${escapeHtml(a.ip)}<br>` : ''}
+        ${metaParts ? `${metaParts}<br>` : ''}
+        ${matchLine}<br>
+        סיבה: יותר מ־5 ניסיונות כושלים לחשבון מאסטר
+      </p>
+      ${blockBtn}
+    </div>`;
+}
+
+function securityAlertsHTML(alerts, masterLoginAlerts, studentNameById, isBubbleOpen) {
+  const totalCount = alerts.length + masterLoginAlerts.length;
+  const hasAlerts = totalCount > 0;
   const stripHTML = hasAlerts
-    ? `<button type="button" class="security-alerts-strip has-alerts" id="securityAlertsStripBtn">⚠ ${alerts.length} התראות אבטחה פתוחות — לחיצה לפירוט</button>`
+    ? `<button type="button" class="security-alerts-strip has-alerts" id="securityAlertsStripBtn">⚠ ${totalCount} התראות אבטחה פתוחות — לחיצה לפירוט</button>`
     : '<div class="security-alerts-strip is-clear">✓ אין התראות אבטחה פתוחות</div>';
   const bubbleBody = hasAlerts
-    ? `<div class="focus-list">${alerts
+    ? `<div class="focus-list">${masterLoginAlerts.map((a) => masterLoginAlertItemHTML(a, studentNameById)).join('')}${alerts
         .map((a) => `<div class="focus-item"><span class="focus-item-title">${escapeHtml(a.fullName)}</span><p class="focus-item-text">${escapeHtml(a.reason)}</p></div>`)
         .join('')}</div>`
     : '';
@@ -592,6 +630,7 @@ function masterPageHTML(
   editingWheelSentence,
   wheelSentencesModalOpen,
   securityAlerts,
+  masterLoginAlerts,
   securityBubbleOpen
 ) {
   return `
@@ -604,7 +643,7 @@ function masterPageHTML(
       <div class="personal-page-actions">
         <a href="#/admin" class="admin-manage-link">ניהול מערכת ומשתמשים</a>
       </div>
-      ${securityAlertsHTML(securityAlerts, securityBubbleOpen)}
+      ${securityAlertsHTML(securityAlerts, masterLoginAlerts, studentNameById, securityBubbleOpen)}
       ${composeFormHTML(students, isComposeOpen)}
       ${accordionHTML(
         'daily-wheel-sentences',
@@ -645,6 +684,10 @@ export async function mountPersonalPage(container, session) {
   // mount and again on demand via "הרץ בדיקת אבטחה" -- both times a plain
   // local repaint of just this block, never a full page reload.
   let securityAlertsCache = [];
+  // Master-only: persisted brute-force-against-master alerts (see
+  // data/masterLoginAlertsStore.js) -- fetched alongside the multi-device
+  // heuristic above, same "once on load + on demand" pattern.
+  let masterLoginAlertsCache = [];
   let securityBubbleOpen = false;
   let securityChecked = false;
   // Student-only: whether each popup is open -- kept across the local
@@ -683,8 +726,9 @@ export async function mountPersonalPage(container, session) {
       if (!securityChecked) {
         securityChecked = true;
         const usersById = new Map(allUsers.map((u) => [u.id, u.fullName]));
-        const events = await loginEventsStore.getAll();
+        const [events, masterAlerts] = await Promise.all([loginEventsStore.getAll(), masterLoginAlertsStore.getAll()]);
         securityAlertsCache = computeSecurityAlerts(events, usersById);
+        masterLoginAlertsCache = masterAlerts;
       }
       const editingWheelSentence = editingWheelSentenceId
         ? wheelSentencesCache.find((s) => s.id === editingWheelSentenceId)
@@ -701,6 +745,7 @@ export async function mountPersonalPage(container, session) {
         editingWheelSentence,
         wheelSentencesModalOpen,
         securityAlertsCache,
+        masterLoginAlertsCache,
         securityBubbleOpen
       );
       wireMasterHandlers();
@@ -1036,9 +1081,14 @@ export async function mountPersonalPage(container, session) {
     if (runCheckBtn) {
       runCheckBtn.addEventListener('click', async () => {
         runCheckBtn.disabled = true;
-        const [allUsers, events] = await Promise.all([usersStore.getAll(), loginEventsStore.getAll()]);
+        const [allUsers, events, masterAlerts] = await Promise.all([
+          usersStore.getAll(),
+          loginEventsStore.getAll(),
+          masterLoginAlertsStore.getAll(),
+        ]);
         const usersById = new Map(allUsers.map((u) => [u.id, u.fullName]));
         securityAlertsCache = computeSecurityAlerts(events, usersById);
+        masterLoginAlertsCache = masterAlerts;
         runCheckBtn.disabled = false;
         await render();
       });
@@ -1059,6 +1109,23 @@ export async function mountPersonalPage(container, session) {
         if (e.target === securityOverlay) closeSecurityModal();
       });
     }
+    // "חסום משתמש" inside a master-login-brute-force alert -- only ever
+    // rendered when a likely student device was found (see
+    // masterLoginAlertItemHTML). Requires explicit master confirmation,
+    // reuses the exact same status update manageUsers.js's own block/unblock
+    // toggle already uses (a plain admin-gated RLS update) -- never deletes
+    // the user, never touches any other permission.
+    container.querySelectorAll('.master-alert-block-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const studentId = btn.dataset.studentId;
+        const studentName = btn.dataset.studentName || 'המשתמש';
+        if (!studentId) return;
+        if (!window.confirm(`האם לחסום את הגישה של ${studentName} למערכת?`)) return;
+        btn.disabled = true;
+        await usersStore.update(studentId, { status: 'blocked' });
+        await render();
+      });
+    });
   }
 
   await render();

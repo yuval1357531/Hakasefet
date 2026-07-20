@@ -68,8 +68,41 @@ export const auth = {
   // Returns { ok: true, session } or { ok: false, reason: 'invalid' | 'blocked' }.
   async login(email, password) {
     const normalizedEmail = (email || '').trim().toLowerCase();
+    const deviceInfo = getDeviceInfo();
+
+    // Brute-force guard (VibeSec hardening): ask the server whether this
+    // exact source (IP/fingerprint) is already in cooldown for repeatedly
+    // failing against this email, before even attempting the real auth
+    // call. Only ever engages for the master account and fails open (never
+    // blocks) on any network/server error -- see api/check-login-cooldown.js.
+    try {
+      const guardRes = await fetch('/api/check-login-cooldown', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail, fingerprint: deviceInfo.fingerprint }),
+      });
+      const guard = await guardRes.json();
+      if (guard?.blocked) {
+        return { ok: false, reason: 'invalid' };
+      }
+    } catch (e) {
+      /* fail open */
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
     if (error || !data.session) {
+      // Best-effort, fire-and-forget -- records a failed master-login
+      // attempt (a no-op server-side for any non-master email) without
+      // ever delaying or affecting this return. Never sends the password.
+      try {
+        fetch('/api/record-failed-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: normalizedEmail, ...deviceInfo }),
+        }).catch(() => {});
+      } catch (e) {
+        /* best-effort */
+      }
       return { ok: false, reason: 'invalid' };
     }
 
@@ -127,7 +160,7 @@ export const auth = {
     // awaited: a failure here must never turn a successful login into a
     // stuck one.
     try {
-      loginEventsStore.log(data.session.access_token, getDeviceInfo());
+      loginEventsStore.log(data.session.access_token, deviceInfo);
     } catch (e) {
       /* best-effort */
     }
