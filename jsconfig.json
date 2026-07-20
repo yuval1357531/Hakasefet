@@ -1,0 +1,14 @@
+import Sidebar from '@/components/Sidebar'
+
+export default function ProtectedLayout({ children }) {
+  return (
+    <div className="min-h-screen flex flex-row-reverse">
+      <Sidebar />
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto min-h-screen">
+        <div className="max-w-5xl mx-auto pt-12 md:pt-0">
+          {children}
+        </div>
+      </main>
+    </div>
+  )
+}

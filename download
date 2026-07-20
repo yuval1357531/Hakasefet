@@ -1,0 +1,70 @@
+'use client'
+
+import { useState } from 'react'
+
+export default function ChatPage() {
+  const [messages, setMessages] = useState([
+    { role: 'bot', text: 'שלום! אני הבוט של ג׳אוריוס 🤖\nאני מכיר את כל התוכן של הכספת ויכול לעזור לך להבין איפה אתה, מה הצעד הבא שלך, ואיזה שיעורים כדאי לך לראות.\n\nאיך אני יכול לעזור?' }
+  ])
+  const [input, setInput] = useState('')
+
+  function handleSend() {
+    if (!input.trim()) return
+
+    setMessages(prev => [...prev, { role: 'user', text: input }])
+
+    // Placeholder response - will be connected to AI later
+    setTimeout(() => {
+      setMessages(prev => [...prev, {
+        role: 'bot',
+        text: 'הצ׳אט בוט עדיין בבנייה 🔧\nבקרוב אוכל לעזור לך בצורה אישית עם כל התוכן של הכספת!'
+      }])
+    }, 1000)
+
+    setInput('')
+  }
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-120px)]">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-vault-text mb-2">🤖 צ׳אט בוט ג׳אוריוס</h1>
+        <p className="text-vault-muted">המנטור האישי שלך</p>
+      </div>
+
+      {/* Chat messages */}
+      <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+        {messages.map((msg, i) => (
+          <div
+            key={i}
+            className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}
+          >
+            <div
+              className={`max-w-[80%] rounded-2xl py-3 px-5 whitespace-pre-line ${
+                msg.role === 'user'
+                  ? 'bg-vault-gold/10 text-vault-text border border-vault-gold/20'
+                  : 'bg-vault-card text-vault-text border border-vault-border'
+              }`}
+            >
+              {msg.text}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div className="flex gap-3">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          placeholder="שאל אותי משהו..."
+          className="vault-input flex-1"
+        />
+        <button onClick={handleSend} className="vault-btn">
+          שלח
+        </button>
+      </div>
+    </div>
+  )
+}
