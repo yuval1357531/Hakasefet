@@ -50,6 +50,20 @@ function makeId(prefix) {
   return prefix + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+// Upload hardening (VibeSec): only these types, up to this size, are ever
+// handed to storage -- blocks html/svg/js/executables and unbounded sizes
+// regardless of what the browser's file picker allowed through.
+const ALLOWED_TRAIL_MEDIA_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'video/mp4', 'video/webm', 'video/quicktime',
+  'application/pdf',
+];
+const MAX_TRAIL_MEDIA_BYTES = 50 * 1024 * 1024; // 50MB
+
+function isAllowedTrailMediaFile(file) {
+  return !!file && ALLOWED_TRAIL_MEDIA_TYPES.includes(file.type) && file.size <= MAX_TRAIL_MEDIA_BYTES;
+}
+
 // A trail note's media is a real uploaded file (image/video/document),
 // stored in the now-PRIVATE 'trail-media' bucket. The DB column keeps
 // storing the same public-URL-shaped string it always has (so no data
@@ -58,8 +72,11 @@ function makeId(prefix) {
 // derive the object path (trailMediaPath), never fetched directly. Actual
 // display always goes through a freshly-minted signed URL (see
 // resolveTrailMediaUrl in highlightsApi.getAll below), scoped by the same
-// RLS this section's highlights already enforce.
+// RLS this section's highlights already enforce. Returns null (same
+// contract as an actual upload error) for a disallowed type/size, so
+// callers already know to treat it as a failed upload.
 async function uploadTrailMedia(file) {
+  if (!isAllowedTrailMediaFile(file)) return null;
   const path = `${makeId('trail')}-${file.name}`;
   const { error } = await supabase.storage.from('trail-media').upload(path, file);
   if (error) return null;
@@ -189,7 +206,13 @@ const highlightsApi = {
   async create(data) {
     const all = await this.getAll();
     const order = all.length ? Math.max(...all.map((h) => h.order)) + 1 : 0;
-    const mediaUrl = data.file ? await uploadTrailMedia(data.file) : data.mediaUrl || '';
+    let mediaUrl = data.mediaUrl || '';
+    if (data.file) {
+      mediaUrl = await uploadTrailMedia(data.file);
+      // Disallowed type/size or a real upload error -- reject the whole
+      // create rather than silently saving the highlight without its media.
+      if (!mediaUrl) return null;
+    }
     const { data: row, error } = await supabase
       .from('vault_highlights')
       .insert({
@@ -219,10 +242,11 @@ const highlightsApi = {
     if (changes.description !== undefined) payload.description = changes.description;
     if (changes.file) {
       const uploaded = await uploadTrailMedia(changes.file);
-      if (uploaded) {
-        await removeTrailMediaFor(id);
-        payload.media_url = uploaded;
-      }
+      // Disallowed type/size or a real upload error -- reject the whole
+      // update rather than silently keeping the old media in place.
+      if (!uploaded) return null;
+      await removeTrailMediaFor(id);
+      payload.media_url = uploaded;
     } else if (changes.mediaUrl !== undefined) {
       if (changes.mediaUrl === '') await removeTrailMediaFor(id);
       payload.media_url = changes.mediaUrl;

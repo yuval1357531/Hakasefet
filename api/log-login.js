@@ -15,6 +15,19 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+// Hardening (VibeSec): these fields come straight from the client, so cap
+// their length and strip control characters before they ever reach the
+// DB -- prevents a garbage/oversized value (accidental or deliberate)
+// from bloating login_events. Never blocks the login itself; an
+// over-limit value is just truncated, same as before with no length check.
+function sanitizeField(value, maxLen) {
+  if (typeof value !== 'string') return null;
+  // eslint-disable-next-line no-control-regex
+  const cleaned = value.replace(/[\x00-\x1f\x7f]/g, '').trim();
+  if (!cleaned) return null;
+  return cleaned.slice(0, maxLen);
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ ok: false, reason: 'method_not_allowed' });
@@ -49,12 +62,12 @@ export default async function handler(req, res) {
 
   await admin.from('login_events').insert({
     user_id: callerData.user.id,
-    device_type: deviceType || null,
-    os: os || null,
-    browser: browser || null,
-    device_fingerprint: fingerprint || null,
+    device_type: sanitizeField(deviceType, 40),
+    os: sanitizeField(os, 60),
+    browser: sanitizeField(browser, 60),
+    device_fingerprint: sanitizeField(fingerprint, 200),
     ip,
-    user_agent: req.headers['user-agent'] || null,
+    user_agent: sanitizeField(req.headers['user-agent'], 500),
   });
 
   res.status(200).json({ ok: true });

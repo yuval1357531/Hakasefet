@@ -25,6 +25,21 @@ function makeId() {
   return 'bki-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+// Upload hardening (VibeSec): only these types, up to this size -- blocks
+// html/svg/js/executables and unbounded sizes regardless of what the
+// browser's file picker allowed through.
+const ALLOWED_KNOWLEDGE_FILE_TYPES = [
+  'application/pdf',
+  'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
+const MAX_KNOWLEDGE_FILE_BYTES = 20 * 1024 * 1024; // 20MB
+
+function isAllowedKnowledgeFile(file) {
+  return ALLOWED_KNOWLEDGE_FILE_TYPES.includes(file.type) && file.size <= MAX_KNOWLEDGE_FILE_BYTES;
+}
+
 export const botKnowledgeStore = {
   async getAll() {
     const { data, error } = await supabase.from('bot_knowledge_items').select('*').order('created_at', { ascending: false });
@@ -54,6 +69,7 @@ export const botKnowledgeStore = {
 
   // Uploads the file to the private 'bot-knowledge' bucket and records it.
   async createFile(file) {
+    if (!isAllowedKnowledgeFile(file)) return null;
     const id = makeId();
     const path = `${id}-${file.name}`;
     const { error: uploadError } = await supabase.storage.from('bot-knowledge').upload(path, file);

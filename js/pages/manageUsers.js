@@ -19,6 +19,7 @@ import { accordionHTML, wireAccordions } from '../adminAccordion.js';
 const CREATE_ERROR_MESSAGES = {
   email_taken: 'האימייל הזה כבר רשום במערכת.',
   invalid_input: 'יש למלא את כל השדות הנדרשים.',
+  weak_password: 'הסיסמה חייבת להכיל לפחות 8 תווים.',
   unauthorized: 'אין הרשאה לבצע פעולה זו.',
   server_error: 'שגיאה בשרת. נסה שוב.',
 };

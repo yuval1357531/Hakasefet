@@ -30,8 +30,25 @@ function makeId() {
   return 'focus-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+// Upload hardening (VibeSec): only these types, up to this size -- blocks
+// html/svg/js/executables and unbounded sizes regardless of what the
+// browser's file picker allowed through.
+const ALLOWED_ATTACHMENT_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'application/pdf',
+];
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10MB
+
+function isAllowedAttachmentFile(file) {
+  return ALLOWED_ATTACHMENT_TYPES.includes(file.type) && file.size <= MAX_ATTACHMENT_BYTES;
+}
+
+// `invalid: true` lets callers (create/createBroadcast) tell "disallowed
+// type/size" apart from "no file was attached at all" -- both still return
+// null path/name either way, so nothing downstream needs to change shape.
 async function uploadAttachment(file) {
   if (!file) return { path: null, name: null };
+  if (!isAllowedAttachmentFile(file)) return { path: null, name: null, invalid: true };
   const path = `${makeId()}-${file.name}`;
   const { error } = await supabase.storage.from('focus-attachments').upload(path, file);
   if (error) return { path: null, name: null };
@@ -62,7 +79,8 @@ export const focusStore = {
   },
 
   async create({ studentId, type, title, text, isImportant, createdBy, file }) {
-    const { path, name } = await uploadAttachment(file);
+    const { path, name, invalid } = await uploadAttachment(file);
+    if (invalid) return null;
     const { data, error } = await supabase
       .from('student_focus_items')
       .insert({
@@ -87,7 +105,8 @@ export const focusStore = {
   // item -- there's no shared "global" row to update in place.
   async createBroadcast({ studentIds, type, title, text, isImportant, createdBy, file }) {
     if (!studentIds.length) return [];
-    const { path, name } = await uploadAttachment(file);
+    const { path, name, invalid } = await uploadAttachment(file);
+    if (invalid) return [];
     const broadcastId = 'bcast-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const rows = studentIds.map((studentId) => ({
       id: makeId(),
