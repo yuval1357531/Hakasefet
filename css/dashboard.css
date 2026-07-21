@@ -1004,17 +1004,16 @@ body[data-active-section="personalGuidance"] .sidebar-title.gold-title {
   padding-inline-end: 4px;
   font-size: 17px;
 }
-/* "צידה לדרך + הכלים שלי" now sits on its own row below the divider,
-   under the journal heading, instead of sharing the heading's row --
-   clearer hierarchy: heading -> divider -> trail-tools row -> the
-   journal itself. */
-.personal-notebook-subrow { margin-bottom: 14px; }
+/* "צידה לדרך + הכלים שלי" sits centered directly above the compose/
+   textarea block it belongs to -- clearer hierarchy: heading -> divider ->
+   date (right-aligned, natural) -> trail-tools row (centered) -> compose. */
+.personal-notebook-subrow { margin-bottom: 12px; text-align: center; }
 .personal-notebook-divider {
   height: 1px;
   margin: 10px 0 16px;
   background: linear-gradient(90deg, var(--border-gold) 0%, var(--border-gold-soft) 60%, transparent 100%);
 }
-.notebook-topline { text-align: right; margin-bottom: 10px; }
+.notebook-topline { text-align: right; margin-bottom: 14px; }
 .notebook-date { font-size: 11.5px; color: var(--text-dim); font-style: italic; }
 /* Compose: a small, clear block of its own (item 14) -- bounded card, not
    just an underline floating on the page, but still light (no heading of
@@ -1499,7 +1498,6 @@ body[data-active-section="personalGuidance"] .sidebar-title.gold-title {
 .security-alerts-block { margin-bottom: 22px; }
 .security-alerts-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .security-alerts-header .personal-block-title { margin: 0; }
-.security-alerts-header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .master-login-alert-item .focus-item-text { line-height: 1.7; }
 .focus-item-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .security-alert-resolved-note { font-size: 12px; }
@@ -1516,7 +1514,15 @@ body[data-active-section="personalGuidance"] .sidebar-title.gold-title {
   text-align: center;
   cursor: default;
 }
-.security-alerts-strip.is-clear { color: #8fd6a3; border-color: rgba(122, 199, 140, 0.3); background: rgba(122, 199, 140, 0.05); }
+.security-alerts-strip.is-clear {
+  cursor: pointer;
+  color: #8fd6a3;
+  border-color: rgba(122, 199, 140, 0.3);
+  background: rgba(122, 199, 140, 0.05);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.security-alerts-strip.is-clear:hover { border-color: rgba(122, 199, 140, 0.5); background: rgba(122, 199, 140, 0.09); }
+.security-alerts-history-trigger { margin-top: 14px; text-align: center; }
 .security-alerts-strip.has-alerts {
   cursor: pointer;
   color: #e2957f;

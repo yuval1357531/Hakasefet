@@ -279,11 +279,12 @@ export function notebookEntriesHTML(ownEntries, personalFocusItems) {
   return merged.map((item) => (item.kind === 'master' ? notebookMasterEntryHTML(item) : notebookOwnEntryHTML(item))).join('');
 }
 
-// Heading + "צידה לדרך + הכלים שלי" share one header row, then a thin
-// divider starts the journal proper (item 13) -- the trail button moved
-// here from its old standalone spot below the whole block; its id/wiring
-// (#trailToolsOpenBtn, wireStudentHandlers) are untouched, so it still
-// works no matter where in the DOM it renders.
+// Heading + a thin divider start the journal proper (item 13); the date
+// line sits on its own right after that (right-aligned, "בצורה טבעית"),
+// and "צידה לדרך + הכלים שלי" gets its own centered row directly above the
+// compose/textarea it belongs to -- not stacked over the date. Its
+// id/wiring (#trailToolsOpenBtn, wireStudentHandlers) are untouched, so it
+// still works no matter where in the DOM it renders.
 function notebookHTML(ownEntries, personalFocusItems) {
   return `
     <div class="personal-notebook-block">
@@ -294,13 +295,13 @@ function notebookHTML(ownEntries, personalFocusItems) {
         </span>
       </div>
       <div class="personal-notebook-divider" aria-hidden="true"></div>
+      <div class="notebook-topline"><span class="notebook-date">${todayLabel()}</span></div>
       <div class="personal-notebook-subrow">
         <span class="personal-help-row">
           <button type="button" class="personal-trail-btn" id="trailToolsOpenBtn">צידה לדרך + הכלים שלי</button>
           ${helpTipHTML('trail-tools', 'כאן נשמרים כלים, תרגולים ותובנות שבחרת לשמור מתוך השיעורים. זה המקום לחזור אליו כשאתה רוצה להוריד לקרקע את מה שלמדת ולהשתמש בכלים שיובל תמצת לך. חשוב: הכלים והתבניות הם עזר, לא תחליף לאינטגרציה אמיתית בחיים. המטרה שלהם היא לעזור לך לחיות את החומר — עד שלא תצטרך להישען עליהם.')}
         </span>
       </div>
-      <div class="notebook-topline"><span class="notebook-date">${todayLabel()}</span></div>
       <div class="notebook-compose">
         <textarea id="notebookInput" class="notebook-textarea" rows="2" placeholder="כתוב כאן תובנה, מחשבה, חוויה או הערה..."></textarea>
         <button type="button" class="notebook-save-btn" id="notebookSaveBtn" aria-label="שמירה" title="שמירה">✓</button>
@@ -627,26 +628,31 @@ function deviceAlertItemHTML(a, studentNameById, forHistory) {
 function securityAlertsHTML(deviceAlerts, masterLoginAlerts, studentNameById, isBubbleOpen) {
   const totalCount = deviceAlerts.length + masterLoginAlerts.length;
   const hasAlerts = totalCount > 0;
+  // The strip is always a button now (not just when there ARE alerts) --
+  // the bubble it opens is also where "היסטוריית התראות אבטחה" lives, so
+  // the master needs to be able to open it even with a clean state.
   const stripHTML = hasAlerts
     ? `<button type="button" class="security-alerts-strip has-alerts" id="securityAlertsStripBtn">⚠ ${totalCount} התראות אבטחה פתוחות — לחיצה לפירוט</button>`
-    : '<div class="security-alerts-strip is-clear">✓ אין התראות אבטחה פתוחות</div>';
-  const bubbleBody = hasAlerts
+    : '<button type="button" class="security-alerts-strip is-clear" id="securityAlertsStripBtn">✓ אין התראות אבטחה פתוחות — לחיצה לפירוט</button>';
+  const alertsListHTML = hasAlerts
     ? `<div class="focus-list">${masterLoginAlerts.map((a) => masterLoginAlertItemHTML(a, studentNameById, false)).join('')}${deviceAlerts
         .map((a) => deviceAlertItemHTML(a, studentNameById, false))
         .join('')}</div>`
-    : '';
+    : '<p class="placeholder-desc" style="margin:0;">אין התראות אבטחה פתוחות.</p>';
+  const bubbleBody = `
+    ${alertsListHTML}
+    <div class="security-alerts-history-trigger">
+      <button type="button" class="btn-ghost small" id="securityHistoryBtn">היסטוריית התראות אבטחה</button>
+    </div>`;
   return `
     <div class="security-alerts-block">
       <div class="security-alerts-header">
         <h3 class="personal-block-title">התראות אבטחה</h3>
-        <div class="security-alerts-header-actions">
-          <button type="button" class="btn-ghost small" id="securityHistoryBtn">היסטוריית התראות</button>
-          <button type="button" class="btn-ghost small" id="runSecurityCheckBtn">הרץ בדיקת אבטחה</button>
-        </div>
+        <button type="button" class="btn-ghost small" id="runSecurityCheckBtn">הרץ בדיקת אבטחה</button>
       </div>
       ${stripHTML}
     </div>
-    ${hasAlerts ? personalModalHTML('securityAlerts', 'התראות אבטחה', bubbleBody, isBubbleOpen) : ''}`;
+    ${personalModalHTML('securityAlerts', 'התראות אבטחה', bubbleBody, isBubbleOpen)}`;
 }
 
 // "היסטוריית התראות אבטחה" -- every alert the master already marked
@@ -1232,6 +1238,15 @@ export async function mountPersonalPage(container, session) {
         btn.disabled = true;
         const ok = kind === 'device' ? await deviceAlertsStore.resolve(id) : await masterLoginAlertsStore.resolve(id);
         if (ok) {
+          // Drop it from the ACTIVE cache right away -- render()'s own
+          // security-check fetch only runs once per page mount (see
+          // securityChecked), so without this the just-resolved alert
+          // would keep showing until a full page reload.
+          if (kind === 'device') {
+            securityAlertsCache = securityAlertsCache.filter((a) => a.id !== id);
+          } else {
+            masterLoginAlertsCache = masterLoginAlertsCache.filter((a) => a.id !== id);
+          }
           securityHistoryLoaded = false; // next history open re-fetches, picking up this newly-resolved row
           await render();
         } else {
