@@ -65,36 +65,55 @@ export const loginEventsStore = {
   },
 };
 
-const MANY_DEVICES_THRESHOLD = 3; // "3 מכשירים שונים ומעלה מכל סוג"
-
 // A device is identified by its fingerprint when available, falling back
 // to a plain "type/os/browser" combo (coarser, but still useful) for
 // events logged before a fingerprint existed or when the browser didn't
-// support building one.
+// support building one. Since deviceInfo.js's fingerprint is itself built
+// from device/OS-level signals only (not the raw user agent), a browser
+// switch on the SAME phone already resolves to the same key here -- see
+// js/deviceInfo.js.
 function deviceKey(e) {
   return e.fingerprint || `${e.deviceType || '?'}/${e.os || '?'}/${e.browser || '?'}`;
 }
 
-const TYPE_LABEL = {
-  mobile: 'טלפונים',
-  desktop: 'מחשבים',
-  tablet: 'טאבלטים',
-};
+function sourceMetaLabel(e) {
+  return [e.browser, e.os].filter(Boolean).join(' · ') || 'לא ידוע';
+}
 
-// Basic heuristic (deliberately simple, per the "לוגיקה בסיסית... לא לבנות
-// מערכת אבטחה ענקית" scope) meant to help a master notice likely
-// account/password sharing -- never locks anyone out, just surfaces a
-// reason string per flagged student. `events` is the admin's full
-// getAll() result; `usersById` maps user id -> fullName for the label.
+const WINDOW_24H_MS = 24 * 60 * 60 * 1000;
+const WINDOW_72H_MS = 72 * 60 * 60 * 1000;
+// How far back a "pattern" is even considered -- a switch older than this
+// is just history, never part of a live alert.
+const PATTERN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Thresholds a single one-off switch (new phone, new browser, public
+// Wi-Fi, a fingerprint that happened to change) never crosses -- only a
+// REPEATED pattern of the account's one active session bouncing between
+// different sources does. See the comment on computeSecurityAlerts below
+// for why "no fingerprint match" alone was never a safe signal on its own.
+const HIGH_SWITCHES_72H = 6;
+const HIGH_DISTINCT_DAYS = 3;
+const NORMAL_SWITCHES_24H = 3;
+const NORMAL_SWITCHES_72H = 4;
+const NORMAL_DISTINCT_DAYS = 2;
+
+// Multi-device security heuristic -- deliberately NOT "different
+// fingerprint = different physical device". A browser has no real
+// IMEI/serial/device-id, so a single fingerprint change (browser switch,
+// PWA install, cleared storage, new Wi-Fi/IP, a small OS update) can
+// legitimately happen to one honest student using their own phone -- that
+// must never page the master. What DOES look like account sharing is the
+// account's one active session repeatedly bouncing between DIFFERENT
+// sources over TIME, not any single switch.
 //
-// Phone + computer together is normal, everyday use -- never alerts by
-// itself. What's actually suspicious is two DIFFERENT devices of the SAME
-// broad type (two phones, two computers, ...) for one student, even
-// though that's still only 2 devices overall -- that's a much stronger
-// account/password-sharing signal than device count alone. Falls back to
-// "3 or more distinct devices total" to also catch the case where every
-// type only has one device each (phone + computer + tablet, say) but the
-// total is still unusually high.
+// Every login_events row is already exactly one explicit password login
+// (see auth.js's login()), which is also exactly the moment the single
+// active session moves to whichever device just logged in -- so two
+// consecutive rows with a different deviceKey are exactly "the active
+// session just moved to a different source," i.e. a real switch. Counting
+// and time-windowing those switches (not raw distinct-device counts) is
+// the whole fix here. `events` is the admin's full getAll() result;
+// `usersById` maps user id -> fullName for the label.
 export function computeSecurityAlerts(events, usersById) {
   const byUser = new Map();
   for (const e of events) {
@@ -102,35 +121,47 @@ export function computeSecurityAlerts(events, usersById) {
     byUser.get(e.userId).push(e);
   }
 
+  const now = Date.now();
   const alerts = [];
+
   for (const [userId, userEvents] of byUser) {
     const fullName = usersById.get(userId) || 'משתמש';
+    const sorted = [...userEvents].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-    const keysByType = new Map();
-    const allKeys = new Set();
-    for (const e of userEvents) {
-      const key = deviceKey(e);
-      allKeys.add(key);
-      const type = e.deviceType || 'other';
-      if (!keysByType.has(type)) keysByType.set(type, new Set());
-      keysByType.get(type).add(key);
+    // A "switch" = a login whose source differs from the immediately
+    // preceding login on this SAME account -- the very first login ever
+    // is never a switch (nothing to compare it to yet).
+    const switches = [];
+    for (let i = 1; i < sorted.length; i++) {
+      if (deviceKey(sorted[i]) !== deviceKey(sorted[i - 1])) switches.push(sorted[i]);
     }
 
-    let flagged = false;
-    for (const [type, keys] of keysByType) {
-      if (keys.size >= 2) {
-        const label = TYPE_LABEL[type] || 'מכשירים';
-        const countWord = keys.size === 2 ? 'שני' : String(keys.size);
-        alerts.push({ userId, fullName, reason: `זוהו ${countWord} ${label} שונים לאותו תלמיד` });
-        flagged = true;
-        break;
-      }
-    }
-    if (flagged) continue;
+    const recentSwitches = switches.filter((e) => now - new Date(e.createdAt).getTime() <= PATTERN_WINDOW_MS);
+    if (!recentSwitches.length) continue;
 
-    if (allKeys.size >= MANY_DEVICES_THRESHOLD) {
-      alerts.push({ userId, fullName, reason: `זוהו ${allKeys.size} מכשירים שונים` });
-    }
+    const switches24h = recentSwitches.filter((e) => now - new Date(e.createdAt).getTime() <= WINDOW_24H_MS).length;
+    const switches72h = recentSwitches.filter((e) => now - new Date(e.createdAt).getTime() <= WINDOW_72H_MS).length;
+    const distinctDays = new Set(recentSwitches.map((e) => new Date(e.createdAt).toISOString().slice(0, 10))).size;
+
+    const isHigh = switches72h >= HIGH_SWITCHES_72H || distinctDays >= HIGH_DISTINCT_DAYS;
+    const isNormal = switches24h >= NORMAL_SWITCHES_24H || switches72h >= NORMAL_SWITCHES_72H || distinctDays >= NORMAL_DISTINCT_DAYS;
+    if (!isHigh && !isNormal) continue; // 1-2 isolated switches -- history only, never an alert
+
+    const distinctSources = new Set(recentSwitches.map(deviceKey)).size;
+    const first = recentSwitches[0];
+    const last = recentSwitches[recentSwitches.length - 1];
+    const spanMs = new Date(last.createdAt) - new Date(first.createdAt);
+    const spanLabel = spanMs < WINDOW_24H_MS ? 'תוך פחות מ-24 שעות' : `לאורך כ-${Math.max(1, Math.round(spanMs / WINDOW_24H_MS))} ימים`;
+
+    // Deliberately never claims certainty about a specific device count
+    // ("שני טלפונים") -- a fingerprint difference alone can't prove that.
+    const severityLabel = isHigh ? 'התראה גבוהה' : 'התראה רגילה';
+    const reason =
+      `${severityLabel}: זוהה דפוס שימוש ממקורות שונים לאורך זמן — ` +
+      `${recentSwitches.length} החלפות session, ${distinctSources} מקורות שונים, ${spanLabel}. ` +
+      `IP אחרון: ${last.ip || 'לא ידוע'}, דפדפן/מערכת אחרונים: ${sourceMetaLabel(last)}`;
+
+    alerts.push({ userId, fullName, reason });
   }
   return alerts;
 }

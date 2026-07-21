@@ -423,7 +423,11 @@ export async function studentPageHTML(session, { boardModalOpen, trailModalOpen,
 // above the heading, per the "קטן, עדין, לא בלוק גדול" requirement.
 function statsLineHTML(students) {
   const activeCount = students.filter((u) => u.status !== 'blocked').length;
-  return `<p class="personal-mini-stats">חברי הכספת: ${activeCount} · ליווי אישי: בקרוב</p>`;
+  // Same filtering as "חברי הכספת" above (students already excludes the
+  // master; not-blocked only) -- just additionally scoped to whoever's
+  // permission_personal_guidance flag is on.
+  const personalGuidanceCount = students.filter((u) => u.status !== 'blocked' && u.permissions.personalGuidance).length;
+  return `<p class="personal-mini-stats">חברי הכספת: ${activeCount} · ליווי אישי: ${personalGuidanceCount}</p>`;
 }
 
 function composeFormHTML(students, isOpen) {
