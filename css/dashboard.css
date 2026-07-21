@@ -2368,6 +2368,16 @@ body[data-active-section="personalGuidance"] .sidebar-title.gold-title {
 .app-main[data-active-section="personalGuidance"] .admin-page .panel-card.lesson-panel > *:not(.lesson-page-title) {
   filter: hue-rotate(127deg) brightness(0.88);
 }
+/* The ambient rotation above lands on the video embed/icon too (real
+   footage and its own icon must stay true-colour, not tinted) -- excluded
+   back out the same "more specific selector wins" way .watch-btn.completed
+   already does below. Covers the iframe wrapper, the no-video placeholder
+   icon, and any future <img>/thumbnail inside this same card. */
+.app-main[data-active-section="personalGuidance"] .admin-page .panel-card.lesson-panel .embed-frame,
+.app-main[data-active-section="personalGuidance"] .admin-page .panel-card.lesson-panel .video-placeholder,
+.app-main[data-active-section="personalGuidance"] .admin-page .panel-card.lesson-panel img {
+  filter: none;
+}
 /* .watch-btn.completed lives inside that same card (a direct sibling of
    the heading), so the rule above would otherwise rotate its semantic
    green by +127deg same as everything else in the card -- this selector
