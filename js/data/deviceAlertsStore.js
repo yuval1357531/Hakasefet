@@ -39,34 +39,64 @@ export const deviceAlertsStore = {
     return data.map(toAlert);
   },
 
-  // Reconciles freshly-computed candidates (computeSecurityAlerts' output,
-  // [{userId, fullName, reason}]) against active DB rows: a student already
-  // flagged gets their existing row refreshed (occurrence_count bumped,
-  // reason/last_seen_at updated); a newly-flagged student gets a new row.
-  // Students NOT in `candidates` are left completely untouched -- a
-  // previously-flagged student who's no longer detected stays exactly as
-  // the master last left them (active or resolved) until they act on it.
+  // Reconciles freshly-computed candidates (computeSecurityAlerts' output --
+  // [{userId, fullName, reason, lastSwitchAt}]) against DB rows. Re-running
+  // "הרץ בדיקת אבטחה" on the SAME old pattern (no new login since it was
+  // last recorded) must be a no-op: it must never bump an active alert's
+  // count, and must never reopen an alert the master already resolved.
+  // `lastSwitchAt` (the timestamp of the actual login that produced this
+  // pattern) is what makes that possible -- compared against the stored
+  // last_seen_at/resolved_at, it tells a genuinely NEW switch apart from
+  // the same historical one still sitting inside computeSecurityAlerts'
+  // trailing window. Students NOT in `candidates` are left completely
+  // untouched.
   async syncActive(candidates) {
     if (!candidates.length) return;
     const studentIds = candidates.map((c) => c.userId);
-    const { data: existing } = await supabase
+    const { data: rows } = await supabase
       .from('device_alerts')
-      .select('id, student_id, occurrence_count')
-      .in('student_id', studentIds)
-      .eq('resolved', false);
-    const existingByStudent = new Map((existing || []).map((r) => [r.student_id, r]));
-    const nowIso = new Date().toISOString();
+      .select('id, student_id, occurrence_count, resolved, resolved_at, last_seen_at')
+      .in('student_id', studentIds);
 
-    for (const c of candidates) {
-      const row = existingByStudent.get(c.userId);
-      if (row) {
-        await supabase
-          .from('device_alerts')
-          .update({ reason: c.reason, occurrence_count: row.occurrence_count + 1, last_seen_at: nowIso, updated_at: nowIso })
-          .eq('id', row.id);
+    const activeByStudent = new Map();
+    const lastResolvedByStudent = new Map();
+    for (const r of rows || []) {
+      if (!r.resolved) {
+        activeByStudent.set(r.student_id, r);
       } else {
-        await supabase.from('device_alerts').insert({ student_id: c.userId, reason: c.reason, occurrence_count: 1, last_seen_at: nowIso });
+        const prev = lastResolvedByStudent.get(r.student_id);
+        if (!prev || new Date(r.resolved_at) > new Date(prev.resolved_at)) {
+          lastResolvedByStudent.set(r.student_id, r);
+        }
       }
+    }
+
+    const nowIso = new Date().toISOString();
+    for (const c of candidates) {
+      if (!c.lastSwitchAt) continue; // defensive -- always set by computeSecurityAlerts
+
+      const active = activeByStudent.get(c.userId);
+      if (active) {
+        // Only a genuinely NEW switch since this alert was last updated
+        // bumps the count -- re-checking the exact same old pattern never
+        // does.
+        if (new Date(c.lastSwitchAt) > new Date(active.last_seen_at)) {
+          await supabase
+            .from('device_alerts')
+            .update({ reason: c.reason, occurrence_count: active.occurrence_count + 1, last_seen_at: c.lastSwitchAt, updated_at: nowIso })
+            .eq('id', active.id);
+        }
+        continue;
+      }
+
+      const lastResolved = lastResolvedByStudent.get(c.userId);
+      if (lastResolved && new Date(c.lastSwitchAt) <= new Date(lastResolved.resolved_at)) {
+        continue; // same old, already-"טופל" pattern -- never reopen it
+      }
+
+      // Either never alerted before, or genuinely new activity after the
+      // last time this student's alert was resolved.
+      await supabase.from('device_alerts').insert({ student_id: c.userId, reason: c.reason, occurrence_count: 1, last_seen_at: c.lastSwitchAt });
     }
   },
 

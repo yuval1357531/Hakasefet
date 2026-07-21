@@ -114,6 +114,12 @@ const NORMAL_DISTINCT_DAYS = 2;
 // and time-windowing those switches (not raw distinct-device counts) is
 // the whole fix here. `events` is the admin's full getAll() result;
 // `usersById` maps user id -> fullName for the label.
+// `usersById` must map ONLY the ids that are allowed to trigger a
+// suspicious-usage alert -- callers pass a students-only map (never
+// including the master/admin), and any userId not in it here is skipped
+// entirely rather than falling back to a placeholder name: this heuristic
+// must never fire on the master's own logins/checks, and must never show
+// a nameless "משתמש" alert for an unresolved id.
 export function computeSecurityAlerts(events, usersById) {
   const byUser = new Map();
   for (const e of events) {
@@ -125,7 +131,8 @@ export function computeSecurityAlerts(events, usersById) {
   const alerts = [];
 
   for (const [userId, userEvents] of byUser) {
-    const fullName = usersById.get(userId) || 'משתמש';
+    const fullName = usersById.get(userId);
+    if (!fullName) continue; // not a real, named student -- never alert on this
     const sorted = [...userEvents].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
     // A "switch" = a login whose source differs from the immediately
@@ -161,7 +168,11 @@ export function computeSecurityAlerts(events, usersById) {
       `${recentSwitches.length} החלפות session, ${distinctSources} מקורות שונים, ${spanLabel}. ` +
       `IP אחרון: ${last.ip || 'לא ידוע'}, דפדפן/מערכת אחרונים: ${sourceMetaLabel(last)}`;
 
-    alerts.push({ userId, fullName, reason });
+    // lastSwitchAt lets the caller (deviceAlertsStore.syncActive) tell a
+    // genuinely NEW switch apart from the exact same old pattern still
+    // sitting inside the trailing window -- re-running the check without
+    // any new login must never bump a count or reopen a resolved alert.
+    alerts.push({ userId, fullName, reason, lastSwitchAt: last.createdAt, switchCount: recentSwitches.length });
   }
   return alerts;
 }

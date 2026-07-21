@@ -795,9 +795,11 @@ export async function mountPersonalPage(container, session) {
       // needlessly re-fetch the full login_events table each time.
       if (!securityChecked) {
         securityChecked = true;
-        const usersById = new Map(allUsers.map((u) => [u.id, u.fullName]));
+        // studentNameByIdCache is already non-admin only (see just above) --
+        // reused here so the master's own logins/checks can never raise a
+        // "suspicious usage" alert about themselves.
         const events = await loginEventsStore.getAll();
-        const candidates = computeSecurityAlerts(events, usersById);
+        const candidates = computeSecurityAlerts(events, studentNameByIdCache);
         await deviceAlertsStore.syncActive(candidates);
         const [deviceAlerts, masterAlerts] = await Promise.all([deviceAlertsStore.getActive(), masterLoginAlertsStore.getActive()]);
         securityAlertsCache = deviceAlerts;
@@ -1158,7 +1160,10 @@ export async function mountPersonalPage(container, session) {
       runCheckBtn.addEventListener('click', async () => {
         runCheckBtn.disabled = true;
         const [allUsers, events] = await Promise.all([usersStore.getAll(), loginEventsStore.getAll()]);
-        const usersById = new Map(allUsers.map((u) => [u.id, u.fullName]));
+        // Students only -- never the master -- see computeSecurityAlerts'
+        // own comment for why an unresolved id (including the master's)
+        // must never raise a "suspicious usage" alert.
+        const usersById = new Map(allUsers.filter((u) => u.role !== 'admin').map((u) => [u.id, u.fullName]));
         const candidates = computeSecurityAlerts(events, usersById);
         await deviceAlertsStore.syncActive(candidates);
         const [deviceAlerts, masterAlerts] = await Promise.all([deviceAlertsStore.getActive(), masterLoginAlertsStore.getActive()]);
