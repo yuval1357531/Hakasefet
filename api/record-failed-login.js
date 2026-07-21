@@ -109,23 +109,38 @@ async function recordIfMaster(req) {
 
   const sourceKey = fp || ip;
   const nowIso = new Date().toISOString();
-  await admin.from('master_login_alerts').upsert(
-    {
-      source_key: sourceKey,
-      attempt_count: attemptCount,
-      last_attempt_at: nowIso,
-      ip,
-      user_agent: ua,
-      device_type: cleanDeviceType,
-      os: cleanOs,
-      browser: cleanBrowser,
-      fingerprint: fp,
-      matched_student_id: matchedStudentId,
-      match_confidence: matchConfidence,
-      updated_at: nowIso,
-    },
-    { onConflict: 'source_key' }
-  );
+  const alertFields = {
+    attempt_count: attemptCount,
+    last_attempt_at: nowIso,
+    ip,
+    user_agent: ua,
+    device_type: cleanDeviceType,
+    os: cleanOs,
+    browser: cleanBrowser,
+    fingerprint: fp,
+    matched_student_id: matchedStudentId,
+    match_confidence: matchConfidence,
+    updated_at: nowIso,
+  };
+
+  // Manual select-then-branch instead of .upsert(onConflict: 'source_key'):
+  // the unique index on source_key is now PARTIAL (only while resolved is
+  // false, see the migration) so a plain ON CONFLICT target can't match it
+  // -- and that's exactly the point: once the master marks an alert
+  // "טופל", the same source raising the pattern again must open a BRAND
+  // NEW active alert, not silently reopen/update the handled one.
+  const { data: existingAlert } = await admin
+    .from('master_login_alerts')
+    .select('id')
+    .eq('source_key', sourceKey)
+    .eq('resolved', false)
+    .maybeSingle();
+
+  if (existingAlert) {
+    await admin.from('master_login_alerts').update(alertFields).eq('id', existingAlert.id);
+  } else {
+    await admin.from('master_login_alerts').insert({ source_key: sourceKey, ...alertFields });
+  }
 }
 
 // Looks for the most likely student a suspicious source belongs to, using

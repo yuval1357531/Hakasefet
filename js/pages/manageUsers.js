@@ -74,6 +74,9 @@ export async function mountManageUsers(container) {
   // or email. Persisted across re-renders (module-level, not re-read from
   // the DOM) so creating/editing a user doesn't silently clear it.
   let searchQuery = '';
+  // Which "הכל / פעילים / חסומים / לא פעילים" tab is selected -- same
+  // persisted-across-renders, client-side-only pattern as searchQuery above.
+  let statusFilter = 'all';
   // Which user's bubble is currently open, and whether that bubble is
   // showing the inline "עריכה" (name/status) form instead of the plain
   // read-only detail view -- both reset whenever the bubble is closed.
@@ -162,12 +165,39 @@ export async function mountManageUsers(container) {
     return `<button type="button" class="student-folder-btn" data-id="${user.id}">${escapeHtml(user.fullName)}${masterTag}</button>`;
   }
 
-  // Plain substring match on name/email, case-insensitive -- no query to
-  // the server, just filtering the array render() already fetched.
+  // "הכל / פעילים / חסומים / לא פעילים" -- purely a display filter over the
+  // already-fetched `users` array, never a delete/hide: a blocked or
+  // expired user still shows up under "הכל" (and their own tab), with full
+  // history/journal/details reachable exactly like any other user.
+  const STATUS_FILTER_TABS = [
+    ['all', 'הכל'],
+    ['active', 'פעילים'],
+    ['blocked', 'חסומים'],
+    ['expired', 'לא פעילים'],
+  ];
+
+  function statusMatchesFilter(u) {
+    if (statusFilter === 'active') return u.status === 'active' && !isExpired(u.accessExpiryDate);
+    if (statusFilter === 'blocked') return u.status === 'blocked';
+    if (statusFilter === 'expired') return u.status === 'active' && isExpired(u.accessExpiryDate);
+    return true;
+  }
+
+  function statusFilterTabsHTML() {
+    return `<div class="user-status-filter-tabs">${STATUS_FILTER_TABS.map(
+      ([key, label]) =>
+        `<button type="button" class="btn-ghost small user-status-filter-btn${statusFilter === key ? ' is-active' : ''}" data-status-filter="${key}">${label}</button>`
+    ).join('')}</div>`;
+  }
+
+  // Plain substring match on name/email (case-insensitive) on top of the
+  // status filter above -- neither ever hits the server, just filters the
+  // array render() already fetched.
   function filteredUsers() {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(
+    const byStatus = users.filter(statusMatchesFilter);
+    if (!q) return byStatus;
+    return byStatus.filter(
       (u) => u.fullName.toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q)
     );
   }
@@ -298,7 +328,8 @@ export async function mountManageUsers(container) {
     const existingAccordion = accordionHTML(
       'existing-users',
       'משתמשים קיימים',
-      `<div class="field-group" style="margin-bottom:14px;">
+      `${statusFilterTabsHTML()}
+      <div class="field-group" style="margin-bottom:14px;">
         <input type="search" id="userSearchInput" placeholder="חיפוש לפי שם או אימייל..." value="${escapeAttr(searchQuery)}" ${users.length ? '' : 'disabled'}>
       </div>
       <div id="userListWrap">${userListHTML()}</div>`,
@@ -580,6 +611,15 @@ export async function mountManageUsers(container) {
         wireUserButtons();
       });
     }
+
+    container.querySelectorAll('.user-status-filter-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        statusFilter = btn.dataset.statusFilter;
+        container.querySelectorAll('.user-status-filter-btn').forEach((b) => b.classList.toggle('is-active', b === btn));
+        container.querySelector('#userListWrap').innerHTML = userListHTML();
+        wireUserButtons();
+      });
+    });
 
     const openUser = openUserId ? users.find((u) => u.id === openUserId) : null;
     if (openUser) wireBubbleBody(openUser);

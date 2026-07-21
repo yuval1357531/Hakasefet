@@ -52,17 +52,29 @@ export function getDeviceInfo() {
       return '';
     }
   })();
+  const deviceType = detectDeviceType(ua);
+  const os = detectOS(ua);
+  // Deliberately built ONLY from device/OS-level signals, never the raw
+  // user agent string or browser name -- the raw UA differs completely
+  // between Safari and Chrome on the very same physical phone, which used
+  // to make the fingerprint (and the multi-device security heuristic built
+  // on top of it) see "two phones" for one student switching browsers.
+  // detectDeviceType/detectOS already normalize the browser-specific parts
+  // of the UA away, so what's left here identifies the PHYSICAL device,
+  // not which app opened it.
   const fingerprintSource = [
-    ua,
+    deviceType,
+    os,
     navigator.language || '',
     tz,
     screen.width + 'x' + screen.height,
+    screen.colorDepth || '',
     navigator.hardwareConcurrency || '',
   ].join('|');
 
   return {
-    deviceType: detectDeviceType(ua),
-    os: detectOS(ua),
+    deviceType,
+    os,
     browser: detectBrowser(ua),
     fingerprint: simpleHash(fingerprintSource),
   };

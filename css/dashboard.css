@@ -1491,6 +1491,7 @@ body[data-active-section="personalGuidance"] .sidebar-title.gold-title {
 .login-event-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .login-event-time { font-size: 12.5px; color: var(--text-main); }
 .login-event-meta { font-size: 11px; color: var(--text-dim); }
+.login-event-confidence { font-size: 11px; color: var(--text-dim); font-style: italic; }
 
 /* "התראות אבטחה" -- title (right) + a small run-check button (left) above
    a thin full-width status strip (item 9). Sits right under the master's
@@ -1498,6 +1499,10 @@ body[data-active-section="personalGuidance"] .sidebar-title.gold-title {
 .security-alerts-block { margin-bottom: 22px; }
 .security-alerts-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .security-alerts-header .personal-block-title { margin: 0; }
+.security-alerts-header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.master-login-alert-item .focus-item-text { line-height: 1.7; }
+.focus-item-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.security-alert-resolved-note { font-size: 12px; }
 .security-alerts-strip {
   display: block;
   width: 100%;
@@ -1564,6 +1569,8 @@ body[data-active-section="personalGuidance"] .sidebar-title.gold-title {
 }
 .user-bubble-password-value { font-size: 14px; font-weight: 700; letter-spacing: 0.5px; color: var(--gold-light); }
 .user-bubble-password-hint { font-size: 11.5px; margin: 0; }
+.user-status-filter-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.user-status-filter-btn.is-active { border-color: var(--border-gold); color: var(--gold-light); background: rgba(99, 171, 255, 0.08); }
 .user-bubble-details { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
 .user-bubble-detail-row {
   display: flex;

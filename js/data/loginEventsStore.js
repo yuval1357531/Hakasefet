@@ -134,3 +134,43 @@ export function computeSecurityAlerts(events, usersById) {
   }
   return alerts;
 }
+
+const CONFIDENCE_LABEL = {
+  same: 'כנראה אותו מכשיר',
+  maybe: 'ייתכן מכשיר חדש',
+  new: 'מכשיר חדש בסבירות גבוהה',
+};
+
+// Per-login-event confidence label for loginHistory.js -- compares this
+// event's device key (see deviceKey above) to the student's OWN most
+// common device key among their other events (the "baseline"). Purely
+// informational context next to a login-history row; never used to
+// alert/block anything by itself -- computeSecurityAlerts above is what
+// actually decides that.
+export function deviceConfidenceLabel(event, allUserEvents) {
+  const others = allUserEvents.filter((e) => e.id !== event.id);
+  if (!others.length) return CONFIDENCE_LABEL.same;
+
+  const counts = new Map();
+  for (const e of others) {
+    const k = deviceKey(e);
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  let baselineKey = null;
+  let baselineCount = -1;
+  for (const [k, c] of counts) {
+    if (c > baselineCount) {
+      baselineKey = k;
+      baselineCount = c;
+    }
+  }
+
+  const thisKey = deviceKey(event);
+  if (thisKey === baselineKey) return CONFIDENCE_LABEL.same;
+
+  const baselineEvent = others.find((e) => deviceKey(e) === baselineKey);
+  if (baselineEvent && baselineEvent.deviceType === event.deviceType && baselineEvent.os === event.os) {
+    return CONFIDENCE_LABEL.maybe;
+  }
+  return CONFIDENCE_LABEL.new;
+}

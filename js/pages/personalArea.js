@@ -36,6 +36,7 @@ import {
 import { dailyWheelStore } from '../data/dailyWheelStore.js';
 import { loginEventsStore, computeSecurityAlerts } from '../data/loginEventsStore.js';
 import { masterLoginAlertsStore } from '../data/masterLoginAlertsStore.js';
+import { deviceAlertsStore } from '../data/deviceAlertsStore.js';
 import { helpTipHTML } from '../helpTip.js';
 
 const RESUME_DISMISS_KEY = 'vault_resume_dismissed_lesson';
@@ -568,8 +569,9 @@ const MATCH_LABEL = {
 // Failed-brute-force-against-master alert (see data/masterLoginAlertsStore.js
 // + api/record-failed-login.js) -- never locks/blocks anyone by itself; only
 // shows a "חסום משתמש" button when a likely student device was found, and
-// even then only after the master explicitly confirms.
-function masterLoginAlertItemHTML(a, studentNameById) {
+// even then only after the master explicitly confirms. `forHistory` swaps
+// the "טופל" button for a plain "טופל ב-<date>" note.
+function masterLoginAlertItemHTML(a, studentNameById, forHistory) {
   const studentName = a.matchedStudentId ? studentNameById.get(a.matchedStudentId) : null;
   const matchLine = a.matchedStudentId && studentName
     ? `${MATCH_LABEL[a.matchConfidence] || 'נמצאה התאמה אפשרית לתלמיד'}: ${escapeHtml(studentName)}`
@@ -579,9 +581,12 @@ function masterLoginAlertItemHTML(a, studentNameById) {
     a.browser ? `דפדפן: ${escapeHtml(a.browser)}` : '',
     a.os ? `מערכת הפעלה: ${escapeHtml(a.os)}` : '',
   ].filter(Boolean).join(' · ');
-  const blockBtn = a.matchedStudentId && studentName
+  const blockBtn = !forHistory && a.matchedStudentId && studentName
     ? `<button type="button" class="btn-ghost small master-alert-block-btn" data-student-id="${escapeAttr(a.matchedStudentId)}" data-student-name="${escapeAttr(studentName)}">חסום משתמש</button>`
     : '';
+  const resolveControlHTML = forHistory
+    ? `<span class="muted-note security-alert-resolved-note">טופל ב-${formatEntryTime(a.resolvedAt)}</span>`
+    : `<button type="button" class="btn-ghost small security-alert-resolve-btn" data-resolve-kind="master" data-resolve-id="${escapeAttr(a.id)}">טופל</button>`;
   return `
     <div class="focus-item master-login-alert-item">
       <span class="focus-item-title">ניסיונות כניסה כושלים לחשבון מאסטר</span>
@@ -589,33 +594,74 @@ function masterLoginAlertItemHTML(a, studentNameById) {
         ${a.attemptCount} ניסיונות כושלים · ניסיון אחרון: ${formatEntryTime(a.lastAttemptAt)}<br>
         ${a.ip ? `IP: ${escapeHtml(a.ip)}<br>` : ''}
         ${metaParts ? `${metaParts}<br>` : ''}
+        ${a.fingerprint ? `Fingerprint: ${escapeHtml(a.fingerprint)}<br>` : ''}
         ${matchLine}<br>
         סיבה: יותר מ־5 ניסיונות כושלים לחשבון מאסטר
       </p>
-      ${blockBtn}
+      <div class="focus-item-actions">
+        ${blockBtn}
+        ${resolveControlHTML}
+      </div>
     </div>`;
 }
 
-function securityAlertsHTML(alerts, masterLoginAlerts, studentNameById, isBubbleOpen) {
-  const totalCount = alerts.length + masterLoginAlerts.length;
+// Persisted multi-device alert (see data/deviceAlertsStore.js +
+// loginEventsStore.js's computeSecurityAlerts) -- flags a student whose
+// login history shows a genuinely different physical device (not just a
+// different browser on the same phone, see the fingerprint fix in
+// deviceInfo.js), never blocks anyone by itself.
+function deviceAlertItemHTML(a, studentNameById, forHistory) {
+  const fullName = studentNameById.get(a.studentId) || 'משתמש';
+  const countNote = a.occurrenceCount > 1 ? `<br>אירוע דומה זוהה ${a.occurrenceCount} פעמים` : '';
+  const resolveControlHTML = forHistory
+    ? `<span class="muted-note security-alert-resolved-note">טופל ב-${formatEntryTime(a.resolvedAt)}</span>`
+    : `<button type="button" class="btn-ghost small security-alert-resolve-btn" data-resolve-kind="device" data-resolve-id="${escapeAttr(a.id)}">טופל</button>`;
+  return `
+    <div class="focus-item">
+      <span class="focus-item-title">${escapeHtml(fullName)}</span>
+      <p class="focus-item-text">${escapeHtml(a.reason)}${countNote}</p>
+      <div class="focus-item-actions">${resolveControlHTML}</div>
+    </div>`;
+}
+
+function securityAlertsHTML(deviceAlerts, masterLoginAlerts, studentNameById, isBubbleOpen) {
+  const totalCount = deviceAlerts.length + masterLoginAlerts.length;
   const hasAlerts = totalCount > 0;
   const stripHTML = hasAlerts
     ? `<button type="button" class="security-alerts-strip has-alerts" id="securityAlertsStripBtn">⚠ ${totalCount} התראות אבטחה פתוחות — לחיצה לפירוט</button>`
     : '<div class="security-alerts-strip is-clear">✓ אין התראות אבטחה פתוחות</div>';
   const bubbleBody = hasAlerts
-    ? `<div class="focus-list">${masterLoginAlerts.map((a) => masterLoginAlertItemHTML(a, studentNameById)).join('')}${alerts
-        .map((a) => `<div class="focus-item"><span class="focus-item-title">${escapeHtml(a.fullName)}</span><p class="focus-item-text">${escapeHtml(a.reason)}</p></div>`)
+    ? `<div class="focus-list">${masterLoginAlerts.map((a) => masterLoginAlertItemHTML(a, studentNameById, false)).join('')}${deviceAlerts
+        .map((a) => deviceAlertItemHTML(a, studentNameById, false))
         .join('')}</div>`
     : '';
   return `
     <div class="security-alerts-block">
       <div class="security-alerts-header">
         <h3 class="personal-block-title">התראות אבטחה</h3>
-        <button type="button" class="btn-ghost small" id="runSecurityCheckBtn">הרץ בדיקת אבטחה</button>
+        <div class="security-alerts-header-actions">
+          <button type="button" class="btn-ghost small" id="securityHistoryBtn">היסטוריית התראות</button>
+          <button type="button" class="btn-ghost small" id="runSecurityCheckBtn">הרץ בדיקת אבטחה</button>
+        </div>
       </div>
       ${stripHTML}
     </div>
     ${hasAlerts ? personalModalHTML('securityAlerts', 'התראות אבטחה', bubbleBody, isBubbleOpen) : ''}`;
+}
+
+// "היסטוריית התראות אבטחה" -- every alert the master already marked
+// "טופל", from both kinds, newest-resolved first. Always rendered (even
+// with no history yet) since it's opened deliberately via its own button,
+// not shown automatically like the active strip above.
+function securityAlertsHistoryHTML(deviceHistory, masterHistory, studentNameById, isOpen) {
+  const merged = [
+    ...masterHistory.map((a) => ({ resolvedAt: a.resolvedAt, html: masterLoginAlertItemHTML(a, studentNameById, true) })),
+    ...deviceHistory.map((a) => ({ resolvedAt: a.resolvedAt, html: deviceAlertItemHTML(a, studentNameById, true) })),
+  ].sort((x, y) => new Date(y.resolvedAt) - new Date(x.resolvedAt));
+  const body = merged.length
+    ? `<div class="focus-list">${merged.map((m) => m.html).join('')}</div>`
+    : '<p class="placeholder-desc">אין עדיין התראות שטופלו.</p>';
+  return personalModalHTML('securityAlertsHistory', 'היסטוריית התראות אבטחה', body, isOpen);
 }
 
 function masterPageHTML(
@@ -631,7 +677,10 @@ function masterPageHTML(
   wheelSentencesModalOpen,
   securityAlerts,
   masterLoginAlerts,
-  securityBubbleOpen
+  securityBubbleOpen,
+  deviceAlertsHistory,
+  masterLoginAlertsHistory,
+  securityHistoryOpen
 ) {
   return `
     <div class="admin-page personal-page personal-page-master">
@@ -644,6 +693,7 @@ function masterPageHTML(
         <a href="#/admin" class="admin-manage-link">ניהול מערכת ומשתמשים</a>
       </div>
       ${securityAlertsHTML(securityAlerts, masterLoginAlerts, studentNameById, securityBubbleOpen)}
+      ${securityAlertsHistoryHTML(deviceAlertsHistory, masterLoginAlertsHistory, studentNameById, securityHistoryOpen)}
       ${composeFormHTML(students, isComposeOpen)}
       ${accordionHTML(
         'daily-wheel-sentences',
@@ -680,9 +730,11 @@ export async function mountPersonalPage(container, session) {
   // same closure-state pattern as every other popup on this page.
   let wheelSentencesModalOpen = false;
   // Master-only: basic multi-device security-alert heuristic (see
-  // data/loginEventsStore.js's computeSecurityAlerts). Computed once on
-  // mount and again on demand via "הרץ בדיקת אבטחה" -- both times a plain
-  // local repaint of just this block, never a full page reload.
+  // data/loginEventsStore.js's computeSecurityAlerts), persisted into
+  // device_alerts (data/deviceAlertsStore.js) so each one has an identity a
+  // "טופל" action can target. Synced once on mount and again on demand via
+  // "הרץ בדיקת אבטחה" -- both times a plain local repaint, never a full
+  // page reload.
   let securityAlertsCache = [];
   // Master-only: persisted brute-force-against-master alerts (see
   // data/masterLoginAlertsStore.js) -- fetched alongside the multi-device
@@ -690,6 +742,14 @@ export async function mountPersonalPage(container, session) {
   let masterLoginAlertsCache = [];
   let securityBubbleOpen = false;
   let securityChecked = false;
+  // Master-only: "היסטוריית התראות אבטחה" -- every alert already marked
+  // "טופל", from both kinds. Fetched lazily (only when the history modal is
+  // actually opened) since it's a deliberate look-back action, not part of
+  // the page's normal load.
+  let deviceAlertsHistoryCache = [];
+  let masterLoginAlertsHistoryCache = [];
+  let securityHistoryOpen = false;
+  let securityHistoryLoaded = false;
   // Student-only: whether each popup is open -- kept across the local
   // render() calls other student actions already trigger (mark task
   // done, resume dismiss, notebook save), so none of those accidentally
@@ -726,8 +786,11 @@ export async function mountPersonalPage(container, session) {
       if (!securityChecked) {
         securityChecked = true;
         const usersById = new Map(allUsers.map((u) => [u.id, u.fullName]));
-        const [events, masterAlerts] = await Promise.all([loginEventsStore.getAll(), masterLoginAlertsStore.getAll()]);
-        securityAlertsCache = computeSecurityAlerts(events, usersById);
+        const events = await loginEventsStore.getAll();
+        const candidates = computeSecurityAlerts(events, usersById);
+        await deviceAlertsStore.syncActive(candidates);
+        const [deviceAlerts, masterAlerts] = await Promise.all([deviceAlertsStore.getActive(), masterLoginAlertsStore.getActive()]);
+        securityAlertsCache = deviceAlerts;
         masterLoginAlertsCache = masterAlerts;
       }
       const editingWheelSentence = editingWheelSentenceId
@@ -746,7 +809,10 @@ export async function mountPersonalPage(container, session) {
         wheelSentencesModalOpen,
         securityAlertsCache,
         masterLoginAlertsCache,
-        securityBubbleOpen
+        securityBubbleOpen,
+        deviceAlertsHistoryCache,
+        masterLoginAlertsHistoryCache,
+        securityHistoryOpen
       );
       wireMasterHandlers();
       wireAccordions(container, { state: openAccordions, rerender: render });
@@ -1081,13 +1147,12 @@ export async function mountPersonalPage(container, session) {
     if (runCheckBtn) {
       runCheckBtn.addEventListener('click', async () => {
         runCheckBtn.disabled = true;
-        const [allUsers, events, masterAlerts] = await Promise.all([
-          usersStore.getAll(),
-          loginEventsStore.getAll(),
-          masterLoginAlertsStore.getAll(),
-        ]);
+        const [allUsers, events] = await Promise.all([usersStore.getAll(), loginEventsStore.getAll()]);
         const usersById = new Map(allUsers.map((u) => [u.id, u.fullName]));
-        securityAlertsCache = computeSecurityAlerts(events, usersById);
+        const candidates = computeSecurityAlerts(events, usersById);
+        await deviceAlertsStore.syncActive(candidates);
+        const [deviceAlerts, masterAlerts] = await Promise.all([deviceAlertsStore.getActive(), masterLoginAlertsStore.getActive()]);
+        securityAlertsCache = deviceAlerts;
         masterLoginAlertsCache = masterAlerts;
         runCheckBtn.disabled = false;
         await render();
@@ -1109,6 +1174,34 @@ export async function mountPersonalPage(container, session) {
         if (e.target === securityOverlay) closeSecurityModal();
       });
     }
+    // "היסטוריית התראות אבטחה" -- fetched lazily, only the first time this
+    // modal is actually opened (repeat opens in the same page visit reuse
+    // the already-fetched cache; "הרץ בדיקת אבטחה" never touches it).
+    const historyBtn = container.querySelector('#securityHistoryBtn');
+    const historyOverlay = container.querySelector('#securityAlertsHistoryOverlay');
+    if (historyBtn && historyOverlay) {
+      historyBtn.addEventListener('click', async () => {
+        securityHistoryOpen = true;
+        if (!securityHistoryLoaded) {
+          historyBtn.disabled = true;
+          const [deviceHistory, masterHistory] = await Promise.all([deviceAlertsStore.getHistory(), masterLoginAlertsStore.getHistory()]);
+          deviceAlertsHistoryCache = deviceHistory;
+          masterLoginAlertsHistoryCache = masterHistory;
+          securityHistoryLoaded = true;
+          historyBtn.disabled = false;
+        }
+        await render();
+      });
+      const closeHistoryModal = () => {
+        securityHistoryOpen = false;
+        const overlay = container.querySelector('#securityAlertsHistoryOverlay');
+        if (overlay) overlay.hidden = true;
+      };
+      container.querySelector('#securityAlertsHistoryClose')?.addEventListener('click', closeHistoryModal);
+      historyOverlay.addEventListener('click', (e) => {
+        if (e.target === historyOverlay) closeHistoryModal();
+      });
+    }
     // "חסום משתמש" inside a master-login-brute-force alert -- only ever
     // rendered when a likely student device was found (see
     // masterLoginAlertItemHTML). Requires explicit master confirmation,
@@ -1124,6 +1217,26 @@ export async function mountPersonalPage(container, session) {
         btn.disabled = true;
         await usersStore.update(studentId, { status: 'blocked' });
         await render();
+      });
+    });
+    // "טופל" -- moves one active alert (either kind) into "היסטוריית
+    // התראות אבטחה" without deleting it. If the same pattern happens again
+    // later, syncActive/record-failed-login open a BRAND NEW active alert
+    // instead of reopening this one (see the partial unique indexes in the
+    // migration) -- resolving never suppresses future detection.
+    container.querySelectorAll('.security-alert-resolve-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const kind = btn.dataset.resolveKind;
+        const id = btn.dataset.resolveId;
+        if (!id) return;
+        btn.disabled = true;
+        const ok = kind === 'device' ? await deviceAlertsStore.resolve(id) : await masterLoginAlertsStore.resolve(id);
+        if (ok) {
+          securityHistoryLoaded = false; // next history open re-fetches, picking up this newly-resolved row
+          await render();
+        } else {
+          btn.disabled = false;
+        }
       });
     });
   }

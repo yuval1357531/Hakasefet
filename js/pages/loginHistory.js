@@ -4,7 +4,7 @@
 // login_events rows (data/loginEventsStore.js), newest first. View only.
 
 import { usersStore } from '../data/usersStore.js';
-import { loginEventsStore } from '../data/loginEventsStore.js';
+import { loginEventsStore, deviceConfidenceLabel } from '../data/loginEventsStore.js';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -26,15 +26,25 @@ function formatEventTime(iso) {
   return `${datePart} · ${timePart}`;
 }
 
-function eventRowHTML(e) {
+// `allEvents` is this SAME student's full event list -- deviceConfidenceLabel
+// needs it to know what their "usual" device looks like, so a row can say
+// "כנראה אותו מכשיר" vs "מכשיר חדש בסבירות גבוהה".
+function eventRowHTML(e, allEvents) {
   const icon = DEVICE_ICON[e.deviceType] || '🖥';
   const parts = [e.os, e.browser].filter(Boolean).join(' · ');
+  const confidence = deviceConfidenceLabel(e, allEvents);
+  const metaParts = [
+    escapeHtml(parts || 'לא ידוע'),
+    e.ip ? `IP: ${escapeHtml(e.ip)}` : '',
+    e.fingerprint ? `Fingerprint: ${escapeHtml(e.fingerprint)}` : '',
+  ].filter(Boolean).join(' · ');
   return `
     <div class="login-event-row">
       <span class="login-event-icon" aria-hidden="true">${icon}</span>
       <div class="login-event-main">
         <span class="login-event-time">${formatEventTime(e.createdAt)}</span>
-        <span class="login-event-meta">${escapeHtml(parts || 'לא ידוע')}${e.ip ? ` · IP: ${escapeHtml(e.ip)}` : ''}</span>
+        <span class="login-event-meta">${metaParts}</span>
+        <span class="login-event-confidence">${escapeHtml(confidence)}</span>
       </div>
     </div>`;
 }
@@ -44,7 +54,7 @@ async function historyBodyHTML(user) {
   if (!events.length) {
     return '<p class="placeholder-desc" style="margin:0;">אין עדיין תיעוד התחברויות עבור התלמיד/ה הזו (התיעוד פועל מרגע הפעלת הפיצ׳ר).</p>';
   }
-  return `<div class="login-event-list">${events.map(eventRowHTML).join('')}</div>`;
+  return `<div class="login-event-list">${events.map((e) => eventRowHTML(e, events)).join('')}</div>`;
 }
 
 export async function mountLoginHistory(container) {
