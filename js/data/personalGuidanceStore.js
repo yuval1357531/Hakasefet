@@ -5,7 +5,8 @@
 // "לשכפל/להרחיב את המנוע הקיים" requirement (a new engine was NOT built;
 // this is the same engine, applied a second time).
 
-import { supabase } from '../supabaseClient.js';
+import { supabase, SUPABASE_ANON_KEY, SUPABASE_STORAGE_TUS_ENDPOINT } from '../supabaseClient.js';
+import * as tus from 'https://esm.sh/tus-js-client@4.3.1';
 
 function toLesson(row) {
   return {
@@ -93,6 +94,72 @@ function sanitizeFileName(name) {
 // URL (see resolveTrailMediaUrl in highlightsApi.getAll below), scoped by
 // the same RLS this section's highlights already enforce.
 //
+// Supabase's own official guidance (Storage docs, "Standard Uploads" /
+// "Resumable Uploads"): the plain one-shot upload() used below is only
+// "ideal" up to ~6MB -- above that they recommend the TUS/resumable
+// protocol instead, specifically for reliability over unstable
+// connections (a phone on cellular data uploading a multi-minute video is
+// exactly that scenario, and exactly what was failing with a bare 400
+// from Storage). Small files (images, PDFs, short clips) keep using the
+// plain upload -- identical to before, zero behavior change for them.
+const TUS_UPLOAD_THRESHOLD_BYTES = 6 * 1024 * 1024; // Supabase's own recommended cutoff
+const TUS_CHUNK_SIZE = 6 * 1024 * 1024; // per tus-js-client's Supabase integration docs -- do not change
+
+async function uploadViaStandard(file, path) {
+  const { error } = await supabase.storage.from('trail-media').upload(path, file);
+  if (error) return { reason: 'upload_failed', message: error.message };
+  return { reason: null };
+}
+
+// Resumable upload for large files -- chunked, retries on transient
+// network failures, and can pick up where it left off instead of the
+// single all-or-nothing POST the standard path uses. Talks directly to
+// Supabase's dedicated resumable-upload host (see
+// SUPABASE_STORAGE_TUS_ENDPOINT in supabaseClient.js), authenticated with
+// the CURRENT user's own access token (same admin-only RLS as every other
+// write to this bucket still applies server-side).
+async function uploadViaTus(file, path) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  if (!accessToken) return { reason: 'upload_failed', message: 'no active session' };
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    const upload = new tus.Upload(file, {
+      endpoint: SUPABASE_STORAGE_TUS_ENDPOINT,
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'x-upsert': 'true',
+        apikey: SUPABASE_ANON_KEY,
+      },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      metadata: {
+        bucketName: 'trail-media',
+        objectName: path,
+        contentType: file.type || 'application/octet-stream',
+        cacheControl: '3600',
+      },
+      chunkSize: TUS_CHUNK_SIZE,
+      onError: (err) => finish({ reason: 'upload_failed', message: err?.message || String(err) }),
+      onSuccess: () => finish({ reason: null }),
+    });
+    upload
+      .findPreviousUploads()
+      .then((previousUploads) => {
+        if (previousUploads.length) upload.resumeFromPreviousUpload(previousUploads[0]);
+        upload.start();
+      })
+      .catch((err) => finish({ reason: 'upload_failed', message: err?.message || String(err) }));
+  });
+}
+
 // Returns { url, reason, message } instead of a plain url-or-null -- see
 // vaultStore.js's identical function for why. `reason` is null on
 // success, else one of 'invalid_type' | 'too_large' | 'upload_failed'.
@@ -101,8 +168,9 @@ async function uploadTrailMedia(file) {
   if (!ALLOWED_TRAIL_MEDIA_TYPES.includes(file.type)) return { url: null, reason: 'invalid_type' };
   if (file.size > MAX_TRAIL_MEDIA_BYTES) return { url: null, reason: 'too_large' };
   const path = `${makeId('trail')}-${sanitizeFileName(file.name)}`;
-  const { error } = await supabase.storage.from('trail-media').upload(path, file);
-  if (error) return { url: null, reason: 'upload_failed', message: error.message };
+  const result =
+    file.size > TUS_UPLOAD_THRESHOLD_BYTES ? await uploadViaTus(file, path) : await uploadViaStandard(file, path);
+  if (result.reason) return { url: null, reason: result.reason, message: result.message };
   const { data } = supabase.storage.from('trail-media').getPublicUrl(path);
   if (!data?.publicUrl) return { url: null, reason: 'upload_failed' };
   return { url: data.publicUrl, reason: null };
