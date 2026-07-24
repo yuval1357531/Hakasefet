@@ -767,7 +767,7 @@ export function wireTrailManager(root, { store, lessonId, highlights, rerender, 
   // upload/save always tells the master WHY instead of just doing nothing.
   const TRAIL_UPLOAD_ERROR_MESSAGES = {
     invalid_type: 'סוג הקובץ אינו נתמך.',
-    too_large: 'הקובץ גדול מדי. ניתן להעלות קובץ עד 250MB.',
+    too_large: 'הקובץ גדול מדי. ניתן להעלות קובץ עד 50MB.',
     upload_failed: 'העלאת הקובץ נכשלה. בדוק את החיבור ונסה שוב.',
     db_save_failed: 'שמירת הפריט נכשלה. נסה שוב.',
   };
