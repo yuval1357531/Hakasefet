@@ -223,7 +223,7 @@ export async function mountFreedomHome(container, section, session) {
       <div class="admin-page">
         <div class="admin-page-header">
           <h1 class="gold-title placeholder-title">${titleHTML}</h1>
-          <p class="placeholder-desc">${descHTML}</p>
+          <p class="placeholder-desc section-desc-text">${descHTML}</p>
         </div>
         ${tickerMarkup}
         ${highlightsHTML}

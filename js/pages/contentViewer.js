@@ -110,7 +110,7 @@ export async function mountSectionHome(container, section, session) {
       <div class="admin-page">
         <div class="admin-page-header">
           <h1 class="gold-title placeholder-title">${titleHTML}</h1>
-          <p class="placeholder-desc">${descHTML}</p>
+          <p class="placeholder-desc section-desc-text">${descHTML}</p>
         </div>
         ${empty}
         <div class="course-grid">${cardsList.join('')}</div>
@@ -182,7 +182,7 @@ export async function mountCourseDetail(container, section, course, session) {
       <div class="admin-page">
         <div class="admin-page-header">
           <h1 class="gold-title placeholder-title">${courseTitleHTML}</h1>
-          <p class="placeholder-desc">${courseDescHTML}</p>
+          <p class="placeholder-desc section-desc-text">${courseDescHTML}</p>
           ${progressBarHTML(progress.percent, `${progress.completed} מתוך ${progress.total} שיעורים הושלמו (${progress.percent}%)`)}
         </div>
         ${moduleBlocks.join('')}

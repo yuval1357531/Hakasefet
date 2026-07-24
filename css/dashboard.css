@@ -2400,6 +2400,13 @@ body[data-active-section="personalGuidance"] .sidebar-title.gold-title {
 }
 .placeholder-title { font-size: 24px; margin: 0 0 12px; }
 .placeholder-desc { color: var(--text-muted); font-size: 14.5px; line-height: 1.7; margin: 0 0 22px; }
+/* Scoped to just the section/course description text in פורטל תוכן הכספת
+   (contentViewer.js) and מהישרדות לחופש (freedomSection.js) -- NOT a change
+   to .placeholder-desc itself, which is shared by many unrelated pages.
+   Edit-mode's own collapsed preview (.editable-text) already preserves line
+   breaks via white-space: pre-line; this makes the read-only view match it
+   exactly, including blank-line paragraph spacing. */
+.section-desc-text { white-space: pre-wrap; }
 
 /* Small, quiet clarification note -- פורטל תוכן הכספת only, between the
    title and the existing description. Deliberately not a banner/popup: a
@@ -2900,7 +2907,7 @@ body.sidebar-open .sidebar-peek { display: none; }
 .section-card h3,
 .course-card h3 { margin: 0 0 8px; font-size: 15.5px; color: var(--gold-light); font-family: var(--font-serif); }
 .section-card p,
-.course-card p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+.course-card p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; white-space: pre-wrap; }
 .section-card-icon { display: block; width: 26px; height: 26px; color: var(--gold-light); margin-bottom: 12px; }
 .section-card-icon svg { width: 100%; height: 100%; }
 .course-card-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
