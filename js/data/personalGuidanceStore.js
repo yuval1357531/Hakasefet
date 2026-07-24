@@ -52,16 +52,34 @@ function makeId(prefix) {
 
 // Upload hardening (VibeSec): only these types, up to this size, are ever
 // handed to storage -- blocks html/svg/js/executables and unbounded sizes
-// regardless of what the browser's file picker allowed through.
+// regardless of what the browser's file picker allowed through. 250MB
+// covers a real short phone video (a 143MB/~1:40 clip was the reported
+// failure at the old 50MB cap); the 'trail-media' bucket itself now also
+// carries its own file_size_limit=250MB (set directly on storage.buckets),
+// so this JS check and the server-side one agree.
 const ALLOWED_TRAIL_MEDIA_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'video/mp4', 'video/webm', 'video/quicktime',
   'application/pdf',
 ];
-const MAX_TRAIL_MEDIA_BYTES = 50 * 1024 * 1024; // 50MB
+const MAX_TRAIL_MEDIA_BYTES = 250 * 1024 * 1024; // 250MB
 
-function isAllowedTrailMediaFile(file) {
-  return !!file && ALLOWED_TRAIL_MEDIA_TYPES.includes(file.type) && file.size <= MAX_TRAIL_MEDIA_BYTES;
+// Strips characters that can break a storage object key/URL (#, %, ?, /, \,
+// whitespace, emoji/non-ASCII) while keeping the real extension -- the
+// object path never needs to show the original human filename, so this
+// never needs to be reversible.
+function sanitizeFileName(name) {
+  const raw = String(name || 'file');
+  const dot = raw.lastIndexOf('.');
+  const hasExt = dot > 0 && raw.length - dot <= 8;
+  const ext = hasExt ? raw.slice(dot + 1).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) : '';
+  const base = (hasExt ? raw.slice(0, dot) : raw)
+    .normalize('NFKD')
+    .replace(/[^\w-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 60);
+  return (base || 'file') + (ext ? '.' + ext.toLowerCase() : '');
 }
 
 // Shares the SAME (now-PRIVATE) 'trail-media' bucket vaultStore.js uploads
@@ -73,15 +91,21 @@ function isAllowedTrailMediaFile(file) {
 // stable KEY to derive the object path (trailMediaPath), never fetched
 // directly. Actual display always goes through a freshly-minted signed
 // URL (see resolveTrailMediaUrl in highlightsApi.getAll below), scoped by
-// the same RLS this section's highlights already enforce. Returns null
-// (same contract as an actual upload error) for a disallowed type/size.
+// the same RLS this section's highlights already enforce.
+//
+// Returns { url, reason, message } instead of a plain url-or-null -- see
+// vaultStore.js's identical function for why. `reason` is null on
+// success, else one of 'invalid_type' | 'too_large' | 'upload_failed'.
 async function uploadTrailMedia(file) {
-  if (!isAllowedTrailMediaFile(file)) return null;
-  const path = `${makeId('trail')}-${file.name}`;
+  if (!file) return { url: null, reason: null };
+  if (!ALLOWED_TRAIL_MEDIA_TYPES.includes(file.type)) return { url: null, reason: 'invalid_type' };
+  if (file.size > MAX_TRAIL_MEDIA_BYTES) return { url: null, reason: 'too_large' };
+  const path = `${makeId('trail')}-${sanitizeFileName(file.name)}`;
   const { error } = await supabase.storage.from('trail-media').upload(path, file);
-  if (error) return null;
+  if (error) return { url: null, reason: 'upload_failed', message: error.message };
   const { data } = supabase.storage.from('trail-media').getPublicUrl(path);
-  return data?.publicUrl || null;
+  if (!data?.publicUrl) return { url: null, reason: 'upload_failed' };
+  return { url: data.publicUrl, reason: null };
 }
 
 function trailMediaPath(url) {
@@ -196,13 +220,17 @@ const highlightsApi = {
   async getActive() {
     return (await this.getAll()).filter((h) => h.isActive);
   },
+  // Returns { ok: true, highlight } on success, or { ok: false, reason }
+  // where reason is 'invalid_type' | 'too_large' | 'upload_failed' |
+  // 'db_save_failed' -- see vaultStore.js's identical shape.
   async create(data) {
     const all = await this.getAll();
     const order = all.length ? Math.max(...all.map((h) => h.order)) + 1 : 0;
     let mediaUrl = data.mediaUrl || '';
     if (data.file) {
-      mediaUrl = await uploadTrailMedia(data.file);
-      if (!mediaUrl) return null;
+      const uploaded = await uploadTrailMedia(data.file);
+      if (!uploaded.url) return { ok: false, reason: uploaded.reason || 'upload_failed' };
+      mediaUrl = uploaded.url;
     }
     const { data: row, error } = await supabase
       .from('personal_guidance_highlights')
@@ -219,8 +247,14 @@ const highlightsApi = {
       })
       .select()
       .single();
-    if (error || !row) return null;
-    return toHighlight(row);
+    if (error || !row) {
+      if (data.file && mediaUrl) {
+        const path = trailMediaPath(mediaUrl);
+        if (path) await supabase.storage.from('trail-media').remove([path]);
+      }
+      return { ok: false, reason: 'db_save_failed' };
+    }
+    return { ok: true, highlight: toHighlight(row) };
   },
   async update(id, changes) {
     const payload = {};
@@ -233,16 +267,22 @@ const highlightsApi = {
     if (changes.description !== undefined) payload.description = changes.description;
     if (changes.file) {
       const uploaded = await uploadTrailMedia(changes.file);
-      if (!uploaded) return null;
+      if (!uploaded.url) return { ok: false, reason: uploaded.reason || 'upload_failed' };
       await removeTrailMediaFor(id);
-      payload.media_url = uploaded;
+      payload.media_url = uploaded.url;
     } else if (changes.mediaUrl !== undefined) {
       if (changes.mediaUrl === '') await removeTrailMediaFor(id);
       payload.media_url = changes.mediaUrl;
     }
     const { data, error } = await supabase.from('personal_guidance_highlights').update(payload).eq('id', id).select().single();
-    if (error || !data) return null;
-    return toHighlight(data);
+    if (error || !data) {
+      if (changes.file && payload.media_url) {
+        const path = trailMediaPath(payload.media_url);
+        if (path) await supabase.storage.from('trail-media').remove([path]);
+      }
+      return { ok: false, reason: 'db_save_failed' };
+    }
+    return { ok: true, highlight: toHighlight(data) };
   },
   async remove(id) {
     await removeTrailMediaFor(id);

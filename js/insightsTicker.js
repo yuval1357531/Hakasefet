@@ -658,6 +658,7 @@ export function trailManagerHTML(items, editing) {
       <label class="focus-important-toggle">
         <input type="checkbox" id="trailShowInTicker" ${isEditing && editing.showInTicker ? 'checked' : ''}> להציג גם בצג הראשי
       </label>
+      <div class="error-msg" id="trailFormError" role="alert"></div>
       <div class="form-actions">
         <button type="submit" class="btn-gold">${isEditing ? 'שמירת שינויים' : 'הוספה'}</button>
         ${isEditing ? '<button type="button" class="btn-ghost" id="trailCancelEdit">ביטול</button>' : ''}
@@ -761,8 +762,21 @@ export function wireTrailManager(root, { store, lessonId, highlights, rerender, 
     });
   }
 
+  // Reason string (see vaultStore.js/freedomStore.js/personalGuidanceStore.js's
+  // highlightsApi.create/update) -> a clear Hebrew message, so a failed
+  // upload/save always tells the master WHY instead of just doing nothing.
+  const TRAIL_UPLOAD_ERROR_MESSAGES = {
+    invalid_type: 'סוג הקובץ אינו נתמך.',
+    too_large: 'הקובץ גדול מדי. ניתן להעלות קובץ עד 250MB.',
+    upload_failed: 'העלאת הקובץ נכשלה. בדוק את החיבור ונסה שוב.',
+    db_save_failed: 'שמירת הפריט נכשלה. נסה שוב.',
+  };
+
+  let submitting = false;
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (submitting) return; // guards against a double-click/double-submit
     const text = root.querySelector('#trailText').value.trim();
     if (!text) return;
     // Defaults to false (unchecked) -- a trail note stays inside this
@@ -776,17 +790,59 @@ export function wireTrailManager(root, { store, lessonId, highlights, rerender, 
     const description = descField && !descField.closest('#trailDescGroup').hidden ? descField.value.trim() : '';
     const mediaChanges = selectedFile ? { file: selectedFile } : clearExistingMedia ? { mediaUrl: '' } : {};
     const editingId = getEditingId();
-    if (editingId) {
-      const current = highlights.find((h) => h.id === editingId);
-      const linkedLessonIds = Array.from(new Set([...(current?.linkedLessonIds || []), lessonId]));
-      const updated = await store.highlights.update(editingId, { text, linkedLessonIds, showInTicker, description, ...mediaChanges });
-      patch(editingId, updated);
-      setEditingId(null);
-    } else {
-      const created = await store.highlights.create({ text, linkedLessonIds: [lessonId], showInTicker, description, ...mediaChanges });
-      if (created) highlights.push(created);
+
+    const errorEl = root.querySelector('#trailFormError');
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.classList.remove('show');
     }
-    await rerender();
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalLabel = submitBtn.textContent;
+    submitting = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'שומר...';
+
+    let result;
+    try {
+      if (editingId) {
+        const current = highlights.find((h) => h.id === editingId);
+        const linkedLessonIds = Array.from(new Set([...(current?.linkedLessonIds || []), lessonId]));
+        result = await store.highlights.update(editingId, { text, linkedLessonIds, showInTicker, description, ...mediaChanges });
+      } else {
+        result = await store.highlights.create({ text, linkedLessonIds: [lessonId], showInTicker, description, ...mediaChanges });
+      }
+    } catch (err) {
+      // A genuine thrown exception (e.g. a dropped connection mid-upload)
+      // used to become an invisible unhandled rejection -- now it's the
+      // same clear generic message as any other upload failure.
+      result = { ok: false, reason: 'upload_failed' };
+    }
+    submitting = false;
+
+    if (result && result.ok) {
+      if (editingId) {
+        patch(editingId, result.highlight);
+        setEditingId(null);
+      } else {
+        highlights.push(result.highlight);
+      }
+      // Only clear the picked file on real success -- a failed attempt
+      // keeps it so the master can just retry, per item 7 below.
+      selectedFile = null;
+      clearExistingMedia = false;
+      await rerender();
+      return;
+    }
+
+    // Failure: restore the button and show exactly why -- and deliberately
+    // do NOT rerender, so the text/description/selected-file the master
+    // already entered stay in place for a retry instead of vanishing.
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalLabel;
+    if (errorEl) {
+      errorEl.textContent = TRAIL_UPLOAD_ERROR_MESSAGES[result?.reason] || 'משהו השתבש. נסה שוב.';
+      errorEl.classList.add('show');
+    }
   });
 
   const cancel = root.querySelector('#trailCancelEdit');
@@ -858,15 +914,15 @@ export function wireHighlightsManager(root, { store, lessons, highlights, rerend
     const isActive = root.querySelector('#hlIsActive').checked;
     const editingId = getEditingId();
     if (editingId) {
-      const updated = await store.highlights.update(editingId, { text, linkedLessonIds, isActive });
-      if (updated) {
+      const result = await store.highlights.update(editingId, { text, linkedLessonIds, isActive });
+      if (result && result.ok) {
         const idx = highlights.findIndex((h) => h.id === editingId);
-        if (idx !== -1) highlights[idx] = updated;
+        if (idx !== -1) highlights[idx] = result.highlight;
       }
       setEditingId(null);
     } else {
-      const created = await store.highlights.create({ text, linkedLessonIds, isActive });
-      if (created) highlights.push(created);
+      const result = await store.highlights.create({ text, linkedLessonIds, isActive });
+      if (result && result.ok) highlights.push(result.highlight);
     }
     await rerender();
   });
