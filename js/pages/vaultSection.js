@@ -255,7 +255,7 @@ export async function mountVaultHome(container, section, session) {
           <path d="M12 3.4 L21 20.2 H3 Z" stroke="#ff5c5c" stroke-width="1.4" stroke-linejoin="round"/>
           <circle cx="12" cy="15.6" r="1.3" fill="#ff5c5c"/>
         </svg>
-        <p class="vault-clarification-text">${clarificationHTML}</p>
+        <p class="vault-clarification-text section-desc-text">${clarificationHTML}</p>
       </div>`
         : '';
 
@@ -329,7 +329,7 @@ export async function mountVaultHome(container, section, session) {
         <div class="admin-page-header">
           <h1 class="gold-title placeholder-title">${titleHTML}</h1>
           ${clarificationBlockHTML}
-          <p class="placeholder-desc">${descHTML}</p>
+          <p class="placeholder-desc section-desc-text">${descHTML}</p>
         </div>
         ${tickerMarkup}
         ${highlightsHTML}
