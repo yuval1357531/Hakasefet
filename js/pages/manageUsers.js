@@ -258,6 +258,10 @@ export async function mountManageUsers(container) {
             <option value="blocked" ${user.status === 'blocked' ? 'selected' : ''}>לא פעיל</option>
           </select>
         </div>
+        <div class="field-group">
+          <label for="userEditExpiry">הגבלת תאריך גישה (לא חובה)</label>
+          <input type="date" id="userEditExpiry" value="${user.accessExpiryDate || ''}">
+        </div>
         <div class="form-actions">
           <button type="submit" class="btn-gold small">שמירה</button>
           <button type="button" class="btn-ghost small" id="userEditCancel">ביטול</button>
@@ -301,10 +305,6 @@ export async function mountManageUsers(container) {
         <button type="button" class="btn-ghost small" data-user-action="edit">עריכה</button>
         <button type="button" class="btn-ghost small" data-user-action="toggle-status">${user.status === 'active' ? 'חסימה' : 'שחרור חסימה'}</button>
         <button type="button" class="btn-ghost small danger" data-user-action="delete">מחיקה</button>
-      </div>
-      <div class="user-bubble-expiry">
-        <label for="userBubbleExpiry">תאריך סיום גישה</label>
-        <input type="date" id="userBubbleExpiry" value="${user.accessExpiryDate || ''}">
       </div>
       ${passwordBlockHTML(user)}`;
     const mainHTML = bubbleEditing ? userEditFormHTML(user) : userDetailsHTML(user);
@@ -442,14 +442,6 @@ export async function mountManageUsers(container) {
       cb.addEventListener('change', savePermissions);
     });
 
-    const expiryInput = container.querySelector('#userBubbleExpiry');
-    if (expiryInput) {
-      expiryInput.addEventListener('change', async () => {
-        await usersStore.update(user.id, { accessExpiryDate: expiryInput.value || null });
-        await repaintBubble();
-      });
-    }
-
     container.querySelectorAll('[data-user-action]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const action = btn.dataset.userAction;
@@ -490,10 +482,11 @@ export async function mountManageUsers(container) {
         e.preventDefault();
         const fullName = container.querySelector('#userEditName').value.trim();
         const status = container.querySelector('#userEditStatus').value;
+        const accessExpiryDate = container.querySelector('#userEditExpiry').value || null;
         if (!fullName) return;
         const submitBtn = editForm.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
-        await usersStore.update(user.id, { fullName, status });
+        await usersStore.update(user.id, { fullName, status, accessExpiryDate });
         submitBtn.disabled = false;
         bubbleEditing = false;
         await repaintBubble();
