@@ -34,23 +34,23 @@
     overflow-x: hidden;
   }
 
-  /* The real living vault wall, same system as css/dashboard.css's
-     .app-main (copied here since this page loads no dashboard.css):
-     layer 1 is the darkened stone itself; layers 2-3 are the SAME image
-     blended with `screen` and masked to two regions, so only the
-     crack-energy pixels already bright in the photo can add light --
-     the light breathes INSIDE the stone, not floating on top of it.
-     6.7deg is the exact הכספת hue (matches .app-main[data-active-
-     section="vault"], since every free tutorial is a vault lesson).
-     Dimmed further than the dashboard's own wall (this page has no
-     sidebar/chrome framing the content, so text needs more contrast). */
+  /* The real living vault wall, EXACT same values as css/dashboard.css's
+     .app-main::before/::after (copied here since this page loads no
+     dashboard.css, not approximated -- same gradient alphas, same
+     brightness/hue filter): layer 1 is the darkened stone itself;
+     layers 2-3 are the SAME image blended with `screen` and masked to
+     two regions, so only the crack-energy pixels already bright in the
+     photo can add light -- the light breathes INSIDE the stone, not
+     floating on top of it. 6.7deg is the exact הכספת hue (matches
+     .app-main[data-active-section="vault"], since every free tutorial
+     is a vault lesson). */
   .free-wall-base {
     position: fixed;
     inset: 0;
     z-index: -3;
     pointer-events: none;
     background:
-      linear-gradient(180deg, rgba(4, 6, 11, 0.72) 0%, rgba(4, 6, 11, 0.5) 38%, rgba(4, 6, 11, 0.82) 100%),
+      linear-gradient(180deg, rgba(4, 6, 11, 0.4) 0%, rgba(4, 6, 11, 0.24) 38%, rgba(4, 6, 11, 0.5) 100%),
       url('/assets/stone-wall-bg.jpg') center / cover no-repeat,
       #04060b;
     filter: hue-rotate(6.7deg) brightness(0.5);
