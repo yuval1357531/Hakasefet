@@ -34,16 +34,62 @@
     overflow-x: hidden;
   }
 
-  /* Dark stone wall background -- reuses the exact same asset the
-     dashboard's "living wall" uses, dimmed to a static, quiet backdrop
-     (no per-section hue animation machinery needed for one page). */
-  .free-wall-bg {
+  /* The real living vault wall, same system as css/dashboard.css's
+     .app-main (copied here since this page loads no dashboard.css):
+     layer 1 is the darkened stone itself; layers 2-3 are the SAME image
+     blended with `screen` and masked to two regions, so only the
+     crack-energy pixels already bright in the photo can add light --
+     the light breathes INSIDE the stone, not floating on top of it.
+     6.7deg is the exact הכספת hue (matches .app-main[data-active-
+     section="vault"], since every free tutorial is a vault lesson).
+     Dimmed further than the dashboard's own wall (this page has no
+     sidebar/chrome framing the content, so text needs more contrast). */
+  .free-wall-base {
     position: fixed;
     inset: 0;
-    z-index: -1;
+    z-index: -3;
+    pointer-events: none;
     background:
-      linear-gradient(180deg, rgba(4, 6, 11, 0.82) 0%, rgba(4, 6, 11, 0.6) 40%, rgba(4, 6, 11, 0.9) 100%),
-      url('/assets/stone-wall-bg.jpg') center / cover no-repeat;
+      linear-gradient(180deg, rgba(4, 6, 11, 0.72) 0%, rgba(4, 6, 11, 0.5) 38%, rgba(4, 6, 11, 0.82) 100%),
+      url('/assets/stone-wall-bg.jpg') center / cover no-repeat,
+      #04060b;
+    filter: hue-rotate(6.7deg) brightness(0.5);
+  }
+  .free-wall-glow-a,
+  .free-wall-glow-b {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background: url('/assets/stone-wall-bg.jpg') center / cover no-repeat;
+    mix-blend-mode: screen;
+    filter: hue-rotate(6.7deg) saturate(1.2) brightness(1);
+    opacity: 0;
+  }
+  .free-wall-glow-a {
+    -webkit-mask-image: radial-gradient(ellipse 60% 34% at 52% 22%, #fff 0%, transparent 78%);
+    mask-image: radial-gradient(ellipse 60% 34% at 52% 22%, #fff 0%, transparent 78%);
+    animation: free-wall-breathe-a 11s ease-in-out infinite;
+  }
+  .free-wall-glow-b {
+    -webkit-mask-image: radial-gradient(ellipse 62% 36% at 50% 76%, #fff 0%, transparent 78%);
+    mask-image: radial-gradient(ellipse 62% 36% at 50% 76%, #fff 0%, transparent 78%);
+    animation: free-wall-breathe-b 8s ease-in-out infinite 2.5s;
+  }
+  @keyframes free-wall-breathe-a {
+    0%, 100% { opacity: 0.06; }
+    32% { opacity: 0.75; }
+    58% { opacity: 0.25; }
+    80% { opacity: 0.85; }
+  }
+  @keyframes free-wall-breathe-b {
+    0%, 100% { opacity: 0.1; }
+    38% { opacity: 0.8; }
+    62% { opacity: 0.3; }
+    84% { opacity: 0.7; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .free-wall-glow-a, .free-wall-glow-b { animation: none; }
   }
 
   .free-content {
@@ -270,7 +316,9 @@
 </style>
 </head>
 <body>
-  <div class="free-wall-bg" aria-hidden="true"></div>
+  <div class="free-wall-base" aria-hidden="true"></div>
+  <div class="free-wall-glow-a" aria-hidden="true"></div>
+  <div class="free-wall-glow-b" aria-hidden="true"></div>
 
   <div class="free-content">
     <div class="free-brand">
