@@ -34,26 +34,30 @@
     overflow-x: hidden;
   }
 
-  /* The real living vault wall, EXACT same values as css/dashboard.css's
-     .app-main::before/::after (copied here since this page loads no
-     dashboard.css, not approximated -- same gradient alphas, same
-     brightness/hue filter): layer 1 is the darkened stone itself;
-     layers 2-3 are the SAME image blended with `screen` and masked to
-     two regions, so only the crack-energy pixels already bright in the
-     photo can add light -- the light breathes INSIDE the stone, not
-     floating on top of it. 6.7deg is the exact הכספת hue (matches
-     .app-main[data-active-section="vault"], since every free tutorial
-     is a vault lesson). */
+  /* The real living vault wall -- same asset, same hue-match, same
+     screen-blended crack-glow layers as css/dashboard.css's .app-main
+     (copied here since this page loads no dashboard.css). This page has
+     no sidebar/cards to fill the frame the way the dashboard does, so
+     the dashboard's own brightness(0.5) crush (meant to keep the wall
+     as background ATMOSPHERE behind rich page content) left this
+     mostly-empty page reading as flat black/grey -- verified directly by
+     sampling the raw asset's pixels, which are already very dark
+     (~3% average luminance) even BEFORE that extra darkening. Dimming
+     here comes only from the gradient overlay (explicitly fine for
+     text readability); the wall image itself keeps its natural
+     exposure so the actual stone/light is visible, not crushed to
+     near-black on top of an already-dark photo. Same file, same hue,
+     same glow system -- only the artificial darkening filter is gone. */
   .free-wall-base {
     position: fixed;
     inset: 0;
     z-index: -3;
     pointer-events: none;
     background:
-      linear-gradient(180deg, rgba(4, 6, 11, 0.4) 0%, rgba(4, 6, 11, 0.24) 38%, rgba(4, 6, 11, 0.5) 100%),
+      linear-gradient(180deg, rgba(4, 6, 11, 0.3) 0%, rgba(4, 6, 11, 0.15) 38%, rgba(4, 6, 11, 0.45) 100%),
       url('/assets/stone-wall-bg.jpg') center / cover no-repeat,
       #04060b;
-    filter: hue-rotate(6.7deg) brightness(0.5);
+    filter: hue-rotate(6.7deg) saturate(1.15);
   }
   .free-wall-glow-a,
   .free-wall-glow-b {
