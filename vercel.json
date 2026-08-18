@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/free/:slug", "destination": "/free.html" }
+  ]
+}

@@ -28,6 +28,7 @@ import { usersStore } from './data/usersStore.js';
 import { notebookStore } from './data/notebookStore.js';
 import { mountPersonalAreaPreview } from './pages/personalAreaPreview.js';
 import { mountLoginHistory } from './pages/loginHistory.js';
+import { mountFreeTutorials } from './pages/freeTutorials.js';
 
 const FREEDOM_SECTION_ID = 'survivalToFreedom';
 const VAULT_SECTION_ID = 'vault';
@@ -229,6 +230,8 @@ export async function renderRoute(container, hash) {
       await mountPersonalAreaPreview(container);
     } else if (route.adminTool.id === 'login-history') {
       await mountLoginHistory(container);
+    } else if (route.adminTool.id === 'free-tutorials') {
+      await mountFreeTutorials(container);
     } else {
       container.innerHTML = renderPlaceholder(route.adminTool.label, route.adminTool.description);
     }

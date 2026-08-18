@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>הדרכה חינמית | הכספת</title>
+
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#04060b">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="הכספת">
+<meta property="og:title" content="הדרכה חינמית | הכספת">
+<meta property="og:image" content="https://hakasefet-vault.vercel.app/assets/og-vault-share.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Assistant:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
+<style>
+  /* Self-contained page (like login.html): only theme.css's shared tokens
+     are reused, nothing from dashboard.css/dashboard.js/router.js/auth.js
+     -- this page never has a session, never mounts the SPA, and stays
+     light on purpose (no admin/user code, no lesson list, no other
+     content is fetched or loaded here). */
+  html, body { min-height: 100%; margin: 0; }
+  body {
+    background: #050405;
+    color: var(--text-main);
+    font-family: var(--font-body);
+    overflow-x: hidden;
+  }
+
+  /* Dark stone wall background -- reuses the exact same asset the
+     dashboard's "living wall" uses, dimmed to a static, quiet backdrop
+     (no per-section hue animation machinery needed for one page). */
+  .free-wall-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      linear-gradient(180deg, rgba(4, 6, 11, 0.82) 0%, rgba(4, 6, 11, 0.6) 40%, rgba(4, 6, 11, 0.9) 100%),
+      url('assets/stone-wall-bg.jpg') center / cover no-repeat;
+  }
+
+  .free-content {
+    position: relative;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: max(5vh, 28px) 20px 40px;
+  }
+
+  .free-brand { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .free-brand-icon { width: 56px; height: 56px; filter: drop-shadow(0 0 14px rgba(70, 160, 255, 0.35)); }
+  .free-brand-word {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--crystal-ice);
+    text-shadow: 0 0 16px rgba(70, 160, 255, 0.4);
+  }
+
+  .free-body { width: 100%; max-width: 640px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+  .free-loading, .free-unavailable-title {
+    color: var(--text-muted);
+    font-size: 15px;
+    text-align: center;
+  }
+  .free-tutorial-title {
+    margin: 0;
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.4;
+  }
+
+  /* Video embed -- identical shape/behavior to the dashboard's own lesson
+     embed (css/dashboard.css's .embed-frame), copied here since this page
+     doesn't load dashboard.css: fixed 16:9, never crops oddly, never
+     overflows the viewport width. */
+  .free-embed-frame {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--border-gold-soft);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: #000;
+  }
+  .free-embed-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+  .free-cta-group { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+
+  /* --- Diamond CTA buttons: the EXACT reusable crystal button component
+     from login.html's "פתח את הכספת" (.login-btn/.vault-btn-core/
+     .vault-btn-sparkle/.vault-btn-label) -- copied verbatim, not
+     reinvented, per the "כפתורי היהלום הקיימים" requirement. Used here as
+     <a> (external navigation) instead of <button type="submit">. */
+  .login-btn {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    padding: 15px;
+    min-height: 52px;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 15.5px;
+    letter-spacing: 0.6px;
+    color: #f4faff;
+    text-align: center;
+    text-decoration: none;
+    display: block;
+    background: linear-gradient(165deg,
+      rgba(198, 228, 255, 0.16) 0%,
+      rgba(96, 156, 238, 0.2) 26%,
+      rgba(34, 76, 158, 0.32) 55%,
+      rgba(12, 30, 74, 0.46) 100%);
+    backdrop-filter: blur(10px) saturate(1.35);
+    -webkit-backdrop-filter: blur(10px) saturate(1.35);
+    border: 1px solid rgba(190, 224, 255, 0.5);
+    border-radius: 14px;
+    cursor: pointer;
+    touch-action: manipulation;
+    text-shadow: 0 1px 2px rgba(4, 10, 26, 0.65), 0 0 16px rgba(150, 210, 255, 0.5);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.42),
+      inset 0 -12px 24px rgba(8, 22, 60, 0.5),
+      inset 0 0 26px rgba(80, 160, 255, 0.2),
+      0 10px 32px rgba(0, 0, 0, 0.5),
+      0 0 26px rgba(70, 150, 255, 0.16);
+    transition: border-color 0.35s ease, transform 0.12s ease,
+      box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .login-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background:
+      linear-gradient(112deg, transparent 16%, rgba(255, 255, 255, 0.16) 17%, rgba(255, 255, 255, 0.03) 33%, transparent 34%),
+      linear-gradient(248deg, transparent 52%, rgba(255, 255, 255, 0.11) 53%, rgba(255, 255, 255, 0.02) 68%, transparent 69%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 40%);
+    mix-blend-mode: screen;
+  }
+  .vault-btn-core {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    overflow: hidden;
+    pointer-events: none;
+    transition: filter 0.5s ease, transform 0.12s ease;
+  }
+  .vault-btn-core::before,
+  .vault-btn-core::after {
+    content: '';
+    position: absolute;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    filter: blur(16px);
+    mix-blend-mode: screen;
+    will-change: transform, opacity;
+  }
+  .vault-btn-core::before {
+    left: 8%;
+    top: -46px;
+    background: radial-gradient(circle, rgba(120, 200, 255, 0.6) 0%, rgba(56, 126, 246, 0.3) 42%, transparent 70%);
+    animation: fire-drift-a 6.5s ease-in-out infinite;
+  }
+  .vault-btn-core::after {
+    right: 4%;
+    top: -34px;
+    background: radial-gradient(circle, rgba(196, 238, 255, 0.5) 0%, rgba(84, 152, 255, 0.24) 46%, transparent 72%);
+    animation: fire-drift-b 8.5s ease-in-out infinite;
+  }
+  @keyframes fire-drift-a {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.65; }
+    50% { transform: translate(48px, 10px) scale(1.3); opacity: 1; }
+  }
+  @keyframes fire-drift-b {
+    0%, 100% { transform: translate(0, 8px) scale(1.12); opacity: 0.5; }
+    50% { transform: translate(-56px, -6px) scale(0.9); opacity: 0.9; }
+  }
+  .vault-btn-sparkle {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    background:
+      radial-gradient(1.6px 1.6px at 18% 34%, rgba(255, 255, 255, 0.95), transparent 62%),
+      radial-gradient(1px 1px at 71% 26%, rgba(214, 242, 255, 0.9), transparent 62%),
+      radial-gradient(1.4px 1.4px at 45% 70%, rgba(255, 255, 255, 0.85), transparent 62%),
+      radial-gradient(1px 1px at 86% 60%, rgba(190, 230, 255, 0.8), transparent 62%),
+      radial-gradient(1.2px 1.2px at 29% 78%, rgba(232, 246, 255, 0.75), transparent 62%),
+      radial-gradient(1px 1px at 58% 40%, rgba(255, 255, 255, 0.7), transparent 62%);
+    animation: sparkle-twinkle 5.2s ease-in-out infinite;
+  }
+  @keyframes sparkle-twinkle {
+    0%, 100% { opacity: 0.22; }
+    18% { opacity: 0.65; }
+    36% { opacity: 0.3; }
+    58% { opacity: 0.8; }
+    78% { opacity: 0.35; }
+  }
+  .vault-btn-label { position: relative; z-index: 1; }
+  .login-btn::after {
+    content: '';
+    position: absolute;
+    top: -40%;
+    bottom: -40%;
+    width: 30%;
+    left: -42%;
+    background: linear-gradient(105deg, transparent 0%, rgba(224, 244, 255, 0.14) 44%, rgba(255, 255, 255, 0.26) 50%, rgba(224, 244, 255, 0.14) 56%, transparent 100%);
+    transform: skewX(-18deg) translateX(0);
+    animation: sheen-pass 5.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    pointer-events: none;
+  }
+  @keyframes sheen-pass {
+    0%, 76% { transform: skewX(-18deg) translateX(0); opacity: 0; }
+    79% { opacity: 1; }
+    100% { transform: skewX(-18deg) translateX(560%); opacity: 1; }
+  }
+  .login-btn:hover {
+    border-color: rgba(222, 242, 255, 0.75);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -12px 24px rgba(8, 22, 60, 0.45),
+      inset 0 0 34px rgba(96, 176, 255, 0.3),
+      0 12px 36px rgba(0, 0, 0, 0.5),
+      0 0 38px rgba(86, 166, 255, 0.28);
+  }
+  .login-btn:hover .vault-btn-core { filter: brightness(1.35) saturate(1.1); }
+  .login-btn:active {
+    transform: translateY(1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -8px 18px rgba(8, 22, 60, 0.55),
+      inset 0 0 40px rgba(110, 190, 255, 0.42),
+      0 6px 18px rgba(0, 0, 0, 0.55);
+  }
+  .login-btn:active .vault-btn-core {
+    transform: scale(0.97);
+    filter: brightness(1.6) saturate(1.15);
+    transition: filter 0.08s ease, transform 0.08s ease;
+  }
+  .login-btn:focus-visible {
+    outline: none;
+    border-color: rgba(222, 242, 255, 0.85);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 0 34px rgba(96, 176, 255, 0.32),
+      0 0 0 3px rgba(90, 167, 255, 0.35);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .login-btn::after,
+    .vault-btn-core::before,
+    .vault-btn-core::after,
+    .vault-btn-sparkle { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="free-wall-bg" aria-hidden="true"></div>
+
+  <div class="free-content">
+    <div class="free-brand">
+      <img src="assets/vault-icon-1024.png" alt="" class="free-brand-icon">
+      <h1 class="free-brand-word">הכספת</h1>
+    </div>
+
+    <div class="free-body" id="freeBody">
+      <p class="free-loading">טוען הדרכה...</p>
+    </div>
+  </div>
+
+<script type="module">
+  const LANDING_URL = 'https://jaurius-landing-page.vercel.app/';
+  const PAYMENT_URL = 'https://pay.grow.link/4ab4e9eb0876e39f2c32e5835ee6969c-Mjc5MTM3NA';
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function isSafeUrl(url) {
+    return /^https?:\/\//i.test(String(url || '').trim());
+  }
+
+  function ctaButtonHTML(href, label) {
+    return `
+      <a href="${escapeHtml(href)}" class="login-btn" target="_blank" rel="noopener">
+        <span class="vault-btn-core" aria-hidden="true"></span>
+        <span class="vault-btn-sparkle" aria-hidden="true"></span>
+        <span class="vault-btn-label">${escapeHtml(label)}</span>
+      </a>`;
+  }
+
+  function landingCtaHTML() {
+    return ctaButtonHTML(LANDING_URL, 'אני רוצה לדעת מה זה הכספת');
+  }
+
+  function unavailableHTML() {
+    // Deliberately generic -- never reveals WHY (missing slug, inactive,
+    // expired, or a broken lesson link all look identical from here).
+    return `
+      <p class="free-unavailable-title">ההדרכה אינה זמינה כרגע</p>
+      <div class="free-cta-group">${landingCtaHTML()}</div>`;
+  }
+
+  function tutorialHTML(data) {
+    const embed = isSafeUrl(data.embedUrl)
+      ? `<div class="free-embed-frame"><iframe src="${escapeHtml(data.embedUrl)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`
+      : '';
+    return `
+      <h2 class="free-tutorial-title">${escapeHtml(data.title)}</h2>
+      ${embed}
+      <div class="free-cta-group">
+        ${landingCtaHTML()}
+        ${ctaButtonHTML(PAYMENT_URL, 'אני רוצה להיכנס לכספת')}
+      </div>`;
+  }
+
+  // Slug comes from the URL path (/free/<slug>, resolved via vercel.json's
+  // rewrite to this file) -- never from a lesson id, and never sent
+  // anywhere except as this one opaque string to /api/free-tutorial.
+  const pathParts = window.location.pathname.split('/').filter(Boolean);
+  const freeIdx = pathParts.indexOf('free');
+  const slug = freeIdx !== -1 ? decodeURIComponent(pathParts[freeIdx + 1] || '') : '';
+
+  const body = document.getElementById('freeBody');
+
+  (async () => {
+    if (!slug) {
+      body.innerHTML = unavailableHTML();
+      return;
+    }
+    try {
+      const res = await fetch(`/api/free-tutorial?slug=${encodeURIComponent(slug)}`);
+      const data = await res.json();
+      body.innerHTML = data && data.ok ? tutorialHTML(data) : unavailableHTML();
+    } catch (err) {
+      body.innerHTML = unavailableHTML();
+    }
+  })();
+</script>
+</body>
+</html>

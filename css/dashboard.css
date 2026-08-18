@@ -2704,6 +2704,28 @@ body.sidebar-open .sidebar-peek { display: none; }
 .admin-accordion-body .field-group label { margin-bottom: 4px; }
 .admin-accordion-body .form-actions { margin-top: 4px; }
 
+/* "הדרכות חינמיות" (freeTutorials.js) -- same panel-card/badge/muted-note
+   vocabulary as every other admin list (manageUsers.js/loginHistory.js),
+   laid out as flex-wrap rows so long Hebrew titles and the action-button
+   group never force horizontal scroll on mobile. */
+.admin-page-header .btn-gold { margin-top: 14px; }
+.free-tutorial-list { display: flex; flex-direction: column; gap: 10px; }
+.free-tutorial-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-gold-soft);
+  border-radius: var(--radius-md);
+  background: rgba(15, 25, 40, 0.35);
+}
+.free-tutorial-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.free-tutorial-row-title { font-weight: 600; color: var(--text-main); }
+.free-tutorial-row-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.free-tutorial-row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
 /* Master-only: replaces the old sidebar "ניהול המערכת" nav item -- it now
    always lives on the master's own personal page instead of being gated to
    edit mode. Centered to match the header above it on desktop, right-
