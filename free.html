@@ -27,8 +27,16 @@
      light on purpose (no admin/user code, no lesson list, no other
      content is fetched or loaded here). */
   html, body { min-height: 100%; margin: 0; }
+  /* transparent -- NOT a solid colour: body is a plain (non-positioned)
+     element, so its own opaque background paints at stack-level 0,
+     ABOVE the fixed, negative-z-index wall layers below (which paint
+     first/underneath in the stacking order). A solid body background
+     here was silently hiding the entire wall behind flat colour --
+     confirmed by toggling it live: the real lit stone/cracks were
+     there all along. `html`'s own background (theme.css's --obsidian)
+     still covers the very first paint/no-JS instant. */
   body {
-    background: #050405;
+    background: transparent;
     color: var(--text-main);
     font-family: var(--font-body);
     overflow-x: hidden;
