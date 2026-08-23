@@ -2693,6 +2693,10 @@ body.sidebar-open .sidebar-peek { display: none; }
   filter: hue-rotate(41.5deg) brightness(1.3) saturate(1.1) drop-shadow(0 0 5px rgba(70, 210, 255, 0.28));
 }
 .admin-page .panel-card { padding: 28px 26px; margin-bottom: 22px; }
+/* "ניהול משפטים בצג העליון" trigger (vaultSection.js) -- a plain button,
+   not a .panel-card, since it just opens a modal now; matches the same
+   22px rhythm every other admin block below the ticker already uses. */
+.ticker-highlights-trigger { display: block; margin: 0 0 22px; }
 /* Minor master-only management panels (accordionHTML: ticker/trail-notes/
    topics/bot-knowledge/comment-moderation/add-lesson/compose forms) are
    small, dense tools, not flagship content blocks -- tighter padding than

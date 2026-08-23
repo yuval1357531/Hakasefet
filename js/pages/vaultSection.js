@@ -110,6 +110,10 @@ export async function mountVaultHome(container, section, session) {
   // re-renders so the panel the master is actively working in doesn't
   // snap shut on them.
   const openAccordions = new Set();
+  // "ניהול משפטים בצג העליון" -- a modal, not an accordion (its list can
+  // get long), so it gets its own open/closed flag instead of living in
+  // openAccordions.
+  let highlightsModalOpen = false;
   // Which topic (if any) the master is currently editing in "ניהול סינון
   // שיעורים".
   let editingTopicId = null;
@@ -290,18 +294,26 @@ export async function mountVaultHome(container, section, session) {
       : '';
 
     // "ניהול משפטים בצג העליון" -- phrases that run in the general course
-    // ticker. Its lesson-link picker is only for *when* a phrase unlocks
-    // there after a student completes a lesson; it is a completely
-    // separate editor from "צידה לדרך" (see mountVaultLesson), which is
-    // reached only from inside a specific lesson's own page. Lives at the
-    // top of the page (above the lesson list), edit mode only.
-    const highlightsHTML = editMode
-      ? accordionHTML(
-          'ticker-highlights',
-          'ניהול משפטים בצג העליון',
-          highlightsManagerHTML({ highlights, lessons, editing: editingHighlight }),
-          { isOpen: openAccordions.has('ticker-highlights') }
-        )
+    // ticker. Approval for the ticker is showInTicker alone (see
+    // buildTickerItems); the lesson-link picker here is unrelated to that
+    // -- it only controls whether the phrase ALSO shows in that lesson's
+    // own "צידה לדרך" (see trailNotesForLesson in mountVaultLesson). A
+    // modal instead of an inline accordion (list can get long -- see
+    // highlightsModalOpen and its wiring below), edit mode only.
+    const highlightsTriggerHTML = editMode
+      ? `<button type="button" class="btn-gold small ticker-highlights-trigger" id="openHighlightsManagerBtn">ניהול משפטים בצג העליון</button>`
+      : '';
+    const highlightsModalHTML = editMode
+      ? `
+      <div class="personal-modal-overlay" id="highlightsModalOverlay" role="dialog" aria-modal="true" aria-labelledby="highlightsModalTitle" ${highlightsModalOpen ? '' : 'hidden'}>
+        <div class="personal-modal-card panel-card">
+          <div class="personal-modal-header">
+            <h3 class="personal-block-title" id="highlightsModalTitle">ניהול משפטים בצג העליון</h3>
+            <button type="button" class="personal-modal-close" id="highlightsModalClose" aria-label="סגירה">✕</button>
+          </div>
+          <div class="personal-modal-body">${highlightsManagerHTML({ highlights, lessons, editing: editingHighlight })}</div>
+        </div>
+      </div>`
       : '';
 
     // "הוספת שיעור חדש" -- rendered as one more row at the END of the
@@ -332,7 +344,7 @@ export async function mountVaultHome(container, section, session) {
           <p class="placeholder-desc section-desc-text">${descHTML}</p>
         </div>
         ${tickerMarkup}
-        ${highlightsHTML}
+        ${highlightsTriggerHTML}
         ${topicsManagerBlockHTML}
         ${groupsManagerBlockHTML}
         ${topicsFilterMarkup}
@@ -342,7 +354,8 @@ export async function mountVaultHome(container, section, session) {
             ? `<div class="lesson-tabs is-editing">${tabs}${addLessonRowHTML}</div>`
             : groupedLessonListHTML
         }
-      </div>`;
+      </div>
+      ${highlightsModalHTML}`;
 
     wireTicker(container);
     wireAccordions(container, { state: openAccordions, rerender: paint });
@@ -374,6 +387,29 @@ export async function mountVaultHome(container, section, session) {
       getEditingId: () => editingHighlightId,
       setEditingId: (v) => { editingHighlightId = v; },
     });
+    // Modal open/close: background page never scrolls while it's open
+    // (body overflow lock), Escape closes it, clicking the backdrop
+    // closes it, and focus always lands somewhere sensible (the close
+    // button on open, back on the trigger button on close) instead of
+    // getting lost when paint() replaces the DOM underneath it.
+    function setHighlightsModalOpen(open) {
+      highlightsModalOpen = open;
+      document.body.style.overflow = open ? 'hidden' : '';
+      paint();
+      if (open) container.querySelector('#highlightsModalClose')?.focus();
+      else container.querySelector('#openHighlightsManagerBtn')?.focus();
+    }
+    container.querySelector('#openHighlightsManagerBtn')?.addEventListener('click', () => setHighlightsModalOpen(true));
+    container.querySelector('#highlightsModalClose')?.addEventListener('click', () => setHighlightsModalOpen(false));
+    const highlightsOverlayEl = container.querySelector('#highlightsModalOverlay');
+    if (highlightsOverlayEl) {
+      highlightsOverlayEl.addEventListener('mousedown', (e) => {
+        if (e.target === highlightsOverlayEl) setHighlightsModalOpen(false);
+      });
+      highlightsOverlayEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') setHighlightsModalOpen(false);
+      });
+    }
     wireTopicsFilter(container, {
       onToggle: (checked) => {
         topicsFilterOn = checked;

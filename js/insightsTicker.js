@@ -28,29 +28,23 @@ function isSafeUrl(url) {
   return /^https?:\/\//i.test(String(url || '').trim());
 }
 
-// Decides which phrases a viewer actually sees:
-//   - showInTicker === false always excludes a phrase from the main ticker,
-//     no matter what -- this is what keeps "צידה לדרך" (per-lesson notes,
-//     see trailNotesForLesson below) from leaking into the top strip: a
-//     trail note only reaches the ticker if the master explicitly opted it
-//     in via "להציג גם בצג הראשי" (see wireTrailManager). Phrases created
-//     from the general ticker manager (wireHighlightsManager) always carry
-//     showInTicker: true, so this never affects them.
-//   - master in edit mode: every other active phrase (nothing is locked
-//     away).
-//   - student: a phrase with no lesson links is general (always shown); a
-//     phrase linked to lessons unlocks once they've completed at least one
-//     of those lessons.
+// Decides which phrases a viewer actually sees. Single source of truth:
+// showInTicker -- approved for the top ticker, or not. Nothing else gates
+// it: no lesson-completion check, no "new user sees less" behavior, and no
+// difference between edit mode and student mode (both read the exact same
+// approved set; edit mode's own manager UI is what lets the master change
+// it -- see highlightsManagerHTML below). showInTicker === false is what
+// keeps "צידה לדרך" (per-lesson notes, see trailNotesForLesson below) out
+// of the top strip by default: a trail note only reaches the ticker once
+// the master explicitly opts it in via "להציג גם בצג הראשי" (see
+// wireTrailManager). Phrases created from the general ticker manager
+// (wireHighlightsManager) always carry showInTicker: true.
+// linkedLessonIds is NOT read here -- that field is for trailNotesForLesson
+// (which per-lesson page a trail note's sidebar appears on), a completely
+// separate concern from top-ticker approval.
 // Approved community comments are never gated -- they trail the phrases.
-export function buildTickerItems({ highlights, comments, completedIds, editMode }) {
-  const set = completedIds instanceof Set ? completedIds : new Set(completedIds || []);
-  const visibleHighlights = (highlights || []).filter((h) => {
-    if (h.showInTicker === false) return false;
-    if (editMode) return true;
-    const links = h.linkedLessonIds || [];
-    if (links.length === 0) return true;
-    return links.some((id) => set.has(id));
-  });
+export function buildTickerItems({ highlights, comments }) {
+  const visibleHighlights = (highlights || []).filter((h) => h.showInTicker !== false);
   return [
     ...visibleHighlights.map((h) => escapeHtml(h.text)),
     ...(comments || []).map((c) => `${escapeHtml(c.displayName)}: ${escapeHtml(c.text)}`),
@@ -297,11 +291,20 @@ export function highlightsManagerHTML({ highlights, lessons, editing }) {
   const rowIds = linkedIds.length ? linkedIds : [null];
   const linkRowsHTML = rowIds.map((id, i) => lessonLinkRowHTML(lessons, id, i > 0)).join('');
 
+  // Top Tag Management shows only what actually belongs to the top ticker
+  // -- i.e. the exact same showInTicker filter buildTickerItems itself
+  // uses, so this list and what students actually see are always the same
+  // set. A "צידה לדרך" note the master never approved for the ticker
+  // (showInTicker: false, the trail default) stays purely inside its
+  // lesson's own trail manager -- it never shows up here as if it were a
+  // ticker phrase, per the "Top Tag Management ≠ every trail note" rule.
+  const tagHighlights = (highlights || []).filter((h) => h.showInTicker !== false);
+
   // One simple card per phrase -- readable on mobile without a horizontal
   // scroll, and with only the two actions that matter here (order isn't
   // controllable from this list since phrases just run in the ticker
   // regardless of it; visibility is set from within "עריכה" itself).
-  const cards = (highlights || [])
+  const cards = tagHighlights
     .map((h) => {
       const linkedNames = (h.linkedLessonIds || [])
         .map((id) => (lessons || []).find((l) => l.id === id))
@@ -332,7 +335,7 @@ export function highlightsManagerHTML({ highlights, lessons, editing }) {
         <input type="text" id="hlText" placeholder="לדוגמה: כל יום שאתה מתמיד הוא ניצחון" value="${isEditing ? escapeAttr(editing.text) : ''}">
       </div>
       <div class="field-group">
-        <label>קישור לשיעור <span class="muted-note">(לא חובה — קובע רק מתי המשפט ייפתח בפס אחרי שהתלמיד יסמן שצפה בשיעור; ריק = משפט כללי, מוצג לכולם תמיד)</span></label>
+        <label>קישור לשיעור <span class="muted-note">(לא חובה — אם תבחר שיעור, המשפט יופיע גם ב"צידה לדרך" שלו; אינו משפיע על מתי המשפט מופיע בפס העליון. ריק = משפט כללי בלבד)</span></label>
         <div id="hlLessonLinks" class="hl-lesson-links">${linkRowsHTML}</div>
         <button type="button" class="btn-ghost small" id="hlAddLessonLink">+ הוסף קישור לעוד שיעור</button>
       </div>
