@@ -38,9 +38,49 @@ import { loginEventsStore, computeSecurityAlerts } from '../data/loginEventsStor
 import { masterLoginAlertsStore } from '../data/masterLoginAlertsStore.js';
 import { deviceAlertsStore } from '../data/deviceAlertsStore.js';
 import { helpTipHTML } from '../helpTip.js';
+import { auth } from '../auth.js';
+import { streakStore } from '../data/streakStore.js';
+import {
+  streakButtonHTML,
+  streakModalHTML,
+  mountStreak,
+  streakRewardsManagerHTML,
+  wireStreakRewardsManager,
+} from '../streak.js';
 
 const RESUME_DISMISS_KEY = 'vault_resume_dismissed_lesson';
 const BOARD_SEEN_KEY_PREFIX = 'personal_board_seen_';
+const WHEEL_HINT_KEY_PREFIX = 'vault_wheel_hint_acks_';
+const WHEEL_HINT_MAX_ACKS = 2;
+
+// The master's student-view preview: the nil UUID -- syntactically valid,
+// guaranteed to match no real profiles row, so every store call comes back
+// empty and nothing real is ever read or written for it.
+const DEMO_SESSION = {
+  id: '00000000-0000-0000-0000-000000000000',
+  fullName: 'תלמיד לדוגמה',
+  username: 'demo',
+  role: 'user',
+  permissions: {},
+};
+// Fixed numbers so the master can see the road with a streak "in progress".
+const DEMO_STREAK = { currentStreak: 12, bestStreak: 12, lastDay: null };
+
+function wheelHintAcks(session) {
+  try {
+    return parseInt(localStorage.getItem(WHEEL_HINT_KEY_PREFIX + session.id), 10) || 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function bumpWheelHintAcks(session) {
+  try {
+    localStorage.setItem(WHEEL_HINT_KEY_PREFIX + session.id, String(wheelHintAcks(session) + 1));
+  } catch (e) {
+    /* best-effort -- worst case it shows again next load */
+  }
+}
 
 function boardSeenAt(session) {
   return localStorage.getItem(BOARD_SEEN_KEY_PREFIX + session.id);
@@ -354,13 +394,28 @@ function boardModalHTML(broadcastItems, isOpen) {
 // completely untouched; only WHERE it renders changes. The closed tab
 // shows the live countdown via mountDailyWheel's onLockChange hook. ------
 
-function wheelDrawerHTML(isOpen) {
+// `showHint`: the bouncing "לחץ לפתיחת המשפט היומי" arrow beside the tab --
+// students (and the master's student-view preview) only, finite on purpose
+// (see wireWheelDrawer: gone after "הבנתי" twice, or once the drawer opens).
+function wheelDrawerHTML(isOpen, showHint = false) {
+  const hintHTML = showHint
+    ? `
+      <div class="wheel-hint" id="wheelHint">
+        <div class="wheel-hint-inner">
+          <svg class="wheel-hint-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H5M11 6l-6 6 6 6"/></svg>
+          <div class="wheel-hint-body">
+            <span class="wheel-hint-text">המשפט היומי שלך מחכה כאן</span>
+            <button type="button" class="wheel-hint-ok" id="wheelHintOk">הבנתי</button>
+          </div>
+        </div>
+      </div>`
+    : '';
   return `
     <div class="wheel-drawer-root${isOpen ? ' is-open' : ''}" id="wheelDrawerRoot">
       <button type="button" class="wheel-tab" id="wheelTabBtn" aria-label="דיוק יומי" aria-expanded="${isOpen ? 'true' : 'false'}">
         <span class="wheel-tab-mark" aria-hidden="true">◆</span>
         <span class="wheel-tab-timer" id="wheelTabTimer"></span>
-      </button>
+      </button>${hintHTML}
       <div class="wheel-drawer-overlay" id="wheelDrawerOverlay"></div>
       <div class="wheel-drawer panel-card" id="wheelDrawer" role="dialog" aria-label="דיוק יומי" aria-hidden="${isOpen ? 'false' : 'true'}">
         <div class="wheel-drawer-swipe-hint" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -387,7 +442,7 @@ function trailModalHTML(journalEntries, isOpen) {
   return personalModalHTML('trail', 'צידה לדרך + הכלים שלי', body, isOpen);
 }
 
-export async function studentPageHTML(session, { boardModalOpen, trailModalOpen, wheelDrawerOpen }) {
+export async function studentPageHTML(session, { boardModalOpen, trailModalOpen, wheelDrawerOpen, forceWheelHint = false }) {
   const [{ html: resumeHTML, resumeLessonId }, ownEntries, focusItems, journalEntries] = await Promise.all([
     resumeBannerHTML(session),
     notebookStore.getForStudent(session.id),
@@ -408,13 +463,15 @@ export async function studentPageHTML(session, { boardModalOpen, trailModalOpen,
       </div>
       <div class="personal-topbar">
         ${personalBoardButtonHTML(unseenCount)}
+        ${streakButtonHTML(null)}
       </div>
       ${resumeHTML}
       ${notebookHTML(ownEntries, personalItems)}
     </div>
     ${boardModalHTML(broadcastItems, boardModalOpen)}
     ${trailModalHTML(journalEntries, trailModalOpen)}
-    ${wheelDrawerHTML(wheelDrawerOpen)}`,
+    ${streakModalHTML()}
+    ${wheelDrawerHTML(wheelDrawerOpen, forceWheelHint || wheelHintAcks(session) < WHEEL_HINT_MAX_ACKS)}`,
     resumeLessonId,
   };
 }
@@ -674,6 +731,18 @@ function securityAlertsHistoryHTML(deviceHistory, masterHistory, studentNameById
   return personalModalHTML('securityAlertsHistory', 'היסטוריית התראות אבטחה', body, isOpen);
 }
 
+// Master-only, edit mode only -- switches this page between the master's
+// own management view and exactly what a student sees (demo data, nothing
+// real is read or written). Same look as the lesson/guidance "תצוגה:" rows.
+function personalViewToggleHTML(viewAsStudent) {
+  return `
+    <div class="desc-mode-row personal-view-toggle">
+      <span class="desc-mode-label">תצוגה:</span>
+      <button type="button" class="btn-ghost small ${!viewAsStudent ? 'is-active-mode' : ''}" data-personal-view="master">תצוגת מאסטר</button>
+      <button type="button" class="btn-ghost small ${viewAsStudent ? 'is-active-mode' : ''}" data-personal-view="student">תצוגת תלמיד</button>
+    </div>`;
+}
+
 function masterPageHTML(
   students,
   recentItems,
@@ -690,10 +759,14 @@ function masterPageHTML(
   securityBubbleOpen,
   deviceAlertsHistory,
   masterLoginAlertsHistory,
-  securityHistoryOpen
+  securityHistoryOpen,
+  viewToggleHTML,
+  streakRewardsBodyHTML,
+  isStreakRewardsOpen
 ) {
   return `
     <div class="admin-page personal-page personal-page-master">
+      ${viewToggleHTML}
       ${statsLineHTML(students)}
       <div class="admin-page-header personal-page-header">
         <h1 class="gold-title placeholder-title">שלום ג'אוריוס האגדי</h1>
@@ -711,6 +784,7 @@ function masterPageHTML(
         dailyWheelManagerHTML({ sentences: wheelSentences, editing: editingWheelSentence }),
         { isOpen: isWheelManagerOpen, titleClass: 'personal-block-title' }
       )}
+      ${accordionHTML('streak-rewards', 'ניהול מתנות הרצף', streakRewardsBodyHTML, { isOpen: isStreakRewardsOpen, titleClass: 'personal-block-title' })}
     </div>
     ${recentSentModalHTML(recentItems, studentNameById, recentSentModalOpen, editingAnnouncementKey)}
     ${dailyWheelSentencesModalHTML(wheelSentences, wheelSentencesModalOpen)}`;
@@ -771,19 +845,80 @@ export async function mountPersonalPage(container, session) {
   // the same reason (an unrelated action re-rendering the page must never
   // silently close a drawer the student has open).
   let wheelDrawerOpen = false;
+  // Student-only: the wheel-tab arrow hint is shown at most once per page
+  // load, and (see wireWheelDrawer) not again after "הבנתי" twice.
+  let wheelHintDoneThisLoad = false;
+  // Master-only: edit-mode toggle between the master's own page and a demo
+  // student view; plus the streak-gifts manager's own list/edit state.
+  let masterViewAsStudent = false;
+  let streakRewardsCache = [];
+  let streakClaimsCache = [];
+  let editingStreakRewardId = null;
+
+  // The master's "תצוגת תלמיד": the real student page markup + wiring, but
+  // with the demo id and only the pure, non-mutating interactions wired
+  // (popups, drawer, streak road with fixed demo numbers) -- writing a
+  // note / marking a task done / spinning the wheel stay inert.
+  async function renderStudentPreview() {
+    const { html } = await studentPageHTML(DEMO_SESSION, {
+      boardModalOpen,
+      trailModalOpen,
+      wheelDrawerOpen,
+      forceWheelHint: true,
+    });
+    container.innerHTML = `
+      <div class="admin-page personal-view-toggle-wrap">${personalViewToggleHTML(true)}</div>
+      <div class="admin-preview-banner">תצוגה מקדימה — כך נראה האזור האישי אצל משתמש רגיל (ללא נתונים אמיתיים)</div>
+      ${html}`;
+    wireViewToggle();
+    wireStudentPopups();
+    wireTrailExpand(container);
+    wireWheelDrawer({ preview: true });
+    const tabTimerEl = container.querySelector('#wheelTabTimer');
+    mountDailyWheel(
+      container.querySelector('#dailyWheel'),
+      DEMO_SESSION,
+      (display) => {
+        if (tabTimerEl) tabTimerEl.textContent = display || 'זמין';
+      },
+      { demoSpin: true }
+    );
+    mountStreak(container, DEMO_SESSION, { demoState: DEMO_STREAK });
+    wireAttachmentLinks(container);
+  }
+
+  function wireViewToggle() {
+    container.querySelectorAll('[data-personal-view]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        masterViewAsStudent = btn.dataset.personalView === 'student';
+        wheelDrawerOpen = false;
+        boardModalOpen = false;
+        trailModalOpen = false;
+        await render();
+      });
+    });
+  }
 
   async function render() {
+    if (session.role === 'admin' && auth.isEditMode() && masterViewAsStudent) {
+      await renderStudentPreview();
+      return;
+    }
     if (session.role === 'admin') {
       // A single broadcast to every student already fans out into one row
       // per student (see focusStore.createBroadcast), so with a school of
       // ~100 students one broadcast alone is ~100 rows -- fetch enough raw
       // rows that "last 8 sent items" below still covers several sends,
       // not just the latest one or two.
-      const [allUsers, recentItems, wheelSentences] = await Promise.all([
+      const [allUsers, recentItems, wheelSentences, streakRewards, streakClaims] = await Promise.all([
         usersStore.getAll(),
         focusStore.getSentByAdmin(1000),
         dailyWheelStore.sentences.getAll(),
+        streakStore.rewards.getAll(),
+        streakStore.claims.getAll(),
       ]);
+      streakRewardsCache = streakRewards;
+      streakClaimsCache = streakClaims;
       const students = allUsers.filter((u) => u.role !== 'admin');
       studentNameByIdCache = new Map(students.map((u) => [u.id, u.fullName]));
       recentItemsCache = recentItems;
@@ -824,8 +959,24 @@ export async function mountPersonalPage(container, session) {
         securityBubbleOpen,
         deviceAlertsHistoryCache,
         masterLoginAlertsHistoryCache,
-        securityHistoryOpen
+        securityHistoryOpen,
+        auth.isEditMode() ? personalViewToggleHTML(false) : '',
+        streakRewardsManagerHTML({
+          rewards: streakRewardsCache,
+          claims: streakClaimsCache,
+          nameById: studentNameByIdCache,
+          rewardById: new Map(streakRewardsCache.map((r) => [r.id, r])),
+          editing: editingStreakRewardId ? streakRewardsCache.find((r) => r.id === editingStreakRewardId) : null,
+        }),
+        openAccordions.has('streak-rewards')
       ) + wheelDrawerHTML(wheelDrawerOpen);
+      wireViewToggle();
+      wireStreakRewardsManager(container, {
+        rewards: streakRewardsCache,
+        rerender: render,
+        getEditingId: () => editingStreakRewardId,
+        setEditingId: (v) => { editingStreakRewardId = v; },
+      });
       wireMasterHandlers();
       wireAccordions(container, { state: openAccordions, rerender: render });
       // Same left-side "דיוק יומי" drawer the students get -- the master
@@ -841,6 +992,7 @@ export async function mountPersonalPage(container, session) {
       wireStudentHandlers(resumeLessonId);
       wireTrailExpand(container);
       wireWheelDrawer();
+      mountStreak(container, session);
       const tabTimerEl = container.querySelector('#wheelTabTimer');
       mountDailyWheel(container.querySelector('#dailyWheel'), session, (display) => {
         if (tabTimerEl) tabTimerEl.textContent = display || 'זמין';
@@ -913,7 +1065,7 @@ export async function mountPersonalPage(container, session) {
   // a mobile swipe-left-to-close gesture. Purely a shell around the
   // untouched daily-wheel widget already mounted inside it; none of this
   // reads or changes the 24h lock state.
-  function wireWheelDrawer() {
+  function wireWheelDrawer({ preview = false } = {}) {
     const root = container.querySelector('#wheelDrawerRoot');
     const tab = container.querySelector('#wheelTabBtn');
     const overlay = container.querySelector('#wheelDrawerOverlay');
@@ -921,11 +1073,36 @@ export async function mountPersonalPage(container, session) {
     const closeBtn = container.querySelector('#wheelDrawerClose');
     if (!root || !tab || !overlay || !drawer) return;
 
+    // The arrow beside the tab (students + the master's preview): shown
+    // until "הבנתי" has been pressed twice across visits, never twice in
+    // one page load, and gone for good once the drawer is actually opened.
+    const hint = container.querySelector('#wheelHint');
+    const hintSession = preview ? null : session;
+    function finishHint() {
+      if (!hint) return;
+      if (!hintSession) {
+        hint.hidden = true; // preview: just hide, never remembered
+        return;
+      }
+      if (wheelHintDoneThisLoad) return;
+      wheelHintDoneThisLoad = true;
+      bumpWheelHintAcks(hintSession);
+      hint.hidden = true;
+    }
+    if (hint) {
+      if (wheelHintDoneThisLoad && !preview) hint.hidden = true;
+      container.querySelector('#wheelHintOk')?.addEventListener('click', finishHint);
+    }
+
     function setOpen(open) {
       wheelDrawerOpen = open;
       root.classList.toggle('is-open', open);
       tab.setAttribute('aria-expanded', open ? 'true' : 'false');
       drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+      if (open) {
+        finishHint();
+        container.querySelector('#dailyWheel')?.dispatchEvent(new CustomEvent('wheeldrawer:open'));
+      }
     }
 
     tab.addEventListener('click', () => setOpen(true));
@@ -970,6 +1147,26 @@ export async function mountPersonalPage(container, session) {
     }
     drawer.addEventListener('pointerup', endDrag);
     drawer.addEventListener('pointercancel', endDrag);
+  }
+
+  // Pure open/close for the two student popups -- used by the master's
+  // student-view preview (nothing is marked seen or saved there).
+  function wireStudentPopups() {
+    [['boardOpenBtn', 'boardOverlay', 'boardClose'], ['trailToolsOpenBtn', 'trailOverlay', 'trailClose']].forEach(([btnId, overlayId, closeId]) => {
+      const btn = container.querySelector('#' + btnId);
+      const overlay = container.querySelector('#' + overlayId);
+      if (!btn || !overlay) return;
+      btn.addEventListener('click', () => {
+        overlay.hidden = false;
+      });
+      const close = () => {
+        overlay.hidden = true;
+      };
+      container.querySelector('#' + closeId)?.addEventListener('click', close);
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) close();
+      });
+    });
   }
 
   function wireStudentHandlers(resumeLessonId) {

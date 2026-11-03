@@ -14,6 +14,8 @@
 // levels, per the "לא צריך רמת עומק" scope.
 
 import { dailyWheelStore } from './data/dailyWheelStore.js';
+import { progressStore } from './data/progressStore.js';
+import { vaultStore } from './data/vaultStore.js';
 
 const LOCK_MS = 24 * 60 * 60 * 1000;
 
@@ -38,6 +40,117 @@ function timeLeftDigits(msLeft) {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
+// Flip-clock readout "HH:MM:SS" as an array of digit characters -- seconds
+// resolution so the last digit visibly flips every second while the drawer
+// is open (the closed tab still shows the plain HH:MM from timeLeftDigits).
+function clockDigits(msLeft) {
+  const totalSeconds = Math.max(0, Math.ceil(msLeft / 1000));
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return [h, m, s].map((n) => String(n).padStart(2, '0')).join('').split('');
+}
+
+function flipDigitHTML(d) {
+  return `<span class="fc-digit" data-d="${d}"><span class="fc-half fc-top"><i>${d}</i></span><span class="fc-half fc-bot"><i>${d}</i></span><span class="fc-half fc-flap-top"><i>${d}</i></span><span class="fc-half fc-flap-bot"><i>${d}</i></span></span>`;
+}
+
+function flipClockHTML(digits) {
+  const d = digits;
+  return `${flipDigitHTML(d[0])}${flipDigitHTML(d[1])}<span class="fc-sep">:</span>${flipDigitHTML(d[2])}${flipDigitHTML(d[3])}<span class="fc-sep">:</span>${flipDigitHTML(d[4])}${flipDigitHTML(d[5])}`;
+}
+
+// Split-flap change of one digit: the top half folds down showing the old
+// digit while the new one is already underneath, then the bottom half
+// settles in. No-op when the digit is unchanged.
+function setFlipDigit(el, next, animate = true) {
+  const prev = el.dataset.d;
+  if (prev === next) return;
+  el.dataset.d = next;
+  const set = (cls, v) => {
+    el.querySelector(cls + ' i').textContent = v;
+  };
+  if (!animate) {
+    ['.fc-top', '.fc-bot', '.fc-flap-top', '.fc-flap-bot'].forEach((c) => set(c, next));
+    el.classList.remove('is-flipping');
+    return;
+  }
+  set('.fc-top', next);
+  set('.fc-flap-top', prev);
+  set('.fc-flap-bot', next);
+  set('.fc-bot', prev);
+  el.classList.remove('is-flipping');
+  void el.offsetWidth;
+  el.classList.add('is-flipping');
+  clearTimeout(el._fcTimer);
+  el._fcTimer = setTimeout(() => {
+    set('.fc-bot', next);
+    el.classList.remove('is-flipping');
+  }, 620);
+}
+
+// Which topics this student has been watching lately (the lessons they
+// opened most recently, mapped through the הכספת topics) -- used to lean
+// the next sentence toward what they're actually working on. Matching is by
+// keyword on the topic's name, so renaming a topic slightly never breaks it.
+const TOPIC_KEYWORDS = {
+  women: ['נשים', 'משיכה'],
+  sexuality: ['מיני', 'יצרים'],
+  presence: ['נוכחות', 'תקשורת', 'פריים'],
+  confidence: ['ביטחון', 'ערך עצמי'],
+  anxiety: ['חרדה', 'סטרס'],
+  healing: ['ריפוי', 'טראומ'],
+  wealth: ['עושר', 'שמחה'],
+  reality: ['מציאות'],
+  energy: ['אנרגי', "צ'קר"],
+  spirit: ['רוחני', 'תודעה'],
+  masculinity: ['גבריות', 'זכרי'],
+};
+
+async function favoriteTopicKeys(userId) {
+  try {
+    const [progress, topics] = await Promise.all([progressStore.getForUser(userId), vaultStore.topics.getAll()]);
+    const recent = progress
+      .filter((p) => p.lastWatchedAt)
+      .sort((a, b) => new Date(b.lastWatchedAt) - new Date(a.lastWatchedAt))
+      .slice(0, 10);
+    if (!recent.length) return [];
+    const counts = {};
+    for (const key of Object.keys(TOPIC_KEYWORDS)) {
+      const matching = topics.filter((t) => TOPIC_KEYWORDS[key].some((kw) => t.name.includes(kw)));
+      const lessonIds = new Set(matching.flatMap((t) => t.linkedLessonIds || []));
+      counts[key] = recent.filter((p) => lessonIds.has(p.lessonId)).length;
+    }
+    return Object.keys(counts)
+      .filter((k) => counts[k] > 0)
+      .sort((a, b) => counts[b] - counts[a])
+      .slice(0, 2);
+  } catch (e) {
+    return [];
+  }
+}
+
+// Never the same sentence twice until the whole bank has been seen; and
+// when we know what the student has been watching, about 6 times in 10 the
+// pick comes from a matching topic (the rest stays varied on purpose).
+// Returns { final, seenIds }.
+function pickSentence(sentences, seenIds, favoriteKeys) {
+  let seen = new Set(seenIds || []);
+  let pool = sentences.filter((s) => !seen.has(s.id));
+  if (!pool.length) {
+    seen = new Set();
+    pool = sentences;
+  }
+  let candidates = pool;
+  if (favoriteKeys.length && Math.random() < 0.6) {
+    const matching = pool.filter((s) => s.topic && favoriteKeys.includes(s.topic));
+    if (matching.length) candidates = matching;
+  }
+  const final = candidates[Math.floor(Math.random() * candidates.length)];
+  seen.add(final.id);
+  return { final, seenIds: Array.from(seen) };
+}
+
 // Deliberately no title/label text on the widget itself -- understood
 // through its shape (glass reel + handle), per the "בלי שם וטקסטים
 // מיותרים" requirement. The idle state shows a small diamond mark instead
@@ -57,7 +170,7 @@ export function dailyWheelHTML() {
         <svg class="daily-wheel-timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M6 2h12M6 22h12M8 2c0 4 3 5 4 6 1-1 4-2 4-6M8 22c0-4 3-5 4-6 1 1 4 2 4 6"/>
         </svg>
-        <span class="daily-wheel-timer-value" id="dailyWheelTimerValue">00:00</span>
+        <span class="daily-wheel-timer-value flip-clock" id="dailyWheelTimerValue" dir="ltr">${flipClockHTML(clockDigits(0))}</span>
       </div>
     </div>`;
 }
@@ -73,7 +186,11 @@ export function dailyWheelHTML() {
 // logic itself; it just lets a caller mirror the same countdown onto some
 // OTHER element (personalArea.js's own closed-drawer tab) without
 // duplicating the 24h lock computation.
-export async function mountDailyWheel(root, session, onLockChange) {
+//
+// `options.demoSpin` (master's student-view preview only): pretend this
+// student already spun a while ago, so the locked state + flip clock can be
+// seen without touching any real spin row.
+export async function mountDailyWheel(root, session, onLockChange, options = {}) {
   if (!root) return;
   const reel = root.querySelector('#dailyWheelReel');
   const handle = root.querySelector('#dailyWheelHandle');
@@ -81,9 +198,22 @@ export async function mountDailyWheel(root, session, onLockChange) {
   const timerValueEl = root.querySelector('#dailyWheelTimerValue');
   if (!reel || !handle || !timerEl || !timerValueEl) return;
 
-  const [sentences, spin] = await Promise.all([dailyWheelStore.sentences.getAll(), dailyWheelStore.getMySpin(session.id)]);
+  const [sentences, realSpin] = await Promise.all([
+    dailyWheelStore.sentences.getAll(),
+    options.demoSpin ? Promise.resolve(null) : dailyWheelStore.getMySpin(session.id),
+  ]);
+  const spin = options.demoSpin
+    ? {
+        sentenceId: null,
+        sentenceText: (sentences[0] && sentences[0].text) || '',
+        spunAt: new Date(Date.now() - LOCK_MS + 20 * 3600000 + 14 * 60000 + 37000).toISOString(),
+        seenIds: [],
+      }
+    : realSpin;
 
   let lockInterval = null;
+  let seenSoFar = spin ? [...spin.seenIds, spin.sentenceId] : [];
+  let suppressFlip = true; // first paint sets the digits without flipping
 
   function showRevealed(text) {
     reel.innerHTML = `<span class="daily-wheel-sentence">${escapeHtml(text)}</span>`;
@@ -111,20 +241,34 @@ export async function mountDailyWheel(root, session, onLockChange) {
     root.classList.add('is-locked');
     handle.disabled = true;
     timerEl.hidden = false;
-    const display = timeLeftDigits(msLeft);
-    timerValueEl.textContent = display;
-    if (onLockChange) onLockChange(display);
+    const digits = clockDigits(msLeft);
+    const digitEls = timerValueEl.querySelectorAll('.fc-digit');
+    digitEls.forEach((el, i) => setFlipDigit(el, digits[i], !suppressFlip));
+    if (onLockChange) onLockChange(timeLeftDigits(msLeft));
   }
+
+  // When the drawer opens, every digit rolls from 0 up to the real value
+  // (the "clock winds up" moment) -- then it ticks normally each second.
+  // Fired by personalArea.js's wireWheelDrawer on the #dailyWheel node.
+  root.addEventListener('wheeldrawer:open', () => {
+    if (!root.classList.contains('is-locked')) return;
+    const digitEls = timerValueEl.querySelectorAll('.fc-digit');
+    const target = Array.from(digitEls).map((el) => el.dataset.d);
+    digitEls.forEach((el) => setFlipDigit(el, '0', false));
+    target.forEach((d, i) => setTimeout(() => setFlipDigit(digitEls[i], d, true), 140 + i * 70));
+  });
 
   if (spin) {
     reel.innerHTML = `<span class="daily-wheel-sentence">${escapeHtml(spin.sentenceText)}</span>`;
     root.classList.add('is-revealed');
     updateLockUI(spin.spunAt);
+    suppressFlip = false;
     if (root.classList.contains('is-locked')) {
-      lockInterval = setInterval(() => updateLockUI(spin.spunAt), 60000);
+      lockInterval = setInterval(() => updateLockUI(spin.spunAt), 1000);
     }
-  } else if (onLockChange) {
-    onLockChange(null); // never spun yet -- available right now.
+  } else {
+    suppressFlip = false;
+    if (onLockChange) onLockChange(null); // never spun yet -- available right now.
   }
 
   // Instant, direct press feedback (item 4) -- pointerdown/up rather than
@@ -149,7 +293,9 @@ export async function mountDailyWheel(root, session, onLockChange) {
     root.classList.remove('is-revealed');
     handle.disabled = true;
 
-    const final = sentences[Math.floor(Math.random() * sentences.length)];
+    // Resolved while the reel is already cycling below -- by the time the
+    // animation settles (~1.5s) the pick is long done.
+    const pickPromise = favoriteTopicKeys(session.id).then((keys) => pickSentence(sentences, seenSoFar, keys));
     const cycleEl = document.createElement('span');
     cycleEl.className = 'daily-wheel-sentence daily-wheel-cycling';
     reel.innerHTML = '';
@@ -175,13 +321,18 @@ export async function mountDailyWheel(root, session, onLockChange) {
         setTimeout(tick, delays[i]);
         return;
       }
-      root.classList.remove('is-spinning');
-      showRevealed(final.text);
-      dailyWheelStore.spin({ userId: session.id, sentenceId: final.id, sentenceText: final.text }).then((saved) => {
-        if (!saved) return;
-        updateLockUI(saved.spunAt);
-        if (lockInterval) clearInterval(lockInterval);
-        lockInterval = setInterval(() => updateLockUI(saved.spunAt), 60000);
+      pickPromise.then(({ final, seenIds }) => {
+        root.classList.remove('is-spinning');
+        showRevealed(final.text);
+        seenSoFar = seenIds;
+        dailyWheelStore.spin({ userId: session.id, sentenceId: final.id, sentenceText: final.text, seenIds }).then((saved) => {
+          if (!saved) return;
+          suppressFlip = true;
+          updateLockUI(saved.spunAt);
+          suppressFlip = false;
+          if (lockInterval) clearInterval(lockInterval);
+          lockInterval = setInterval(() => updateLockUI(saved.spunAt), 1000);
+        });
       });
     }
     tick();

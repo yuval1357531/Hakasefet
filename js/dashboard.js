@@ -8,6 +8,7 @@ import { renderRoute } from './router.js';
 import { contentStore } from './data/contentStore.js';
 import { initGlobalLoader, withGlobalLoader, isHeavyRoute } from './loader.js';
 import { initHelpTips, helpTipHTML, isHelpDismissed } from './helpTip.js';
+import { streakStore } from './data/streakStore.js';
 
 // Minimal "?" help layer (see helpTip.js) -- one global listener for every
 // tip on every page, installed once here regardless of which section is
@@ -17,6 +18,9 @@ initHelpTips();
 // Top-level await -- native ES module feature, no bundler needed.
 const session = await auth.requireSession();
 if (session) init(session);
+// Counts today's visit toward the login streak (once per day, decided by
+// the server) even when the student lands on a deep link, not the personal page.
+if (session && session.role !== 'admin') streakStore.touch();
 
 // Single-active-session enforcement (see auth.js) -- every signed-in
 // account, students included: a still-open tab keeps its sessionStorage

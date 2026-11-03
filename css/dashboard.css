@@ -4264,3 +4264,330 @@ textarea.editable-input { display: block; resize: vertical; }
   }
   .vault-loader-ticks line { opacity: 0.4; }
 }
+
+/* ============================================================
+   הרצף (login streak) -- js/streak.js. A small button on the personal
+   page opens a popup with the road to the gifts: ONE vertical rail that
+   fills with the same living blue fire the progress bars use
+   (.progress-bar-fill / energy-flow), a node per gift, and the streak
+   number riding the rail at its current position.
+   ============================================================ */
+.streak-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(99, 171, 255, 0.4);
+  background: linear-gradient(180deg, #1a2740 0%, #0e1728 55%, #080d17 100%);
+  color: var(--crystal-ice);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(214, 236, 255, 0.14), inset 0 0 14px rgba(70, 150, 255, 0.12);
+  text-shadow: 0 0 10px rgba(120, 195, 255, 0.3);
+}
+.streak-btn[hidden] { display: none; }
+.streak-btn:hover { border-color: rgba(130, 195, 255, 0.65); color: var(--white-glow, #fff); }
+.streak-btn-flame { display: inline-flex; width: 16px; height: 16px; color: var(--text-dim); }
+.streak-btn-flame svg { width: 100%; height: 100%; }
+.streak-btn.is-lit .streak-btn-flame { color: var(--crystal-cyan); filter: drop-shadow(0 0 6px rgba(70, 213, 255, 0.7)); }
+.streak-btn-count {
+  display: inline-block;
+  min-width: 22px;
+  margin-inline-start: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(90, 167, 255, 0.16);
+  border: 1px solid rgba(140, 200, 255, 0.35);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.streak-modal-card { max-width: 440px; max-height: 86vh; }
+.streak-hero { display: flex; align-items: center; gap: 16px; margin: 4px 0 22px; }
+.streak-hero-number {
+  font-family: var(--font-display, var(--font-body));
+  font-size: 54px;
+  line-height: 1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(160deg, #ffffff 0%, #d8ecff 28%, #8fd0ff 56%, #4a8fd6 80%, #1d4e9e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 0 12px rgba(140, 200, 255, 0.45));
+}
+.streak-hero-text { display: flex; flex-direction: column; gap: 3px; }
+.streak-hero-label { font-size: 16px; font-weight: 600; color: var(--text-main); }
+.streak-hero-sub { font-size: 13px; color: var(--crystal-ice); }
+.streak-rule { margin: 16px 0 2px; font-size: 12px; color: var(--text-dim); text-align: center; }
+
+/* The road. Every row is exactly --road-row tall and its node sits at the
+   row's top, so node k's centre is at (k * --road-row + 22px) -- which is
+   what lets one absolutely-positioned rail line up with all of them. */
+.road {
+  --road-row: 128px;
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.road-rail {
+  position: absolute;
+  right: 20.5px;
+  top: 22px;
+  width: 3px;
+  height: calc(var(--road-n) * var(--road-row));
+  border-radius: 3px;
+  background: rgba(99, 171, 255, 0.16);
+}
+.road-rail-fill {
+  width: 100%;
+  height: calc(var(--road-pos) * var(--road-row));
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--crystal-deep), var(--crystal-cyan), var(--crystal), var(--crystal-deep));
+  background-size: 100% 220%;
+  box-shadow: 0 0 12px rgba(70, 190, 255, 0.45);
+  animation: energy-flow-vertical 3.2s linear infinite;
+}
+@keyframes energy-flow-vertical {
+  from { background-position: 0 0; }
+  to { background-position: 0 -220%; }
+}
+.road-here {
+  position: absolute;
+  right: -15.5px;
+  top: calc(var(--road-pos) * var(--road-row));
+  width: 34px;
+  height: 34px;
+  margin-top: -17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--crystal-ice);
+  color: #04060b;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 4px rgba(90, 167, 255, 0.22), 0 0 18px rgba(120, 195, 255, 0.7);
+  animation: road-here-pulse 2.4s ease-in-out infinite;
+}
+@keyframes road-here-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(90, 167, 255, 0.22), 0 0 14px rgba(120, 195, 255, 0.5); }
+  50% { box-shadow: 0 0 0 7px rgba(90, 167, 255, 0.12), 0 0 24px rgba(120, 195, 255, 0.85); }
+}
+.road-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  column-gap: 14px;
+  height: var(--road-row);
+}
+.road-row:last-child { height: auto; min-height: 44px; }
+.road-node {
+  position: relative;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid rgba(99, 171, 255, 0.28);
+  background: #0b101b;
+  color: var(--text-dim);
+}
+.road-node svg { width: 20px; height: 20px; }
+.road-row.is-ready .road-node {
+  border-color: var(--crystal-ice);
+  color: var(--crystal-ice);
+  background: #0f1a2e;
+  animation: road-ready-glow 2.2s ease-in-out infinite;
+}
+@keyframes road-ready-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(120, 195, 255, 0.35); }
+  50% { box-shadow: 0 0 22px rgba(120, 195, 255, 0.8); }
+}
+.road-row.is-claimed .road-node { border-color: var(--crystal); background: var(--crystal-deep); color: #eaf6ff; }
+.road-row.is-start .road-node {
+  width: 14px;
+  height: 14px;
+  margin: 15px;
+  border-radius: 3px;
+  transform: rotate(45deg);
+  border-color: var(--crystal);
+  background: var(--crystal);
+}
+.road-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  align-self: start;
+  padding: 10px 14px;
+  border: 1px solid rgba(99, 171, 255, 0.22);
+  border-radius: var(--radius-md);
+  background: linear-gradient(160deg, var(--obsidian-raised) 0%, var(--obsidian) 100%);
+}
+.road-row.is-ready .road-card { border-color: rgba(140, 200, 255, 0.6); }
+.road-row.is-locked .road-card { opacity: 0.78; }
+.road-row.is-start .road-card { border-color: transparent; background: none; padding-inline: 0; align-self: start; padding-top: 11px; }
+.road-days { font-size: 12px; color: var(--crystal-ice); letter-spacing: 0.2px; }
+.road-title { font-size: 14.5px; font-weight: 600; color: var(--text-main); }
+.road-desc { font-size: 12.5px; color: var(--text-muted); }
+.road-note { font-size: 12px; color: var(--text-dim); }
+.road-claim-btn { margin-top: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .road-rail-fill, .road-here, .road-row.is-ready .road-node { animation: none; }
+}
+
+/* ============================================================
+   "המשפט היומי שלך מחכה כאן" -- the bouncing arrow beside the closed
+   "דיוק יומי" tab (personalArea.js's wheelDrawerHTML). Same finite
+   nudge-then-rest behaviour as the sidebar hint (.sidebar-hint), mirrored
+   to the left edge: points at the tab and nudges toward it five times.
+   ============================================================ */
+.wheel-hint {
+  position: fixed;
+  left: 52px;
+  top: 50%;
+  z-index: 45;
+  transform: translateY(-50%);
+}
+.wheel-hint[hidden] { display: none; }
+.wheel-drawer-root.is-open .wheel-hint { display: none; }
+.wheel-hint-inner {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 8px;
+  animation: wheel-hint-nudge 0.9s ease-in-out 5;
+}
+.wheel-hint-arrow {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  color: var(--crystal-ice);
+  filter: drop-shadow(0 0 8px rgba(120, 195, 255, 0.55));
+}
+.wheel-hint-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid rgba(140, 200, 255, 0.35);
+  border-radius: var(--radius-md);
+  background: linear-gradient(160deg, var(--obsidian-raised) 0%, var(--obsidian) 100%);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(230, 244, 255, 0.1);
+}
+.wheel-hint-text { font-family: var(--font-body); font-size: 13px; color: var(--crystal-ice); white-space: nowrap; }
+.wheel-hint-ok {
+  align-self: flex-end;
+  min-height: 30px;
+  padding: 4px 14px;
+  border: 1px solid rgba(140, 200, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(90, 167, 255, 0.1);
+  color: var(--crystal-ice);
+  font-family: var(--font-body);
+  font-size: 12px;
+  cursor: pointer;
+}
+@keyframes wheel-hint-nudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-9px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wheel-hint-inner { animation: none; }
+}
+
+/* ============================================================
+   Flip clock -- the daily sentence's countdown (dailyWheel.js). Each digit
+   is a split-flap tile: the top half folds down over the new digit, then
+   the bottom half settles in. Only used inside the drawer.
+   ============================================================ */
+.daily-wheel-timer-icon { display: none; }
+.daily-wheel-timer-value.flip-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-shadow: none;
+}
+.fc-digit {
+  --fc-h: 48px;
+  position: relative;
+  width: 32px;
+  height: var(--fc-h);
+  perspective: 260px;
+  border-radius: 6px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+.fc-digit::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 5;
+}
+.fc-half {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(99, 171, 255, 0.28);
+  background: linear-gradient(180deg, #16202f, #0d1420);
+  backface-visibility: hidden;
+}
+.fc-top, .fc-flap-top { top: 0; border-bottom: 0; border-radius: 6px 6px 0 0; }
+.fc-bot, .fc-flap-bot { bottom: 0; border-top: 0; border-radius: 0 0 6px 6px; background: linear-gradient(180deg, #0d1420, #090e18); }
+.fc-half i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 200%;
+  font-style: normal;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: var(--fc-h);
+  text-align: center;
+  color: var(--crystal-ice);
+  text-shadow: 0 0 10px rgba(120, 195, 255, 0.4);
+}
+.fc-top i, .fc-flap-top i { top: 0; }
+.fc-bot i, .fc-flap-bot i { bottom: 0; }
+.fc-flap-top, .fc-flap-bot { display: none; }
+.fc-digit.is-flipping .fc-flap-top {
+  display: block;
+  z-index: 3;
+  transform-origin: 50% 100%;
+  animation: fc-flip-top 0.3s ease-in forwards;
+}
+.fc-digit.is-flipping .fc-flap-bot {
+  display: block;
+  z-index: 2;
+  transform-origin: 50% 0;
+  animation: fc-flip-bot 0.3s ease-out 0.3s both;
+}
+@keyframes fc-flip-top { from { transform: rotateX(0); } to { transform: rotateX(-90deg); } }
+@keyframes fc-flip-bot { from { transform: rotateX(90deg); } to { transform: rotateX(0); } }
+.fc-sep { font-size: 26px; line-height: 1; color: var(--crystal); text-shadow: 0 0 8px rgba(90, 167, 255, 0.5); }
+@media (prefers-reduced-motion: reduce) {
+  .fc-digit.is-flipping .fc-flap-top, .fc-digit.is-flipping .fc-flap-bot { display: none; }
+}
+
+/* Master's edit-mode "תצוגת מאסטר / תצוגת תלמיד" row, shown above the
+   student preview (inside the master page it is simply the first child). */
+.personal-view-toggle-wrap .desc-mode-row { margin-bottom: 12px; }

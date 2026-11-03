@@ -9,12 +9,12 @@
 import { supabase } from '../supabaseClient.js';
 
 function toSentence(row) {
-  return { id: row.id, text: row.text, createdAt: row.created_at };
+  return { id: row.id, text: row.text, createdAt: row.created_at, topic: row.topic || null };
 }
 
 function toSpin(row) {
   if (!row) return null;
-  return { sentenceId: row.sentence_id, sentenceText: row.sentence_text, spunAt: row.spun_at };
+  return { sentenceId: row.sentence_id, sentenceText: row.sentence_text, spunAt: row.spun_at, seenIds: row.seen_ids || [] };
 }
 
 function makeId() {
@@ -56,17 +56,21 @@ export const dailyWheelStore = {
   },
 
   // One row per user -- upserted (not inserted) so every spin after the
-  // first just overwrites the previous reveal + timestamp.
-  async spin({ userId, sentenceId, sentenceText }) {
-    const { data, error } = await supabase
+  // first just overwrites the previous reveal + timestamp. `seenIds` is the
+  // running list of sentences this user already got, so the next pick can
+  // skip them (see dailyWheel.js). If the seen_ids column isn't in the
+  // database yet, the spin is still saved without it.
+  async spin({ userId, sentenceId, sentenceText, seenIds }) {
+    const row = { user_id: userId, sentence_id: sentenceId, sentence_text: sentenceText, spun_at: new Date().toISOString() };
+    let res = await supabase
       .from('daily_wheel_spins')
-      .upsert(
-        { user_id: userId, sentence_id: sentenceId, sentence_text: sentenceText, spun_at: new Date().toISOString() },
-        { onConflict: 'user_id' }
-      )
+      .upsert({ ...row, seen_ids: seenIds || [] }, { onConflict: 'user_id' })
       .select()
       .single();
-    if (error || !data) return null;
-    return toSpin(data);
+    if (res.error) {
+      res = await supabase.from('daily_wheel_spins').upsert(row, { onConflict: 'user_id' }).select().single();
+    }
+    if (res.error || !res.data) return null;
+    return toSpin(res.data);
   },
 };

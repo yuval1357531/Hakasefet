@@ -26,7 +26,6 @@ import { mountPersonalPage } from './pages/personalArea.js';
 import { mountStudentFolders, computeJournalNewCounts } from './pages/studentFolders.js';
 import { usersStore } from './data/usersStore.js';
 import { notebookStore } from './data/notebookStore.js';
-import { mountPersonalAreaPreview } from './pages/personalAreaPreview.js';
 import { mountLoginHistory } from './pages/loginHistory.js';
 import { mountFreeTutorials } from './pages/freeTutorials.js';
 
@@ -226,8 +225,6 @@ export async function renderRoute(container, hash) {
       await mountManageUsers(container);
     } else if (route.adminTool.id === 'student-folders') {
       await mountStudentFolders(container);
-    } else if (route.adminTool.id === 'personal-area-preview') {
-      await mountPersonalAreaPreview(container);
     } else if (route.adminTool.id === 'login-history') {
       await mountLoginHistory(container);
     } else if (route.adminTool.id === 'free-tutorials') {
