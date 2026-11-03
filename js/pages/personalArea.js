@@ -825,9 +825,16 @@ export async function mountPersonalPage(container, session) {
         deviceAlertsHistoryCache,
         masterLoginAlertsHistoryCache,
         securityHistoryOpen
-      );
+      ) + wheelDrawerHTML(wheelDrawerOpen);
       wireMasterHandlers();
       wireAccordions(container, { state: openAccordions, rerender: render });
+      // Same left-side "דיוק יומי" drawer the students get -- the master
+      // sees the daily sentence the same way, using the identical widget.
+      wireWheelDrawer();
+      const masterTabTimerEl = container.querySelector('#wheelTabTimer');
+      mountDailyWheel(container.querySelector('#dailyWheel'), session, (display) => {
+        if (masterTabTimerEl) masterTabTimerEl.textContent = display || 'זמין';
+      });
     } else {
       const { html, resumeLessonId } = await studentPageHTML(session, { boardModalOpen, trailModalOpen, wheelDrawerOpen });
       container.innerHTML = html;

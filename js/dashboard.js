@@ -148,15 +148,55 @@ async function init(session) {
   // is read straight from the real active nav-item's rendered box
   // (getBoundingClientRect), so it stays accurate even while the sidebar
   // itself is translated off-screen, since that transform only shifts X.
+  // Personal page, mobile, sidebar closed: a bouncing arrow beside the
+  // peek says "לחץ לפתיחת תפריט", with a small "הבנתי". Each "הבנתי" tap is
+  // counted on this device (per account); after the 2nd it never returns.
+  // A tap hides it for the rest of this page load only, and so does simply
+  // opening the menu (the visitor clearly got it) -- neither of those
+  // counts toward the two.
+  const SIDEBAR_HINT_KEY = `vault_sidebar_hint_acks_${session.id}`;
+  const SIDEBAR_HINT_MAX_ACKS = 2;
+  let sidebarHintDoneThisLoad = false;
+  function sidebarHintAcks() {
+    try {
+      return parseInt(localStorage.getItem(SIDEBAR_HINT_KEY), 10) || 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+  const sidebarHint = document.createElement('div');
+  sidebarHint.className = 'sidebar-hint';
+  sidebarHint.hidden = true;
+  sidebarHint.innerHTML = `
+    <div class="sidebar-hint-inner">
+      <svg class="sidebar-hint-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+      <div class="sidebar-hint-body">
+        <span class="sidebar-hint-text">לחץ לפתיחת תפריט</span>
+        <button type="button" class="sidebar-hint-ok">הבנתי</button>
+      </div>
+    </div>`;
+  document.body.appendChild(sidebarHint);
+  sidebarHint.querySelector('.sidebar-hint-ok').addEventListener('click', () => {
+    try {
+      localStorage.setItem(SIDEBAR_HINT_KEY, String(sidebarHintAcks() + 1));
+    } catch (e) {
+      /* best-effort -- worst case it shows again next load */
+    }
+    sidebarHintDoneThisLoad = true;
+    sidebarHint.hidden = true;
+  });
+
   function updatePeek() {
     if (!isMobile() || document.body.classList.contains('sidebar-open')) {
       sidebarPeek.hidden = true;
+      sidebarHint.hidden = true;
       if (sidebarPeekHelp) sidebarPeekHelp.hidden = true;
       return;
     }
     const activeItem = sidebar.querySelector('.nav-item.active');
     if (!activeItem) {
       sidebarPeek.hidden = true;
+      sidebarHint.hidden = true;
       if (sidebarPeekHelp) sidebarPeekHelp.hidden = true;
       return;
     }
@@ -169,6 +209,18 @@ async function init(session) {
     sidebarPeek.style.height = `${Math.round(diamondHeight)}px`;
     sidebarPeek.style.right = `${-(Math.round(diamondWidth) - visible)}px`;
     sidebarPeek.hidden = false;
+
+    if (
+      document.body.dataset.activeSection === 'me' &&
+      !sidebarHintDoneThisLoad &&
+      sidebarHintAcks() < SIDEBAR_HINT_MAX_ACKS
+    ) {
+      sidebarHint.style.top = `${Math.round(rect.top + diamondHeight / 2)}px`;
+      sidebarHint.style.right = `${visible + 10}px`;
+      sidebarHint.hidden = false;
+    } else {
+      sidebarHint.hidden = true;
+    }
 
     // Floats just above-left of the visible sliver -- close enough to read
     // as "about that", never overlapping the diamond itself or blocking the
@@ -186,6 +238,8 @@ async function init(session) {
   }
 
   function openSidebar() {
+    // Opening the menu = the arrow did its job; no re-show on close.
+    if (isMobile()) sidebarHintDoneThisLoad = true;
     document.body.classList.add('sidebar-open');
     updatePeek();
   }
@@ -216,6 +270,18 @@ async function init(session) {
     return first || 'me';
   }
 
+  // Replays the soft screen-enter (see .page-enter in dashboard.css) for
+  // each route swap. The class is dropped again right after, so later
+  // in-page re-renders (lesson pages repaint often) never re-trigger it.
+  let pageEnterTimer = null;
+  function playPageEnter() {
+    clearTimeout(pageEnterTimer);
+    content.classList.remove('page-enter');
+    void content.offsetWidth;
+    content.classList.add('page-enter');
+    pageEnterTimer = setTimeout(() => content.classList.remove('page-enter'), 400);
+  }
+
   async function handleRoute() {
     setActive(activeIdFromHash(window.location.hash));
     if (isMobile()) closeSidebar();
@@ -224,6 +290,7 @@ async function init(session) {
       ? await withGlobalLoader(() => renderRoute(content, hash))
       : await renderRoute(content, hash);
     setActive(result.activeId);
+    playPageEnter();
     content.scrollTop = 0;
     // Refreshes nav labels (a section title may have just been renamed
     // in edit mode) in the background -- never blocks the click-to-

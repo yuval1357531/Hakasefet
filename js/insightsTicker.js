@@ -10,6 +10,7 @@
 // section-specific.
 
 import { helpTipHTML } from './helpTip.js';
+import { auth } from './auth.js';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -72,6 +73,44 @@ export function tickerHTML(items) {
     </div>`;
 }
 
+// A small "swipe the strip" nudge ABOVE the ticker, shown only now and then
+// (HINT_CHANCE of page visits), for a few seconds, and gone the moment the
+// strip is touched. Students only (never edit mode). Rolled once per page
+// visit -- wireTicker runs again on every in-page repaint, and a repaint
+// must not re-roll (hash is the visit's identity: leaving and coming back
+// changes it in between).
+const HINT_CHANCE = 0.3;
+const HINT_VISIBLE_MS = 4500;
+let lastHintHash = null;
+
+function maybeShowTickerHint(ticker) {
+  if (auth.isEditMode()) return;
+  const hash = window.location.hash;
+  if (hash === lastHintHash) return;
+  lastHintHash = hash;
+  if (Math.random() >= HINT_CHANCE) return;
+
+  const hint = document.createElement('div');
+  hint.className = 'ticker-hint';
+  hint.setAttribute('aria-hidden', 'true');
+  hint.innerHTML = `
+    <span class="ticker-hint-text">החלק על הסרגל כדי לגלות עוד משפטי חכמה</span>
+    <svg class="ticker-hint-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`;
+  ticker.insertAdjacentElement('beforebegin', hint);
+  requestAnimationFrame(() => hint.classList.add('is-shown'));
+
+  let gone = false;
+  function dismiss() {
+    if (gone) return;
+    gone = true;
+    clearTimeout(timer);
+    hint.classList.remove('is-shown');
+    setTimeout(() => hint.remove(), 400);
+  }
+  const timer = setTimeout(dismiss, HINT_VISIBLE_MS);
+  ticker.addEventListener('pointerdown', dismiss, { once: true });
+}
+
 // Turns the static markup above into a living marquee. Driven by a plain,
 // heavily-guarded requestAnimationFrame loop -- NOT a CSS animation. Two
 // real, separate bugs were found and fixed across earlier attempts at this
@@ -105,6 +144,8 @@ export function wireTicker(root) {
   const track = ticker.querySelector('[data-insights-track]');
   const firstSet = track && track.querySelector('.insights-ticker-set');
   if (!track || !firstSet) return;
+
+  maybeShowTickerHint(ticker);
 
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const SPEED = 46; // px/sec -- the normal, cruising autoplay speed

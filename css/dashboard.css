@@ -1,5 +1,27 @@
 body { overflow-x: hidden; }
 
+/* App-like touch feel, shared by every control: no grey tap-flash, no
+   double-tap-zoom delay (taps register instantly), no accidental text
+   selection when a button is held, and any button/link-card that has no
+   press feedback of its own gets the same quick scale-down + eased
+   release. All of it is wrapped in :where() so it carries ZERO specificity
+   and sits first in the file: any control that already declares its own
+   transform/transition/:active (see the shared press block near the end
+   of this file and each component's own rules) keeps winning untouched --
+   this only fills the gaps. */
+:where(a, button, [role="button"], label, summary) {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+:where(button, [role="button"], a.admin-card) {
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+:where(button:not(:disabled), [role="button"], a.admin-card):active {
+  transform: scale(0.97);
+}
+
 /* Cinematic layer: cold light from above, weight below, and a
    whisper of film grain unifying every surface. Pointer-through. */
 body::before {
@@ -2050,6 +2072,19 @@ body[data-active-section="personalGuidance"] .sidebar-title.gold-title {
   width: 100%;
   margin: 0 auto;
 }
+/* Soft hand-off between screens: dashboard.js adds .page-enter for a split
+   second after each route swap, so the new page eases in (the existing
+   `rise` keyframes + the site's one ease-out-expo curve) instead of
+   cutting in hard. Only the page's own top-level blocks animate -- never
+   the wall layers (::before/::after) and never a fixed overlay -- and
+   `backwards` (not `both`) leaves no lingering transform behind, which
+   would otherwise become a containing block for fixed popups. */
+.content-area.page-enter > *:not([class*="overlay"]) {
+  animation: rise 0.32s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .content-area.page-enter > * { animation: none; }
+}
 /* Same per-section recolour hook as --wall-hue-shift above, extended to
    the page CONTENT itself (headings, borders, glows, highlights): a
    single hue-rotate on .admin-page (every mount function's own top-level
@@ -2118,6 +2153,14 @@ body[data-active-section="personalGuidance"] .sidebar-title.gold-title {
    browser-verified delta -- no compounding with anything else. */
 .app-main[data-active-section="survivalToFreedom"] .insights-sep img {
   filter: hue-rotate(5.5deg);
+}
+/* The embedded lesson video is real footage and must keep its true colours
+   (sky was turning green, skin pink): it sits inside .panel-card.lesson-panel,
+   a direct child of .admin-page that takes the ambient -34deg above, so this
+   counter-rotates by +34deg to net exactly 0 -- same maths as the delete/save
+   colours earlier in this section. Only the video frame is touched. */
+.app-main[data-active-section="survivalToFreedom"] .admin-page .embed-frame {
+  filter: hue-rotate(34deg);
 }
 /* Video titles made to match the section heading above, precisely (same
    hue/colour, not the heading's own weight/size/animation -- that wasn't
@@ -2567,6 +2610,67 @@ body.sidebar-open .sidebar-overlay { opacity: 1; pointer-events: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sidebar-peek { animation: none; }
+}
+/* "לחץ לפתיחת תפריט" -- the bouncing arrow beside the closed-sidebar peek on
+   the personal page (built + positioned by dashboard.js's updatePeek()).
+   The arrow points at the diamond's sliver on the right edge and nudges
+   toward it a few times, then rests -- finite on purpose, never a loop. */
+.sidebar-hint {
+  position: fixed;
+  z-index: 45;
+  transform: translateY(-50%);
+}
+.sidebar-hint[hidden] { display: none; }
+.sidebar-hint-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: sidebar-hint-nudge 0.9s ease-in-out 5;
+}
+.sidebar-hint-arrow {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  color: var(--crystal-ice);
+  filter: drop-shadow(0 0 8px rgba(120, 195, 255, 0.55));
+}
+.sidebar-hint-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid rgba(140, 200, 255, 0.35);
+  border-radius: var(--radius-md);
+  background: linear-gradient(160deg, var(--obsidian-raised) 0%, var(--obsidian) 100%);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(230, 244, 255, 0.1);
+}
+.sidebar-hint-text {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--crystal-ice);
+  white-space: nowrap;
+}
+.sidebar-hint-ok {
+  align-self: flex-end;
+  min-height: 30px;
+  padding: 4px 14px;
+  border: 1px solid rgba(140, 200, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(90, 167, 255, 0.1);
+  color: var(--crystal-ice);
+  font-family: var(--font-body);
+  font-size: 12px;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sidebar-hint-ok:active { transform: scale(0.95); }
+@keyframes sidebar-hint-nudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(9px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-hint-inner { animation: none; }
 }
 /* Closed-sidebar peek was hard-coded to the shared blue diamond/glow
    regardless of which section is actually active -- wrong the moment any
@@ -3056,6 +3160,36 @@ body.sidebar-open .sidebar-peek { display: none; }
   direction: ltr;
 }
 .insights-ticker.is-dragging { cursor: grabbing; }
+/* The occasional "swipe the strip" nudge above the ticker (see
+   maybeShowTickerHint in insightsTicker.js): eases open, a little arrow
+   bobs toward the strip, then eases shut. */
+.ticker-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  max-height: 0;
+  margin-bottom: 0;
+  overflow: hidden;
+  opacity: 0;
+  color: var(--crystal-ice);
+  font-size: 12px;
+  text-align: center;
+  transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), margin-bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease;
+}
+.ticker-hint.is-shown { max-height: 44px; margin-bottom: 6px; opacity: 0.9; }
+.ticker-hint-arrow {
+  width: 16px;
+  height: 16px;
+  animation: ticker-hint-bob 0.9s ease-in-out 4;
+}
+@keyframes ticker-hint-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-hint, .ticker-hint-arrow { transition: none; animation: none; }
+}
 /* JS (insightsTicker.js) drives `transform` every frame via
    requestAnimationFrame -- no CSS animation/keyframes at all, so there is
    no shorthand/duration race to worry about. */
@@ -3430,33 +3564,65 @@ textarea.editable-input { display: block; resize: vertical; }
    long) shifts by the identical offset -- never one row scrolling on its
    own. */
 .lesson-tabs-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
+  /* No sideways scrolling any more: every lesson button is exactly the
+     list's width and long names wrap inside it (see .lesson-tab below),
+     so there is nothing left to scroll -- the page only moves up/down. */
+  overflow: visible;
   margin-bottom: 18px;
 }
 .lesson-tabs-scroll::-webkit-scrollbar { height: 4px; }
 .lesson-tabs-scroll::-webkit-scrollbar-thumb { background: rgba(150, 200, 255, 0.3); border-radius: 3px; }
 .lesson-tabs-scroll .lesson-tabs {
-  align-items: flex-start;
-  width: max-content;
-  min-width: 100%;
+  align-items: stretch;
+  width: 100%;
   margin-bottom: 0;
 }
+/* Every lesson button: same full width, same minimum height, however long
+   or short the lesson's name is -- the name wraps (up to 2 lines, then "…")
+   inside it instead of widening the button. Dark obsidian "stone" with a
+   thin crystal edge, like the primary .btn-gold. Pure styling: the markup
+   (an <a href> to the lesson) is untouched. */
 .lesson-tab {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-shrink: 0;
-  padding: 11px 18px;
-  border-radius: 999px;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 14px;
+  border-radius: 14px;
   border: 1px solid var(--border-gold-soft);
+  background: var(--obsidian-raised);
+  box-shadow: inset 0 1px 0 rgba(214, 236, 255, 0.1);
   color: var(--text-muted);
   text-decoration: none;
   font-size: 13.5px;
-  white-space: nowrap;
-  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+  white-space: normal;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Small "go" chevron at the far (left) end of every button -- drawn in CSS
+   so no markup changes. */
+.lesson-tab::after {
+  content: '‹';
+  margin-inline-start: auto;
+  flex: none;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--crystal);
+  opacity: 0.7;
+}
+.lesson-tabs .lesson-tab:active { transform: scale(0.985); }
+/* The name itself: sized to its own text (so the section gradient on it
+   spans the text, exactly as before), wraps, and is capped at 2 lines. */
+.lesson-tab .lesson-tab-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
 }
 .lesson-tab:hover {
   border-color: var(--border-gold);
@@ -3465,7 +3631,19 @@ textarea.editable-input { display: block; resize: vertical; }
   box-shadow: inset 0 0 14px rgba(80, 160, 255, 0.08);
 }
 .lesson-tab.is-done { border-color: rgba(150, 200, 255, 0.4); color: #a9d4ff; }
-.lesson-tab-check { width: 14px; color: var(--gold); font-weight: 700; flex-shrink: 0; }
+.lesson-tab-check {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(99, 171, 255, 0.4);
+  border-radius: 50%;
+  font-size: 12px;
+  color: var(--gold);
+  font-weight: 700;
+  flex-shrink: 0;
+}
 /* Pinned explicitly (not just inherited from .lesson-tab) so every lesson
    name in the list renders at the exact same size -- some mobile browsers
    auto-boost/shrink inline text size per-element based on its box width
