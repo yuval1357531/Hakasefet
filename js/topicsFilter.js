@@ -46,7 +46,7 @@ export function topicsFilterHTML(topics, { filterOn, selectedTopicIds }) {
         <label class="topics-filter-toggle">
           <input type="checkbox" id="topicsFilterToggle" ${filterOn ? 'checked' : ''}>
           <span class="topics-filter-diamond" aria-hidden="true"></span>
-          <span class="topics-filter-label-text">הפעלת סינון</span>
+          <span class="topics-filter-label-text">הפעלת סינון <span class="topics-filter-hint">(לחץ עליי)</span></span>
         </label>
         ${helpTipHTML('topics-filter', 'הכספת היא לא קורס שחייבים לעבור לפי הסדר. היא יותר כמו ספרייה, בית ספר או אוניברסיטה של תכנים להתפתחות בכמה נושאים. הסינון עוזר לך למצוא שיעורים לפי נושא ולבחור את מה שהכי מתאים לך עכשיו. תמיד אפשר להתייעץ עם יובל או בקבוצה.')}
       </span>

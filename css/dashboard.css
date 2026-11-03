@@ -3675,12 +3675,25 @@ textarea.editable-input { display: block; resize: vertical; }
 .topics-filter-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
+  padding: 14px 22px;
+  border: 1.5px solid var(--border-gold);
+  border-radius: 16px;
+  background: var(--obsidian-raised);
+  box-shadow: inset 0 1px 0 rgba(214, 236, 255, 0.12), 0 6px 18px rgba(0, 0, 0, 0.4);
   cursor: pointer;
-  font-size: 13px;
-  color: var(--text-muted);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-main);
   user-select: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
+.topics-filter-toggle:hover { border-color: rgba(130, 195, 255, 0.65); }
+.topics-filter-toggle:active { transform: scale(0.98); }
+/* The "(לחץ עליי)" cue beside the big filter label -- smaller than the
+   label so the label still leads, but bright enough to read as an
+   invitation to tap. */
+.topics-filter-hint { font-size: 15px; font-weight: 400; color: var(--crystal-ice); }
 /* Native checkbox stays for real keyboard/click semantics, just visually
    replaced by the small diamond below (sibling selector, no JS needed for
    the visual state itself). */
@@ -3696,11 +3709,12 @@ textarea.editable-input { display: block; resize: vertical; }
    nav-level piece of chrome. */
 .topics-filter-diamond {
   position: relative;
-  width: 13px;
-  height: 13px;
+  width: 22px;
+  height: 22px;
+  margin: 0 5px;
   flex-shrink: 0;
-  border-radius: 3px;
-  border: 1px solid var(--border-gold-soft);
+  border-radius: 5px;
+  border: 1.5px solid var(--border-gold-soft);
   background: rgba(255, 255, 255, 0.02);
   transform: rotate(45deg);
   transition: border-color 0.25s ease, background 0.3s ease, box-shadow 0.3s ease;
