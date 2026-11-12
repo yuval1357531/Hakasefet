@@ -20,6 +20,8 @@ const TRACKS = [
   { file: 'assets/music/norse-runes.m4a', symbol: '🌌', name: 'Norse Runes' },
   { file: 'assets/music/ancient-door-breath.m4a', symbol: '⚔️', name: 'Ancient Door Breath' },
   { file: 'assets/music/ashen-temple.m4a', symbol: '✊', name: 'Ashen Temple Threshold' },
+  // "Glorious Morning" by Waterflame (Newgrounds, newgrounds.com/audio/listen/91476)
+  { file: 'assets/music/glorious-morning.m4a', symbol: '🤺', name: 'Glorious Morning - Waterflame' },
 ];
 
 // Files are normalised to -20 LUFS (a calm background level already), so the
