@@ -21,6 +21,9 @@ if (session) init(session);
 // Counts today's visit toward the login streak (once per day, decided by
 // the server) even when the student lands on a deep link, not the personal page.
 if (session && session.role !== 'admin') streakStore.touch();
+// Ambient background music (see ambientMusic.js). Loaded dynamically so a
+// problem with it can never stop the dashboard itself from starting.
+if (session) import('./ambientMusic.js').then((m) => m.initAmbientMusic(session)).catch(() => {});
 
 // Single-active-session enforcement (see auth.js) -- every signed-in
 // account, students included: a still-open tab keeps its sessionStorage
