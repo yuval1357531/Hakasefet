@@ -22,8 +22,11 @@ const TRACKS = [
   { file: 'assets/music/ashen-temple.m4a', symbol: '✊', name: 'Ashen Temple Threshold' },
 ];
 
-const LEVEL = 0.5; // files are normalised to -20 LUFS; this keeps them a quiet background
-const FADE_MS = 1600;
+// Files are normalised to -20 LUFS (a calm background level already), so the
+// music fades up to full gain and the phone's own volume is what sets the loudness.
+const LEVEL = 1;
+const INTRO_FADE_MS = 8000; // very slow, gentle fade-in when the music first starts
+const FADE_MS = 2500; // coming back from a lesson / unmute
 const CROSS_MS = 3000;
 const TEASER_DELAY_MS = 7000;
 
@@ -119,13 +122,39 @@ export function initAmbientMusic(session) {
     }
   }
 
+  // Eased (smoothstep, weighted to start slowly) rather than a straight
+  // line, so a fade-in begins almost inaudibly and blooms gently.
   function ramp(slot, to, ms) {
     try {
+      const g = slot.gain.gain;
       const t = ctx.currentTime;
-      slot.gain.gain.cancelScheduledValues(t);
-      slot.gain.gain.setValueAtTime(slot.gain.gain.value, t);
-      slot.gain.gain.linearRampToValueAtTime(to, t + ms / 1000);
+      const from = g.value;
+      g.cancelScheduledValues(t);
+      if (ms <= 0 || from === to) { g.setValueAtTime(to, t); return; }
+      const N = 64;
+      const curve = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        const x = i / (N - 1);
+        curve[i] = from + (to - from) * Math.pow(x * x * (3 - 2 * x), 1.5);
+      }
+      g.setValueCurveAtTime(curve, t, ms / 1000);
     } catch (e) { /* ignore */ }
+  }
+
+  // The element can report "playing" while the audio context is still
+  // suspended by the browser (autoplay policy) -- in that case nothing is
+  // audible, so treat it as blocked and wait for the first tap instead.
+  async function fadeInWhenAudible(slot, ms) {
+    try {
+      if (ctx.state !== 'running') await Promise.race([ctx.resume().catch(() => {}), wait(400)]);
+    } catch (e) { /* ignore */ }
+    if (ctx.state !== 'running') {
+      slot.el.pause();
+      playing = false;
+      armUnlock();
+      return;
+    }
+    if (playing && slot === slots[cur]) ramp(slot, LEVEL, ms);
   }
 
   function retireSlot(slot, ms) {
@@ -158,10 +187,9 @@ export function initAmbientMusic(session) {
     playing = true;
     const p = slot.el.play();
     if (p && p.then) {
-      p.then(() => { if (slot === slots[cur]) ramp(slot, LEVEL, ms); })
-        .catch(() => { playing = false; armUnlock(); });
+      p.then(() => fadeInWhenAudible(slot, ms)).catch(() => { playing = false; armUnlock(); });
     } else {
-      ramp(slot, LEVEL, ms);
+      fadeInWhenAudible(slot, ms);
     }
     if (old) retireSlot(old, ms);
     scheduleWarmNext();
@@ -181,9 +209,8 @@ export function initAmbientMusic(session) {
     clearTimeout(slot.timer);
     playing = true;
     const p = slot.el.play();
-    const up = () => { if (playing && slot === slots[cur]) ramp(slot, LEVEL, ms); };
-    if (p && p.then) p.then(up).catch(() => { playing = false; armUnlock(); });
-    else up();
+    if (p && p.then) p.then(() => fadeInWhenAudible(slot, ms)).catch(() => { playing = false; armUnlock(); });
+    else fadeInWhenAudible(slot, ms);
   }
 
   // Auto-advance with a crossfade a few seconds before the track ends.
@@ -234,18 +261,31 @@ export function initAmbientMusic(session) {
   function unlock() {
     started = true;
     disarmUnlock();
-    if (mode === 'on' && !inLesson() && !document.hidden) playTrack(trackIdx, FADE_MS);
+    if (mode === 'on' && !inLesson() && !document.hidden) playTrack(trackIdx, INTRO_FADE_MS);
   }
+  const GESTURES = ['click', 'touchend', 'pointerup', 'keydown'];
   function armUnlock() {
-    document.addEventListener('click', onFirstGesture, true);
-    document.addEventListener('touchend', onFirstGesture, true);
+    GESTURES.forEach((g) => document.addEventListener(g, onFirstGesture, true));
     started = false;
   }
   function disarmUnlock() {
-    document.removeEventListener('click', onFirstGesture, true);
-    document.removeEventListener('touchend', onFirstGesture, true);
+    GESTURES.forEach((g) => document.removeEventListener(g, onFirstGesture, true));
   }
   armUnlock();
+
+  // Tries to start by itself right away. Browsers only allow that when the
+  // visitor has already interacted with the page / site (desktop Chrome often
+  // does after repeat visits); otherwise this stays silent and the first tap
+  // anywhere starts it instead (armed above). Either way it fades in slowly.
+  function tryAutoplay() {
+    const ua = navigator.userActivation;
+    if (!ua || !ua.hasBeenActive) return;
+    if (mode !== 'on' || inLesson() || document.hidden) return;
+    started = true;
+    disarmUnlock();
+    playTrack(trackIdx, INTRO_FADE_MS);
+  }
+  tryAutoplay();
 
   // ---- buttons ----
 
