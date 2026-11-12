@@ -321,8 +321,10 @@ export function notebookEntriesHTML(ownEntries, personalFocusItems) {
 
 // Heading + a thin divider start the journal proper (item 13); the date
 // line sits on its own right after that (right-aligned, "בצורה טבעית"),
-// and "צידה לדרך + הכלים שלי" gets its own centered row directly above the
-// compose/textarea it belongs to -- not stacked over the date. Its
+// and "צידה לדרך + הכלים שלי" is a yellow note peeking out of a little
+// slit (a hole in the page) in the heading row, over the notebook's top edge (see
+// .trail-note / .trail-pocket in dashboard.css; wireTrailNote slides it out
+// of the pocket before the popup opens). Its
 // id/wiring (#trailToolsOpenBtn, wireStudentHandlers) are untouched, so it
 // still works no matter where in the DOM it renders.
 function notebookHTML(ownEntries, personalFocusItems) {
@@ -333,15 +335,17 @@ function notebookHTML(ownEntries, personalFocusItems) {
           <h3 class="personal-block-title notebook-block-title">יומן אישי</h3>
           ${helpTipHTML('journal', 'זה המקום שלך לתעד תובנות, מחשבות, חוויות והבנות שעולות מהדרך. זה לא צריך להיות מושלם — המטרה היא לתפוס את עצמך בזמן אמת ולעקוב אחרי ההתפתחות שלך. היומן נשמר באזור האישי שלך; יובל יכול לראות אותו לצורך ליווי והתפתחות, תוך שמירה על דיסקרטיות מלאה.')}
         </span>
-      </div>
-      <div class="personal-notebook-divider" aria-hidden="true"></div>
-      <div class="notebook-topline"><span class="notebook-date">${todayLabel()}</span></div>
-      <div class="personal-notebook-subrow">
-        <span class="personal-help-row">
-          <button type="button" class="personal-trail-btn" id="trailToolsOpenBtn">צידה לדרך + הכלים שלי</button>
+        <span class="personal-help-row trail-note-wrap">
+          <span class="trail-pocket">
+            <span class="trail-pocket-back" aria-hidden="true"></span>
+            <span class="trail-pocket-clip"><button type="button" class="personal-trail-btn trail-note" id="trailToolsOpenBtn"><span>צידה לדרך</span><span>+ הכלים שלי</span></button></span>
+            <span class="trail-pocket-front" aria-hidden="true"></span>
+          </span>
           ${helpTipHTML('trail-tools', 'כאן נשמרים כלים, תרגולים ותובנות שבחרת לשמור מתוך השיעורים. זה המקום לחזור אליו כשאתה רוצה להוריד לקרקע את מה שלמדת ולהשתמש בכלים שיובל תמצת לך. חשוב: הכלים והתבניות הם עזר, לא תחליף לאינטגרציה אמיתית בחיים. המטרה שלהם היא לעזור לך לחיות את החומר — עד שלא תצטרך להישען עליהם.')}
         </span>
       </div>
+      <div class="personal-notebook-divider" aria-hidden="true"></div>
+      <div class="notebook-topline"><span class="notebook-date">${todayLabel()}</span></div>
       <div class="notebook-compose">
         <textarea id="notebookInput" class="notebook-textarea" rows="2" placeholder="כתוב כאן תובנה, מחשבה, חוויה או הערה..."></textarea>
         <button type="button" class="notebook-save-btn" id="notebookSaveBtn" aria-label="שמירה" title="שמירה">✓</button>
@@ -871,6 +875,7 @@ export async function mountPersonalPage(container, session) {
       <div class="admin-preview-banner">תצוגה מקדימה — כך נראה האזור האישי אצל משתמש רגיל (ללא נתונים אמיתיים)</div>
       ${html}`;
     wireViewToggle();
+    wireTrailNote();
     wireStudentPopups();
     wireTrailExpand(container);
     wireWheelDrawer({ preview: true });
@@ -989,6 +994,7 @@ export async function mountPersonalPage(container, session) {
     } else {
       const { html, resumeLessonId } = await studentPageHTML(session, { boardModalOpen, trailModalOpen, wheelDrawerOpen });
       container.innerHTML = html;
+      wireTrailNote();
       wireStudentHandlers(resumeLessonId);
       wireTrailExpand(container);
       wireWheelDrawer();
@@ -1147,6 +1153,31 @@ export async function mountPersonalPage(container, session) {
     }
     drawer.addEventListener('pointerup', endDrag);
     drawer.addEventListener('pointercancel', endDrag);
+  }
+
+  // The post-it "צידה לדרך + הכלים שלי": on tap it first slides out of the
+  // notebook, then the popup opens. A capture listener on the button itself
+  // holds the first click back, then re-fires it once the animation is done --
+  // the existing open handlers (wired AFTER this) run unchanged. Must be wired
+  // before wireStudentPopups / wireStudentHandlers.
+  function wireTrailNote() {
+    const note = container.querySelector('#trailToolsOpenBtn');
+    if (!note) return;
+    note.addEventListener('click', (e) => {
+      if (note.dataset.pulled === '1') {
+        delete note.dataset.pulled;
+        return;
+      }
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      e.stopImmediatePropagation();
+      if (note.classList.contains('is-pulling')) return;
+      note.classList.add('is-pulling');
+      setTimeout(() => {
+        note.classList.remove('is-pulling');
+        note.dataset.pulled = '1';
+        note.click();
+      }, 380);
+    }, true);
   }
 
   // Pure open/close for the two student popups -- used by the master's
