@@ -6,6 +6,12 @@
       "runtimeExecutable": "powershell",
       "runtimeArgs": ["-ExecutionPolicy", "Bypass", "-NoProfile", "-File", "serve.ps1"],
       "port": 8080
+    },
+    {
+      "name": "flame-render",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tools/flame/render-server.cjs", "C:/Users/User-W10/AppData/Local/Temp/claude/05686fac4d8ab38c/31c6767c-c72d-4790-81f0-55680a20b9c4/scratchpad/flame-out", "8091"],
+      "port": 8091
     }
   ]
 }

@@ -46,13 +46,74 @@ function daysWord(n) {
   return n === 1 ? 'יום' : 'ימים';
 }
 
+// --- the flame --------------------------------------------------------------
+// Same flame silhouette as ICONS.flame, filled in three nested layers (outer /
+// mid / core) so it can flicker. It "grows" with the streak (continuous scale
+// up to day 60) and changes form at fixed stages: 0 ember, 1-4 spark, 5-9
+// blue, 10-29 big blue with rising sparks, 30-59 gold, 60+ royal white-blue.
+const FLAME_PATH = 'M12 2c1 4-3 5.5-3 9.5a3.5 3.5 0 0 0 7 0c0-1.2-.4-2-1-3 2.2 1 4 3.4 4 6.2A7 7 0 0 1 5 14.7C5 9.5 10 8 12 2z';
+
+export function flameStage(n) {
+  return n >= 60 ? 5 : n >= 30 ? 4 : n >= 10 ? 3 : n >= 5 ? 2 : n >= 1 ? 1 : 0;
+}
+
+export function flameHTML(streak, extraClass = '') {
+  const stage = flameStage(streak);
+  const grow = streak <= 0 ? 0.5 : streak >= 60 ? 1.08 : 0.62 + (0.38 * streak) / 60;
+  const sparkCount = stage >= 5 ? 5 : stage >= 3 ? 3 : 0;
+  const sparks = Array.from({ length: sparkCount }, (_, i) => `<i class="flame-spark" style="--i:${i}"></i>`).join('');
+  return `<span class="flame flame-s${stage} ${extraClass}" style="--grow:${grow.toFixed(3)}" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="flame-outer" d="${FLAME_PATH}"/><path class="flame-mid" d="${FLAME_PATH}"/><path class="flame-core" d="${FLAME_PATH}"/></svg>${sparks}</span>`;
+}
+
+// --- the 3D fire -------------------------------------------------------------
+// Pre-rendered 12s loops (tools/flame -> assets/flame/flame-N.mp4), one per
+// stage of the streak. A streak of N days shows the highest clip <= N. The
+// clips are fire on pure black, screen-blended on the page (see .fire3d).
+const FIRE_DAYS = [0, 1, 2, 3, 5, 7, 10, 12, 15, 17, 20, 22, 25, 27, 30, 32, 35, 37, 40, 42, 45, 47, 50, 52, 55, 57, 60];
+
+export function fireHTML(streak, extraClass = '') {
+  let day = 0;
+  for (const d of FIRE_DAYS) if (d <= streak) day = d;
+  const still = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return `<span class="fire3d ${extraClass}" data-fire-day="${day}" aria-hidden="true"><video src="assets/flame/flame-${day}.mp4" poster="assets/flame/flame-${day}.webp" ${still ? '' : 'autoplay '}loop muted playsinline preload="metadata"></video></span>`;
+}
+
+// Videos inserted through innerHTML don't always start on their own.
+export function wakeFires(root) {
+  root.querySelectorAll('.fire3d video[autoplay]').forEach((v) => {
+    v.muted = true;
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {});
+  });
+}
+
+// Tap on the big flame: a quick pulse plus a small burst of sparks.
+function pokeFlame(host) {
+  const flame = host.querySelector('.fire3d, .flame');
+  if (!flame) return;
+  flame.classList.remove('is-poked');
+  void flame.offsetWidth;
+  flame.classList.add('is-poked');
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (let i = 0; i < 8; i += 1) {
+    const p = document.createElement('i');
+    p.className = 'flame-burst';
+    const angle = (-90 + (Math.random() - 0.5) * 150) * (Math.PI / 180);
+    const dist = 26 + Math.random() * 26;
+    p.style.setProperty('--bx', `${(Math.cos(angle) * dist).toFixed(1)}px`);
+    p.style.setProperty('--by', `${(Math.sin(angle) * dist).toFixed(1)}px`);
+    p.addEventListener('animationend', () => p.remove());
+    host.appendChild(p);
+  }
+}
+
 // --- student button + popup ------------------------------------------------
 
 export function streakButtonHTML(state) {
   const n = state ? state.currentStreak : 0;
   return `
-    <button type="button" class="streak-btn${n > 0 ? ' is-lit' : ''}" id="streakOpenBtn" aria-haspopup="dialog"${state ? '' : ' hidden'}>
-      <span class="streak-btn-flame">${ICONS.flame}</span>
+    <button type="button" class="streak-btn streak-stage${n > 0 ? ' is-lit' : ''}" id="streakOpenBtn" aria-haspopup="dialog"${state ? '' : ' hidden'}>
+      <span class="streak-btn-flame">${state ? fireHTML(n) : ''}</span>
       <span class="streak-btn-text">הרצף שלך<span class="streak-btn-count">${n}</span></span>
     </button>`;
 }
@@ -127,6 +188,7 @@ export function streakModalBodyHTML({ state, rewards, claimedIds, canClaim }) {
     : '';
   return `
     <div class="streak-hero">
+      <button type="button" class="streak-hero-flame" id="streakFlameBtn" aria-label="להבת הרצף">${fireHTML(streak)}</button>
       <span class="streak-hero-number">${streak}</span>
       <div class="streak-hero-text">
         <span class="streak-hero-label">${streak === 1 ? 'יום ברצף' : 'ימים ברצף'}</span>
@@ -177,9 +239,15 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
   const btnCount = openBtn.querySelector('.streak-btn-count');
   if (btnCount) btnCount.textContent = String(state.currentStreak);
   openBtn.classList.toggle('is-lit', state.currentStreak > 0);
+  const btnFlame = openBtn.querySelector('.streak-btn-flame');
+  if (btnFlame) btnFlame.innerHTML = fireHTML(state.currentStreak);
+  wakeFires(openBtn);
 
   function paint() {
     body.innerHTML = streakModalBodyHTML({ state, rewards, claimedIds, canClaim: !isDemo });
+    const flameBtn = body.querySelector('#streakFlameBtn');
+    if (flameBtn) flameBtn.addEventListener('click', () => pokeFlame(flameBtn));
+    wakeFires(body);
     body.querySelectorAll('.road-claim-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
         btn.disabled = true;

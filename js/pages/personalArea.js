@@ -42,6 +42,8 @@ import { auth } from '../auth.js';
 import { streakStore } from '../data/streakStore.js';
 import {
   streakButtonHTML,
+  fireHTML,
+  wakeFires,
   streakModalHTML,
   mountStreak,
   streakRewardsManagerHTML,
@@ -776,6 +778,7 @@ function masterPageHTML(
         <h1 class="gold-title placeholder-title">שלום ג'אוריוס האגדי</h1>
         <img src="assets/jaurius-mask-logo-240.png" alt="" class="personal-page-icon">
       </div>
+      <div class="master-fire">${fireHTML(60)}</div>
       <div class="personal-page-actions">
         <a href="#/admin" class="admin-manage-link">ניהול מערכת ומשתמשים</a>
       </div>
@@ -976,6 +979,7 @@ export async function mountPersonalPage(container, session) {
         openAccordions.has('streak-rewards')
       ) + wheelDrawerHTML(wheelDrawerOpen);
       wireViewToggle();
+      wakeFires(container);
       wireStreakRewardsManager(container, {
         rewards: streakRewardsCache,
         rerender: render,

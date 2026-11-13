@@ -4293,7 +4293,7 @@ textarea.editable-input { display: block; resize: vertical; }
 .streak-btn:hover { border-color: rgba(130, 195, 255, 0.65); color: var(--white-glow, #fff); }
 .streak-btn-flame { display: inline-flex; width: 16px; height: 16px; color: var(--text-dim); }
 .streak-btn-flame svg { width: 100%; height: 100%; }
-.streak-btn.is-lit .streak-btn-flame { color: var(--crystal-cyan); filter: drop-shadow(0 0 6px rgba(70, 213, 255, 0.7)); }
+.streak-btn.is-lit .streak-btn-flame { color: var(--crystal-cyan); }
 .streak-btn-count {
   display: inline-block;
   min-width: 22px;
@@ -4849,4 +4849,255 @@ textarea.editable-input { display: block; resize: vertical; }
   padding: 30px 108px 0 10px;
   line-height: 35px;
   text-align: right;
+}
+
+/* ============================================================
+   להבת הרצף -- flameHTML() in js/streak.js. One silhouette in three nested
+   layers; --grow scales it with the streak, .flame-s0..s5 pick the colours
+   (0 ember, 1-4 spark, 5-9 blue, 10-29 big blue + sparks, 30-59 gold,
+   60+ royal white-blue). Small version on the button, big tappable one in
+   the popup hero.
+   ============================================================ */
+.flame {
+  --f1: #1d4e9e;
+  --f2: #3b9bff;
+  --f3: #bfe6ff;
+  --fglow: 70, 190, 255;
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scale(var(--grow, 1));
+  transform-origin: 50% 100%;
+}
+.flame svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 0 5px rgba(var(--fglow), 0.65));
+}
+.flame path { transform-box: fill-box; transform-origin: 50% 100%; }
+.flame-outer { fill: var(--f1); animation: flame-sway 2.6s ease-in-out infinite; }
+.flame-mid { fill: var(--f2); transform: scale(0.7); animation: flame-flick 1.7s ease-in-out infinite; }
+.flame-core { fill: var(--f3); transform: scale(0.4); animation: flame-flick-core 1.2s 0.3s ease-in-out infinite; }
+@keyframes flame-sway {
+  0%, 100% { transform: scale(1, 1) skewX(0deg); }
+  50% { transform: scale(0.97, 1.05) skewX(-2.5deg); }
+}
+@keyframes flame-flick {
+  0%, 100% { transform: scale(0.7, 0.7); }
+  45% { transform: scale(0.66, 0.77); }
+  75% { transform: scale(0.72, 0.68); }
+}
+@keyframes flame-flick-core {
+  0%, 100% { transform: scale(0.4, 0.4); }
+  50% { transform: scale(0.36, 0.47); }
+}
+
+.flame-s0 { --f1: #2a3548; --f2: #36445c; --f3: #46556f; --fglow: 0, 0, 0; }
+.flame-s0 svg { filter: none; }
+.flame-s0 path { animation: none; }
+.flame-s2 { --f2: #46d5ff; --f3: #eaf8ff; --fglow: 70, 213, 255; }
+.flame-s3 { --f1: #2a63c4; --f2: #46d5ff; --f3: #f2fbff; --fglow: 90, 215, 255; }
+.flame-s4 { --f1: #b8560a; --f2: #ffb52e; --f3: #fff1b8; --fglow: 255, 190, 60; }
+.flame-s5 { --f1: #5aa7ff; --f2: #dff2ff; --f3: #ffffff; --fglow: 190, 228, 255; }
+.flame-s3 svg, .flame-s4 svg, .flame-s5 svg { filter: drop-shadow(0 0 8px rgba(var(--fglow), 0.8)); }
+.flame-s5::before {
+  content: '';
+  position: absolute;
+  inset: -22% -30% -4%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(190, 228, 255, 0.32), rgba(90, 167, 255, 0.12) 60%, transparent 100%);
+  animation: flame-halo 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes flame-halo {
+  0%, 100% { opacity: 0.6; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+.flame-spark {
+  position: absolute;
+  left: 50%;
+  bottom: 52%;
+  width: 3px;
+  height: 3px;
+  margin-left: calc((var(--i) - 2) * 5px);
+  border-radius: 50%;
+  background: var(--f3);
+  box-shadow: 0 0 6px rgba(var(--fglow), 0.9);
+  opacity: 0;
+  animation: flame-spark 2.8s ease-out infinite;
+  animation-delay: calc(var(--i) * 0.55s);
+}
+@keyframes flame-spark {
+  0% { opacity: 0; transform: translate(0, 0); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc((var(--i) - 2) * 4px), -38px); }
+}
+
+/* Small one on the streak button: fixed size, no sparks. */
+.flame-mini { transform: none; }
+.flame-mini .flame-spark, .flame-mini::before { display: none; }
+.flame-mini svg { filter: drop-shadow(0 0 4px rgba(var(--fglow), 0.7)); }
+.flame-mini.flame-s0 svg { filter: none; }
+
+/* Big one in the popup hero: a button so it can be tapped. */
+.streak-hero-flame {
+  flex: none;
+  width: 60px;
+  height: 64px;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+.streak-hero-flame .flame { animation: flame-ignite 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.15) both; }
+@keyframes flame-ignite {
+  from { opacity: 0; transform: scale(calc(var(--grow, 1) * 0.3)); }
+  to { opacity: 1; transform: scale(var(--grow, 1)); }
+}
+.flame.is-poked svg { animation: flame-poke 0.5s ease-out; }
+@keyframes flame-poke {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.2, 1.28); }
+  100% { transform: scale(1); }
+}
+.flame-burst {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #eaf8ff;
+  box-shadow: 0 0 8px rgba(120, 200, 255, 0.95);
+  pointer-events: none;
+  animation: flame-burst 0.8s ease-out forwards;
+}
+.flame-s4 ~ .flame-burst, .streak-hero-flame:has(.flame-s4) .flame-burst { background: #fff1b8; box-shadow: 0 0 8px rgba(255, 190, 60, 0.95); }
+@keyframes flame-burst {
+  from { opacity: 1; transform: translate(0, 0) scale(1); }
+  to { opacity: 0; transform: translate(var(--bx), var(--by)) scale(0.3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flame, .flame svg, .flame path, .flame::before, .flame-spark { animation: none !important; }
+  .flame-spark, .flame-burst { display: none; }
+}
+
+/* ============================================================
+   The 3D fire (fireHTML in js/streak.js): a pre-rendered loop of fire on
+   pure black, screen-blended so only the light shows, standing on a soft
+   contact shadow. --fire sets its width.
+   ============================================================ */
+.fire3d { position: relative; display: block; width: var(--fire, 150px); aspect-ratio: 4 / 5; }
+.fire3d::before {
+  content: '';
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: 4%;
+  height: 15%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.35) 55%, transparent);
+}
+.fire3d video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 52%, #000 62%, transparent 100%);
+  mask-image: radial-gradient(ellipse 50% 50% at 50% 52%, #000 62%, transparent 100%);
+}
+.fire3d.is-poked video { animation: flame-poke 0.5s ease-out; transform-origin: 50% 90%; }
+
+/* Student page: the board button is a small quiet line under the greeting,
+   the streak (with its fire) is the centrepiece, and the journal sits well
+   below both. */
+.personal-topbar { flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 64px; }
+.personal-topbar .personal-board-btn { padding: 5px 13px; font-size: 11px; }
+.streak-btn.streak-stage {
+  align-self: center;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 30px 16px;
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  transition: transform 0.25s ease, border-color 0.25s ease;
+}
+.streak-btn.streak-stage:hover { transform: translateY(-2px); }
+.streak-stage .streak-btn-flame { width: auto; height: auto; --fire: 190px; margin-top: -46px; margin-bottom: -10px; }
+.streak-hero-flame { width: auto; height: auto; margin: 0; --fire: 120px; }
+.streak-hero-flame .fire3d { animation: flame-ignite 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.15) both; --grow: 1; transform-origin: 50% 90%; }
+.streak-hero-flame .flame-burst { top: 55%; }
+
+/* Master page: the master's own fire (always the day-60 one). */
+.master-fire { display: flex; justify-content: center; --fire: 180px; margin: -6px 0 2px; }
+@media (max-width: 640px) {
+  .personal-topbar { margin-bottom: 48px; }
+  .streak-stage .streak-btn-flame { --fire: 160px; }
+  .master-fire { --fire: 150px; }
+}
+
+/* The streak block as an award plaque (creator-award style, in the vault's
+   black and blue): a thick bevelled stone/metal frame with rounded-square
+   corners, and a recessed dark panel inside where the fire stands. */
+.streak-btn.streak-stage {
+  padding: 16px;
+  border: 0;
+  border-radius: 26px;
+  background:
+    linear-gradient(145deg, rgba(190, 225, 255, 0.20) 0%, rgba(190, 225, 255, 0) 30%),
+    linear-gradient(325deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 38%),
+    repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.022) 0 2px, rgba(0, 0, 0, 0.03) 2px 5px),
+    linear-gradient(160deg, #24344f 0%, #131d30 42%, #0a111e 72%, #162338 100%);
+  box-shadow:
+    0 22px 44px rgba(0, 0, 0, 0.6),
+    0 3px 0 #05080f,
+    inset 0 1.5px 0 rgba(214, 236, 255, 0.34),
+    inset 1.5px 0 0 rgba(214, 236, 255, 0.12),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.6),
+    inset -1.5px 0 0 rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(80, 140, 220, 0.35);
+  text-shadow: none;
+}
+.streak-btn.streak-stage::before {
+  /* the recessed inner panel */
+  content: '';
+  position: absolute;
+  inset: 13px;
+  border-radius: 16px;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 62%, rgba(40, 110, 220, 0.16), transparent 70%),
+    linear-gradient(180deg, #060a12 0%, #0a1220 60%, #070c16 100%);
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.7),
+    0 1px 0 rgba(200, 228, 255, 0.22),
+    0 0 0 1px rgba(90, 160, 240, 0.18);
+}
+.streak-btn.streak-stage > * { position: relative; }
+.streak-btn.streak-stage .streak-btn-text {
+  margin: 0 14px 10px;
+  letter-spacing: 0.02em;
+  color: var(--crystal-ice);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8), 0 0 12px rgba(120, 195, 255, 0.35);
+}
+.streak-btn.streak-stage:hover {
+  box-shadow:
+    0 26px 50px rgba(0, 0, 0, 0.62),
+    0 3px 0 #05080f,
+    inset 0 1.5px 0 rgba(214, 236, 255, 0.42),
+    inset 1.5px 0 0 rgba(214, 236, 255, 0.16),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.6),
+    inset -1.5px 0 0 rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(120, 185, 255, 0.6),
+    0 0 26px rgba(70, 150, 255, 0.22);
 }

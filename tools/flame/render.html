@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>flame render</title>
+<style>
+  html, body { margin: 0; background: #000; color: #9ab; font: 12px/1.4 monospace; }
+  #wrap { display: flex; gap: 16px; padding: 12px; align-items: flex-start; }
+  canvas { background: #000; image-rendering: auto; }
+  #log { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas><div id="log"></div></div>
+
+<!-- ======================= SCENE (volumetric flame) ======================= -->
+<script id="fs-scene" type="x-shader/x-fragment">#version 300 es
+precision highp float;
+precision highp int;
+uniform vec2 uRes;
+uniform float uPh;      // loop phase 0..1 (the whole clip is exactly periodic in it)
+uniform int uSteps;
+uniform float uSize, uTong, uTwist, uCore, uTurb, uBreath, uFil, uRing, uCoal, uRain, uMix, uMixH, uGateW;
+uniform int uNT, uEmb, uOrb, uGateN;
+uniform vec3 uA[6];   // palette A: bodyLo, bodyHi, shellLo, shellHi, tip, innerHot
+uniform vec3 uB[6];   // palette B (blended in by uMix, biased along the height by uMixH)
+out vec4 outCol;
+
+const float TAU = 6.28318530718;
+const float T = 12.0;   // loop length in seconds
+
+// ---------- integer hash + value noise that TILES along Y ----------
+// The fire scrolls upward; every octave scrolls by an integer number of its
+// own Y periods over the loop, which is what makes the clip seamless.
+float h3(ivec3 p) {
+  uint n = uint(p.x) * 1597334673u ^ uint(p.y) * 3812015801u ^ uint(p.z) * 2798796415u;
+  n = (n ^ (n >> 15)) * 2246822519u; n ^= n >> 13; n *= 3266489917u; n ^= n >> 16;
+  return float(n) * (1.0 / 4294967295.0);
+}
+int wrapi(int a, int p) { int m = a % p; return m < 0 ? m + p : m; }
+float vn(vec3 x, int py) {
+  vec3 fl = floor(x); ivec3 i = ivec3(fl); vec3 f = x - fl;
+  vec3 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  int y0 = wrapi(i.y, py), y1 = wrapi(i.y + 1, py);
+  float a = h3(ivec3(i.x, y0, i.z)),     b = h3(ivec3(i.x + 1, y0, i.z));
+  float c = h3(ivec3(i.x, y1, i.z)),     d = h3(ivec3(i.x + 1, y1, i.z));
+  float e = h3(ivec3(i.x, y0, i.z + 1)), g = h3(ivec3(i.x + 1, y0, i.z + 1));
+  float k = h3(ivec3(i.x, y1, i.z + 1)), l = h3(ivec3(i.x + 1, y1, i.z + 1));
+  return mix(mix(mix(a, b, u.x), mix(c, d, u.x), u.y), mix(mix(e, g, u.x), mix(k, l, u.x), u.y), u.z);
+}
+// fbm: `sp` = upward speed (world units / second) of the lowest octave.
+float fbm(vec3 p, float f, float sp, int oct) {
+  float s = 0.0, a = 0.5, norm = 0.0;
+  mat2 R = mat2(0.8, -0.6, 0.6, 0.8);
+  for (int i = 0; i < oct; i++) {
+    float v = sp * (1.0 + 0.24 * float(i));
+    int P = max(int(floor(v * f * T + 0.5)), 1);
+    vec3 q = p * f;
+    q.y -= float(P) * uPh;
+    s += a * vn(q + float(i) * vec3(17.31, 3.7, 9.13), P);
+    norm += a;
+    a *= 0.5; f *= 2.0; p.xz = R * p.xz;
+  }
+  return s / norm;
+}
+
+vec3 pal(int i, float h) { return mix(uA[i], uB[i], clamp(uMix + uMixH * (h - 0.5), 0.0, 1.0)); }
+// Early days: the fire only flashes. uGateN pulses per loop, each uGateW wide.
+float gate() {
+  if (uGateN == 0) return 1.0;
+  float e = 0.0;
+  for (int k = 0; k < 8; k++) {
+    if (k >= uGateN) break;
+    float c = (float(k) + 0.25 + 0.5 * fract(float(k) * 0.618)) / float(uGateN);
+    float dx = abs(fract(uPh - c + 0.5) - 0.5);
+    e = max(e, exp(-dx * dx / (uGateW * uGateW)));
+  }
+  return e;
+}
+float breath() {
+  return 1.0 + uBreath * 0.040 * sin(TAU * uPh * 3.0) + 0.028 * sin(TAU * uPh * 7.0 + 1.3) + 0.016 * sin(TAU * uPh * 13.0 + 4.0);
+}
+float flicker() {
+  return 1.0 + 0.07 * sin(TAU * uPh * 5.0 + 0.4) + 0.05 * sin(TAU * uPh * 11.0 + 2.1) + 0.035 * sin(TAU * uPh * 23.0 + 5.0);
+}
+
+const float FH = 2.05;  // flame height
+
+float smax(float a, float b, float k) {
+  float h = max(k - abs(a - b), 0.0) / k;
+  return max(a, b) + h * h * k * 0.25;
+}
+
+// Signed "insideness" of the fire: a bulb at the base and three tongues of
+// different heights wound around the axis into a slow vortex (one full turn
+// per loop), eaten by upward-scrolling noise that grows toward the tips.
+// returns (d, h): d > 0 inside the fire.
+vec3 flame(vec3 p) {
+  p /= uSize;
+  float H = FH * breath() * (0.55 + 0.45 * gate());
+  float h = p.y / H;
+  if (h < -0.03 || h > 1.32) return vec3(-1.0, h, 0.0);
+  if (dot(p.xz, p.xz) > 1.0) return vec3(-1.0, h, 0.0);
+  float hc = clamp(h, 0.0, 1.0);
+
+  float wx = vn(vec3(p.x * 0.9 + 3.1, p.y * 0.9 - 9.0 * uPh, p.z * 0.9 + 7.7), 9) - 0.5;
+  float wz = vn(vec3(p.x * 0.9 - 5.2, p.y * 0.9 - 9.0 * uPh, p.z * 0.9 + 1.9), 9) - 0.5;
+  p.xz += vec2(wx, wz) * (0.05 + 0.55 * h * h);
+
+  float rot = TAU * uPh;
+  float S = 3.4;
+  float wb = 0.40 * smoothstep(-0.03, 0.10, h) * pow(max(1.0 - h / 0.52, 0.0), 1.1);
+  float best = (wb - length(p.xz)) * S;
+  for (int i = 0; i < 3; i++) {
+    if (i >= uNT) break;
+    float Hi = i == 0 ? 1.0 : (i == 1 ? 0.84 : 0.70);
+    float hh = h / Hi;
+    float a = float(i) * TAU / float(uNT) + uTwist * h - rot;
+    float ro_ = uTong * 0.20 * smoothstep(0.03, 0.40, h) * (1.0 - 0.35 * smoothstep(0.55, 1.0, hh));
+    vec2 c = ro_ * vec2(cos(a), sin(a));
+    float w = 0.20 * pow(max(1.0 - hh, 0.0), 1.25) * smoothstep(0.0, 0.14, h);
+    best = smax(best, (w - length(p.xz - c)) * S, 0.14);
+  }
+  float k = mix(0.34, 1.02, hc) * 1.7 * uTurb;
+  if (best < -0.58 * k) return vec3(-1.0, h, 0.0);
+  // fire detail is stretched along the direction it rises
+  vec3 pn = vec3(p.x, p.y * 0.42, p.z);
+  float n = fbm(pn, 2.7, 0.52, 5);
+  // fine bright filaments that streak upward through the burning skin
+  vec3 qf = vec3(p.x * 9.0, p.y * 2.2 - 34.0 * uPh, p.z * 9.0);
+  float fil = 1.0 - abs(2.0 * vn(qf, 34) - 1.0);
+  return vec3(best + (n - 0.5) * k - 1.6 * smoothstep(0.92, 1.22, h), h, fil * fil * fil);
+}
+
+// Light given off at a point of the fire. A flame is brightest in the thin
+// burning skin around each tongue (that is what gives it volume), with a
+// white-hot heart low down and a deep sapphire body in between.
+// Day 52+: cosmic colour passes through the fire -- four waves per loop
+// (emerald, ruby, gold, full spectrum) that each sweep upward and fade,
+// with a beat of pure blue in between.
+vec3 cosmic(vec3 e, vec3 p) {
+  if (uRain <= 0.0) return e;
+  float t = uPh * 4.0, k = floor(t), x = fract(t);
+  float env = smoothstep(0.0, 0.16, x) * (1.0 - smoothstep(0.50, 0.70, x));
+  float yb = mix(-0.4, 2.7, x / 0.70);
+  float band = exp(-pow((p.y - yb) / 0.46, 2.0));
+  float n = vn(vec3(p.x * 2.2 + k * 7.0, p.y * 1.4 - 14.0 * uPh, p.z * 2.2), 14);
+  float m = clamp(env * band * smoothstep(0.22, 0.66, n) * uRain * 1.5, 0.0, 1.0);
+  vec3 c = k < 0.5 ? vec3(0.08, 1.0, 0.48) : (k < 1.5 ? vec3(1.0, 0.10, 0.30) : (k < 2.5 ? vec3(1.0, 0.80, 0.10) : 0.5 + 0.5 * cos(TAU * (p.y * 0.6 + vec3(0.0, 0.33, 0.67)))));
+  float mx = max(e.r, max(e.g, e.b));
+  return mix(e, c * mx * 1.1, m);
+}
+
+vec3 emission(vec3 f, out float dens) {
+  float d = f.x, h = f.y, fil = f.z;
+  float hc = clamp(h, 0.0, 1.0);
+  float body = smoothstep(0.0, 0.5, d);
+  float shell = smoothstep(0.0, 0.09, d) * (1.0 - smoothstep(0.09, 0.46, d));
+  float low = 1.0 - smoothstep(0.10, 0.70, h);
+  float inner = smoothstep(0.45, 1.15, d);
+  dens = body * smoothstep(-0.03, 0.05, h);
+  vec3 cBody = mix(pal(0, hc), pal(1, hc), smoothstep(0.30, 1.0, hc));
+  vec3 cShell = mix(pal(2, hc), pal(3, hc), smoothstep(0.05, 0.70, hc));
+  vec3 gold = pal(4, hc);
+  float g = smoothstep(0.66, 1.0, h);
+  cShell = mix(cShell, gold, g * 0.8);
+  vec3 cInner = mix(pal(3, hc) * 0.75, pal(5, hc), low * low * low * uCore);
+  float ng = 1.0 - 0.55 * g;
+  vec3 e = cBody * body * 0.34 * ng
+         + cShell * shell * (0.50 + 2.6 * fil * uFil) * (1.35 - 0.45 * g)
+         + cInner * inner * (0.30 + 2.2 * low * low * low * uCore) * ng;
+  return e * smoothstep(-0.03, 0.05, h) * gate();
+}
+
+// ---------- embers ----------
+float hf(float n) { return fract(sin(n * 127.1) * 43758.5453); }
+
+vec3 emberRise(float id, float ph, out float life) {
+  float a0 = hf(id + 0.11) * TAU;
+  float dir = hf(id + 0.37) < 0.5 ? -1.0 : 1.0;
+  float r = 0.10 + (0.22 + 0.42 * hf(id + 0.53)) * pow(ph, 0.75);
+  float ang = a0 + dir * ph * (0.7 + 1.1 * hf(id + 0.71)) * TAU + 0.5 * sin(ph * 9.0 + id);
+  float y = 0.35 + hf(id + 0.9) * 0.7 + (1.3 + 0.9 * hf(id + 1.3)) * pow(ph, 0.85);
+  life = ph;
+  return vec3(cos(ang) * r, y, sin(ang) * r);
+}
+
+vec3 emberOrbit(float id, float ph) {
+  float turns = id < 1.5 ? 1.0 : (id < 2.5 ? -1.0 : (id < 3.5 ? 2.0 : -2.0));
+  float ang = hf(id + 4.2) * TAU + TAU * ph * turns;
+  float r = 0.60 + 0.07 * sin(TAU * ph * 2.0 + id * 2.1) + 0.06 * hf(id + 7.7);
+  float y = 0.42 + 0.27 * id + 0.07 * sin(TAU * ph * 3.0 + id * 1.7);
+  return vec3(cos(ang) * r, y, sin(ang) * r);
+}
+
+float pointGlow(vec3 ro, vec3 rd, vec3 e, float s, out float tp) {
+  vec3 v = e - ro;
+  tp = dot(v, rd);
+  float d2 = max(dot(v, v) - tp * tp, 0.0);
+  float s2 = s * s;
+  return exp(-d2 / s2) + 0.10 * s2 / (d2 + s2 * 0.6);
+}
+
+// ---------- ground: the dark etched metal the fire stands on ----------
+vec3 ground(vec3 g, float I) {
+  float r = length(g.xz);
+  float ang = atan(g.z, g.x);
+  float hl = 0.36;
+  float E = pow(hl * hl / (r * r + hl * hl), 1.45);
+  float fw = fwidth(r) * 1.2 + 0.002;
+  float rings = smoothstep(fw + 0.010, 0.010 - fw * 0.2, abs(r - 0.66))
+              + 0.75 * smoothstep(fw + 0.006, 0.006 - fw * 0.2, abs(r - 0.76))
+              + 0.55 * smoothstep(fw + 0.005, 0.005 - fw * 0.2, abs(r - 0.34));
+  float tk = abs(fract(ang / TAU * 60.0) - 0.5);
+  float fa = fwidth(ang / TAU * 60.0) + 0.01;
+  float ticks = (1.0 - smoothstep(0.07, 0.07 + fa, tk)) * smoothstep(0.66, 0.67, r) * (1.0 - smoothstep(0.75, 0.76, r));
+  float grain = 0.75 + 0.5 * vn(vec3(g.x * 26.0, 0.5, g.z * 26.0), 64);
+  float alb = 0.075 * grain + (0.10 * rings + 0.035 * ticks) * uRing;
+  vec3 lightCol = mix(pal(5, 0.2), pal(3, 0.2) + vec3(0.08), smoothstep(0.0, 0.75, r));
+  vec3 gcol = lightCol * E * alb * I * 2.4 * gate() * smoothstep(0.0, 0.3, uSize) * (0.35 + 0.65 * uSize);
+  // the coal the fire is born from (first days)
+  if (uCoal > 0.0) {
+    float cr = 1.0 - smoothstep(0.05, 0.17, r + 0.03 * vn(vec3(g.x * 30.0, 1.5, g.z * 30.0), 64));
+    float crack = vn(vec3(g.x * 34.0, 2.5, g.z * 34.0), 64);
+    crack = smoothstep(0.42, 0.5, crack) * (1.0 - smoothstep(0.5, 0.62, crack));
+    float pulse = 0.55 + 0.25 * sin(TAU * uPh * 2.0 + crack * 3.0) + (uGateN > 0 ? 0.5 * gate() : 0.0);
+    gcol += vec3(1.0, 0.22, 0.03) * cr * (0.10 + 1.5 * crack) * pulse * uCoal;
+    gcol += vec3(1.0, 0.16, 0.02) * exp(-r * r / 0.03) * 0.10 * uCoal * pulse;
+  }
+  return gcol;
+}
+
+void main() {
+  vec2 frag = gl_FragCoord.xy;
+  vec2 uv = (2.0 * frag - uRes) / uRes.y;
+
+  vec3 ro = vec3(0.0, 2.02, 4.35);
+  vec3 ta = vec3(0.0, 1.06, 0.0);
+  vec3 ww = normalize(ta - ro);
+  vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
+  vec3 vv = cross(uu, ww);
+  vec3 rd = normalize(3.4 * ww + uv.x * uu + uv.y * vv);
+
+  float jit = h3(ivec3(int(frag.x), int(frag.y), 7));
+  float I = flicker();
+
+  // bounds: cylinder r=1.02, 0 <= y <= 2.7
+  float Rb = 1.02;
+  float a = dot(rd.xz, rd.xz), b = dot(ro.xz, rd.xz), c = dot(ro.xz, ro.xz) - Rb * Rb;
+  float disc = b * b - a * c;
+  vec3 col = vec3(0.0);
+  float Tr = 1.0;
+  float tAxis = -b / a;
+  float tg = rd.y < 0.0 ? -ro.y / rd.y : 1e9;
+
+  if (disc > 0.0 && uSize > 0.01) {
+    float sq = sqrt(disc);
+    float t0 = (-b - sq) / a, t1 = (-b + sq) / a;
+    float ty0 = (0.0 - ro.y) / rd.y, ty1 = (2.7 - ro.y) / rd.y;
+    float tn = max(t0, min(ty0, ty1)), tf = min(t1, max(ty0, ty1));
+    if (tf > tn) {
+      float dt = (tf - tn) / float(uSteps);
+      float t = tn + dt * jit;
+      for (int i = 0; i < uSteps; i++) {
+        vec3 p = ro + rd * t;
+        vec3 f = flame(p);
+        if (f.x > 0.0) {
+          float dens;
+          vec3 em = emission(f, dens);
+          em = cosmic(em, p);
+          col += Tr * em * dt * 4.6 / sqrt(uSize);
+          Tr *= exp(-dens * dt * 2.4);
+        }
+        t += dt;
+        if (Tr < 0.02) break;
+      }
+    }
+  }
+
+  // ground + soft mirror of the fire in the polished metal
+  if (tg < 1e8) {
+    vec3 g = ro + rd * tg;
+    vec3 gc = ground(g, I);
+    float gr = length(g.xz);
+    if (gr < 1.6 && uSize > 0.01) {
+      vec3 rr = vec3(rd.x, -rd.y, rd.z);
+      vec3 refl = vec3(0.0);
+      float rdt = 0.07;
+      float rt = rdt * jit;
+      for (int i = 0; i < 26; i++) {
+        vec3 p = g + rr * rt;
+        if (p.y > 2.4) break;
+        vec3 f = flame(p);
+        if (f.x > 0.0) { float dn; refl += cosmic(emission(f, dn), p) * rdt * 4.6 * exp(-p.y * 2.2); }
+        rt += rdt;
+      }
+      float fres = 0.10 + 0.55 * pow(1.0 - abs(rd.y), 3.0);
+      gc += refl * fres * 0.20;
+    }
+    col += Tr * gc;
+  }
+
+  // embers (gold, hot-white hearts). Those behind the fire are veiled by it.
+  vec3 emb = vec3(0.0);
+  float es = 0.30 + 0.70 * uSize;
+  for (int i = 0; i < 30; i++) {
+    if (i >= uEmb) break;
+    float id = float(i) + 1.0;
+    float cyc = 3.0 + floor(hf(id + 2.2) * 4.0);
+    float x = uPh * cyc + hf(id + 3.3);
+    float gen = mod(floor(x), cyc);
+    float ph = fract(x);
+    float sid = id + gen * 31.7;
+    for (int k = 0; k < 3; k++) {
+      float phk = ph - float(k) * 0.012;
+      if (phk < 0.0) continue;
+      float life;
+      vec3 e = emberRise(sid, phk, life) * es;
+      float tp;
+      float s = (0.0065 + 0.0055 * hf(sid + 5.5)) * (1.0 - 0.45 * life);
+      float gl = pointGlow(ro, rd, e, s, tp);
+      float br = smoothstep(0.0, 0.08, life) * pow(1.0 - life, 1.3) * (0.75 + 0.35 * sin(life * 46.0 + sid));
+      br *= k == 0 ? 1.0 : (k == 1 ? 0.45 : 0.2);
+      vec3 ec = mix(vec3(1.0, 0.93, 0.72), vec3(1.0, 0.55, 0.12), smoothstep(0.0, 0.7, life));
+      float vis = (tp > tAxis ? Tr : 1.0) * (tp < tg ? 1.0 : 0.0);
+      emb += ec * gl * br * vis * 2.6;
+    }
+  }
+  for (int i = 0; i < 4; i++) {
+    if (i >= uOrb) break;
+    float id = float(i) + 1.0;
+    for (int k = 0; k < 6; k++) {
+      float phk = uPh - float(k) * 0.0045 * (id < 2.5 ? 1.0 : 0.5) * sign(id < 1.5 ? 1.0 : (id < 2.5 ? -1.0 : (id < 3.5 ? 1.0 : -1.0)));
+      vec3 e = emberOrbit(id, phk);
+      float tp;
+      float gl = pointGlow(ro, rd, e, 0.011 - float(k) * 0.0012, tp);
+      float tw = 0.8 + 0.2 * sin(TAU * uPh * (5.0 + id) + id);
+      float vis = (tp > tAxis ? Tr : 1.0) * (tp < tg ? 1.0 : 0.0);
+      emb += mix(vec3(1.0, 0.95, 0.8), vec3(1.0, 0.72, 0.25), float(k) / 5.0) * gl * tw * vis * 2.6 * pow(0.62, float(k));
+    }
+  }
+  col += emb;
+
+  outCol = vec4(col, 1.0);
+}
+</script>
+
+<!-- ======================= separable blur (bloom) ======================= -->
+<script id="fs-blur" type="x-shader/x-fragment">#version 300 es
+precision highp float;
+uniform sampler2D uTex;
+uniform vec2 uDir;   // texel step in source space
+in vec2 vUv;
+out vec4 outCol;
+void main() {
+  vec3 c = texture(uTex, vUv).rgb * 0.2270270270;
+  c += (texture(uTex, vUv + uDir * 1.3846153846).rgb + texture(uTex, vUv - uDir * 1.3846153846).rgb) * 0.3162162162;
+  c += (texture(uTex, vUv + uDir * 3.2307692308).rgb + texture(uTex, vUv - uDir * 3.2307692308).rgb) * 0.0702702703;
+  outCol = vec4(c, 1.0);
+}
+</script>
+
+<!-- ======================= composite + tonemap ======================= -->
+<script id="fs-comp" type="x-shader/x-fragment">#version 300 es
+precision highp float;
+uniform sampler2D uScene, uB1, uB2, uB3;
+uniform vec2 uRes;
+in vec2 vUv;
+out vec4 outCol;
+float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void main() {
+  vec3 c = texture(uScene, vUv).rgb;
+  c += texture(uB1, vUv).rgb * 0.26;
+  c += texture(uB2, vUv).rgb * 0.24;
+  c += texture(uB3, vUv).rgb * 0.22;
+  // hue-preserving tonemap: keeps the blues saturated, lets only the truly
+  // hot heart burn through to white.
+  c *= 0.95;
+  float mx = max(c.r, max(c.g, c.b));
+  vec3 tm = c / (1.0 + mx) * 1.22;
+  float wht = smoothstep(1.6, 7.0, mx);
+  c = mix(tm, vec3(1.0), wht * 0.92);
+  c = clamp(c, 0.0, 1.0);
+  c = pow(c, vec3(1.0 / 2.2));
+  // fade to pure black at the frame edges: the clip is screen-blended on the
+  // page, so its rectangle must be invisible.
+  vec2 e = min(vUv, 1.0 - vUv);
+  float m = smoothstep(0.0, 0.16, e.x) * smoothstep(0.0, 0.12, e.y);
+  m *= 1.0 - smoothstep(0.60, 1.0, length((vUv - vec2(0.5, 0.52)) * 2.0));
+  // black floor: the haze far from the fire must be exactly 0 so the clip's
+  // rectangle never shows when it is screen-blended on the page
+  c = max(c - 0.03, 0.0) / 0.97;
+  c *= m;
+  c += (h(gl_FragCoord.xy) - 0.5) / 255.0;
+  outCol = vec4(max(c, 0.0), 1.0);
+}
+</script>
+
+<script>
+const VS = `#version 300 es
+in vec2 aPos; out vec2 vUv;
+void main(){ vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+const params = new URLSearchParams(location.search);
+const W = Number(params.get('w') || 480);
+const H = Number(params.get('h') || 600);
+const canvas = document.getElementById('c');
+canvas.width = W; canvas.height = H;
+canvas.style.height = 'calc(100vh - 24px)';
+const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true, antialias: false, alpha: false });
+const logEl = document.getElementById('log');
+const log = (s) => { logEl.textContent = s; };
+window.__err = null;
+
+function sh(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src.trim ? src.replace(/^\s+/, '') : src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { window.__err = gl.getShaderInfoLog(s); throw new Error(window.__err); }
+  return s;
+}
+function prog(fsId) {
+  const p = gl.createProgram();
+  gl.attachShader(p, sh(gl.VERTEX_SHADER, VS));
+  gl.attachShader(p, sh(gl.FRAGMENT_SHADER, document.getElementById(fsId).textContent));
+  gl.bindAttribLocation(p, 0, 'aPos');
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { window.__err = gl.getProgramInfoLog(p); throw new Error(window.__err); }
+  return p;
+}
+const floatOK = !!gl.getExtension('EXT_color_buffer_float');
+function target(w, h) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  if (floatOK) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+  else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  return { tex, fbo, w, h };
+}
+
+let pScene, pBlur, pComp, tScene, tA = [], tB = [];
+try {
+  pScene = prog('fs-scene'); pBlur = prog('fs-blur'); pComp = prog('fs-comp');
+  tScene = target(W, H);
+  for (let i = 1; i <= 3; i++) { const w = Math.max(W >> i, 2), h = Math.max(H >> i, 2); tA.push(target(w, h)); tB.push(target(w, h)); }
+} catch (e) { log('SHADER ERROR\n' + e.message); }
+
+const quad = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+function pass(p, dst, w, h, setup) {
+  gl.bindFramebuffer(gl.FRAMEBUFFER, dst);
+  gl.viewport(0, 0, w, h);
+  gl.useProgram(p);
+  setup(p);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+function bindTex(p, name, unit, tex) {
+  gl.activeTexture(gl.TEXTURE0 + unit);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.uniform1i(gl.getUniformLocation(p, name), unit);
+}
+
+let STEPS = Number(params.get('steps') || 84);
+const PAL = {
+  warm:  [[0.75,0.10,0.01],[0.45,0.03,0.00],[1.00,0.62,0.16],[1.00,0.30,0.04],[1.00,0.25,0.03],[1.00,0.92,0.62]],
+  blue:  [[0.01,0.07,0.80],[0.13,0.03,0.62],[0.36,0.78,1.00],[0.05,0.34,1.00],[0.22,0.16,1.00],[0.80,0.93,1.00]],
+  gold:  [[0.70,0.24,0.02],[0.55,0.11,0.01],[1.00,0.76,0.26],[1.00,0.52,0.08],[1.00,0.92,0.60],[1.00,0.93,0.70]],
+  royal: [[0.01,0.07,0.80],[0.13,0.03,0.62],[0.36,0.78,1.00],[0.05,0.34,1.00],[1.00,0.60,0.13],[0.80,0.93,1.00]],
+};
+const BASE = { sz: 1, nt: 3, tong: 1, twist: 4.2, core: 1, turb: 1, breath: 1, fil: 1, ring: 1, coal: 0, rain: 0, A: 'royal', B: 'royal', mix: 0, mixH: 0, gateN: 0, gateW: 0.02, emb: 26, orb: 4 };
+// One row per rendered clip. A student on day N gets the highest row <= N.
+window.DAYS = {
+  0:  { sz: 0, coal: 0.5, emb: 0, orb: 0, ring: 0, A: 'warm', B: 'warm' },
+  1:  { sz: 0.20, nt: 1, tong: 0, twist: 2, core: 0.3, turb: 0.7, fil: 0.4, ring: 0, coal: 1, A: 'warm', B: 'warm', gateN: 3, gateW: 0.016, emb: 2, orb: 0 },
+  2:  { sz: 0.23, nt: 1, tong: 0, twist: 2, core: 0.3, turb: 0.7, fil: 0.4, ring: 0, coal: 1, A: 'warm', B: 'warm', gateN: 5, gateW: 0.028, emb: 2, orb: 0 },
+  3:  { sz: 0.28, nt: 1, tong: 0, twist: 2, core: 0.35, turb: 0.75, fil: 0.4, ring: 0, coal: 1, A: 'warm', B: 'warm', gateN: 2, gateW: 0.16, emb: 3, orb: 0 },
+  5:  { sz: 0.36, nt: 1, tong: 0, twist: 2, core: 0.4, turb: 0.8, fil: 0.5, ring: 0, coal: 0.6, A: 'warm', B: 'blue', mix: 0.45, mixH: 1.6, emb: 3, orb: 0 },
+  7:  { sz: 0.43, nt: 2, tong: 0.6, twist: 2.4, core: 0.45, turb: 0.85, fil: 0.5, ring: 0, coal: 0.25, A: 'warm', B: 'blue', mix: 0.8, mixH: 1.2, emb: 4, orb: 0 },
+  10: { sz: 0.50, tong: 0.8, twist: 2.6, core: 0.55, turb: 0.9, fil: 0.5, ring: 0, A: 'blue', B: 'blue', emb: 5, orb: 0 },
+  12: { sz: 0.55, twist: 2.8, core: 0.65, turb: 0.92, ring: 0, A: 'blue', B: 'blue', emb: 6, orb: 0 },
+  15: { sz: 0.62, twist: 3.0, core: 0.75, turb: 0.95, ring: 0.3, A: 'blue', B: 'blue', emb: 8, orb: 0 },
+  17: { sz: 0.66, core: 0.8, ring: 0.35, A: 'blue', B: 'blue', emb: 10, orb: 0 },
+  20: { sz: 0.72, core: 0.85, ring: 0.5, A: 'blue', B: 'blue', emb: 12, orb: 0 },
+  22: { sz: 0.77, core: 0.9, ring: 0.55, A: 'blue', B: 'blue', emb: 14, orb: 0 },
+  25: { sz: 0.83, ring: 0.6, A: 'blue', B: 'blue', emb: 16, orb: 0 },
+  27: { sz: 0.86, ring: 0.65, A: 'blue', B: 'gold', mix: 0.3, mixH: 1.2, emb: 17, orb: 0 },
+  30: { sz: 0.90, ring: 0.8, breath: 1.8, A: 'gold', B: 'gold', emb: 30, orb: 0 },
+  32: { sz: 0.90, ring: 0.8, breath: 1.3, fil: 1.3, A: 'gold', B: 'gold', emb: 22, orb: 0 },
+  35: { sz: 0.93, ring: 0.85, fil: 1.5, A: 'gold', B: 'gold', emb: 23, orb: 0 },
+  37: { sz: 0.94, ring: 0.85, fil: 1.5, A: 'gold', B: 'gold', emb: 23, orb: 1 },
+  40: { sz: 0.96, ring: 0.9, fil: 1.5, A: 'gold', B: 'gold', emb: 24, orb: 2 },
+  42: { sz: 0.97, ring: 0.9, fil: 1.3, A: 'gold', B: 'royal', mix: 0.3, mixH: -1.4, emb: 24, orb: 2 },
+  45: { sz: 0.98, ring: 0.95, fil: 1.2, A: 'gold', B: 'royal', mix: 0.55, mixH: -1.4, emb: 25, orb: 3 },
+  47: { sz: 0.99, ring: 1, A: 'gold', B: 'royal', mix: 0.8, mixH: -1.0, emb: 25, orb: 3 },
+  50: { },
+  52: { rain: 0.25 },
+  55: { rain: 0.5 },
+  57: { rain: 0.75 },
+  60: { rain: 1, sz: 1.04, emb: 30 },
+};
+let CFG = Object.assign({}, BASE, window.DAYS[Number(params.get('day') || 50)] || {});
+window.setDay = (d) => { CFG = Object.assign({}, BASE, window.DAYS[d] || {}); };
+function setCfg(p) {
+  const u = (n) => gl.getUniformLocation(p, n);
+  gl.uniform1f(u('uSize'), Math.max(Math.pow(CFG.sz, 0.6), 0.001)); gl.uniform1f(u('uTong'), CFG.tong); gl.uniform1f(u('uTwist'), CFG.twist);
+  gl.uniform1f(u('uCore'), CFG.core); gl.uniform1f(u('uTurb'), CFG.turb); gl.uniform1f(u('uBreath'), CFG.breath);
+  gl.uniform1f(u('uFil'), CFG.fil); gl.uniform1f(u('uRing'), CFG.ring); gl.uniform1f(u('uCoal'), CFG.coal);
+  gl.uniform1f(u('uRain'), CFG.rain); gl.uniform1f(u('uMix'), CFG.mix); gl.uniform1f(u('uMixH'), CFG.mixH); gl.uniform1f(u('uGateW'), CFG.gateW);
+  gl.uniform1i(u('uNT'), CFG.nt); gl.uniform1i(u('uEmb'), CFG.emb); gl.uniform1i(u('uOrb'), CFG.orb); gl.uniform1i(u('uGateN'), CFG.gateN);
+  gl.uniform3fv(u('uA'), new Float32Array(PAL[CFG.A].flat())); gl.uniform3fv(u('uB'), new Float32Array(PAL[CFG.B].flat()));
+}
+// Render every listed day's full loop, one after another.
+window.__all = { day: null, done: [], running: false };
+window.captureAll = async function (days, N) {
+  window.__all = { day: null, done: [], running: true };
+  for (const d of days) { window.__all.day = d; window.setDay(d); await window.capture(N, 'd' + d); window.__all.done.push(d); }
+  window.__all.running = false;
+};
+// One still per day (phase ph) for a quick look at the whole ladder.
+window.ladder = async function (days, ph, set) {
+  let i = 0;
+  for (const d of days) { window.setDay(d); window.renderAt(ph); const blob = await new Promise((r) => canvas.toBlob(r, 'image/png')); await fetch('/frame?set=' + set + '&i=' + (i++), { method: 'POST', body: blob }); }
+  return i;
+};
+
+window.renderAt = function (ph) {
+  pass(pScene, tScene.fbo, W, H, (p) => {
+    gl.uniform2f(gl.getUniformLocation(p, 'uRes'), W, H);
+    gl.uniform1f(gl.getUniformLocation(p, 'uPh'), ph);
+    gl.uniform1i(gl.getUniformLocation(p, 'uSteps'), STEPS);
+    setCfg(p);
+  });
+  let src = tScene;
+  for (let i = 0; i < 3; i++) {
+    pass(pBlur, tA[i].fbo, tA[i].w, tA[i].h, (p) => { bindTex(p, 'uTex', 0, src.tex); gl.uniform2f(gl.getUniformLocation(p, 'uDir'), 1 / src.w, 0); });
+    pass(pBlur, tB[i].fbo, tB[i].w, tB[i].h, (p) => { bindTex(p, 'uTex', 0, tA[i].tex); gl.uniform2f(gl.getUniformLocation(p, 'uDir'), 0, 1 / tA[i].h); });
+    src = tB[i];
+  }
+  pass(pComp, null, W, H, (p) => {
+    bindTex(p, 'uScene', 0, tScene.tex); bindTex(p, 'uB1', 1, tB[0].tex); bindTex(p, 'uB2', 2, tB[1].tex); bindTex(p, 'uB3', 3, tB[2].tex);
+    gl.uniform2f(gl.getUniformLocation(p, 'uRes'), W, H);
+  });
+  gl.finish();
+};
+
+// Deterministic capture: frame i of N is phase i/N. POSTs PNGs to the server.
+window.__progress = { done: 0, total: 0, running: false, ms: 0 };
+window.capture = async function (N, set, from = 0, to = N) {
+  window.__progress = { done: from, total: to, running: true, ms: 0 };
+  const t0 = performance.now();
+  for (let i = from; i < to; i++) {
+    window.renderAt(i / N);
+    const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+    await fetch(`/frame?set=${set}&i=${i}`, { method: 'POST', body: blob });
+    window.__progress.done = i + 1;
+    window.__progress.ms = performance.now() - t0;
+    log(`capture ${i + 1}/${to}`);
+  }
+  window.__progress.running = false;
+};
+
+if (pScene) {
+  const ph0 = Number(params.get('ph') || 0);
+  const t0 = performance.now();
+  window.renderAt(ph0);
+  log(`rendered ph=${ph0} ${W}x${H} steps=${STEPS} float=${floatOK} in ${(performance.now() - t0).toFixed(0)}ms`);
+  if (params.get('live')) {
+    const start = performance.now();
+    const tick = () => { window.renderAt(((performance.now() - start) / 12000) % 1); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+}
+</script>
+</body>
+</html>
