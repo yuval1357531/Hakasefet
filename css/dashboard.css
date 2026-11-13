@@ -5021,10 +5021,10 @@ textarea.editable-input { display: block; resize: vertical; }
 /* Student page: the board button is a small quiet line under the greeting,
    the streak (with its fire) is the centrepiece, and the journal sits well
    below both. */
-.personal-topbar { flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 64px; }
+.personal-topbar { flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 6px; margin-bottom: 64px; }
 .personal-topbar .personal-board-btn { padding: 5px 13px; font-size: 11px; }
 .streak-btn.streak-stage {
-  align-self: center;
+  align-self: flex-start;
   flex-direction: column;
   gap: 0;
   padding: 4px 30px 16px;
@@ -5046,58 +5046,119 @@ textarea.editable-input { display: block; resize: vertical; }
   .master-fire { --fire: 150px; }
 }
 
-/* The streak block as an award plaque (creator-award style, in the vault's
-   black and blue): a thick bevelled stone/metal frame with rounded-square
-   corners, and a recessed dark panel inside where the fire stands. */
+/* The streak block as a carved stone plaque, docked on the left of the top
+   row: a rough chiselled slab (assets/stone-plaque.webp, a fixed generated
+   slate) with a deep recessed panel cut into it where the fire stands, and
+   "הרצף שלך" + the count engraved below. */
 .streak-btn.streak-stage {
-  padding: 16px;
+  padding: 14px;
   border: 0;
-  border-radius: 26px;
+  border-radius: 20px;
   background:
-    linear-gradient(145deg, rgba(190, 225, 255, 0.20) 0%, rgba(190, 225, 255, 0) 30%),
-    linear-gradient(325deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 38%),
-    repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.022) 0 2px, rgba(0, 0, 0, 0.03) 2px 5px),
-    linear-gradient(160deg, #24344f 0%, #131d30 42%, #0a111e 72%, #162338 100%);
+    linear-gradient(150deg, rgba(210, 230, 255, 0.10) 0%, rgba(210, 230, 255, 0) 34%),
+    linear-gradient(330deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 40%),
+    url('../assets/stone-plaque.webp') center / cover,
+    #17243a;
   box-shadow:
-    0 22px 44px rgba(0, 0, 0, 0.6),
-    0 3px 0 #05080f,
-    inset 0 1.5px 0 rgba(214, 236, 255, 0.34),
-    inset 1.5px 0 0 rgba(214, 236, 255, 0.12),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.6),
-    inset -1.5px 0 0 rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(80, 140, 220, 0.35);
+    0 24px 46px rgba(0, 0, 0, 0.65),
+    0 2px 0 #04070d,
+    inset 0 2px 1px rgba(200, 225, 255, 0.28),
+    inset 2px 0 1px rgba(200, 225, 255, 0.10),
+    inset 0 -3px 2px rgba(0, 0, 0, 0.65),
+    inset -2px 0 2px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(5, 8, 14, 0.9);
   text-shadow: none;
 }
 .streak-btn.streak-stage::before {
-  /* the recessed inner panel */
+  /* the recessed panel, cut into the stone */
   content: '';
   position: absolute;
-  inset: 13px;
-  border-radius: 16px;
+  inset: 12px;
+  border-radius: 12px;
   background:
-    radial-gradient(ellipse 70% 55% at 50% 62%, rgba(40, 110, 220, 0.16), transparent 70%),
-    linear-gradient(180deg, #060a12 0%, #0a1220 60%, #070c16 100%);
+    radial-gradient(ellipse 70% 52% at 50% 64%, rgba(40, 110, 220, 0.14), transparent 70%),
+    linear-gradient(180deg, rgba(3, 6, 12, 0.90), rgba(6, 11, 20, 0.84)),
+    url('../assets/stone-plaque.webp') 30% 70% / 230% auto;
   box-shadow:
-    inset 0 3px 8px rgba(0, 0, 0, 0.85),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.7),
-    0 1px 0 rgba(200, 228, 255, 0.22),
-    0 0 0 1px rgba(90, 160, 240, 0.18);
+    inset 0 5px 12px rgba(0, 0, 0, 0.9),
+    inset 3px 0 8px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.8),
+    0 1px 0 rgba(190, 220, 255, 0.28),
+    0 -1px 0 rgba(0, 0, 0, 0.55);
 }
 .streak-btn.streak-stage > * { position: relative; }
 .streak-btn.streak-stage .streak-btn-text {
   margin: 0 14px 10px;
-  letter-spacing: 0.02em;
-  color: var(--crystal-ice);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8), 0 0 12px rgba(120, 195, 255, 0.35);
+  color: #9db4d3;
+  letter-spacing: 0.04em;
+  /* engraved: dark cut on top, light lip below */
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.85), 0 1px 0 rgba(190, 220, 255, 0.22);
+}
+.streak-btn.streak-stage .streak-btn-count {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(0, 0, 0, 0.6);
+  color: #b9d0ee;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(190, 220, 255, 0.18);
 }
 .streak-btn.streak-stage:hover {
+  transform: translateY(-2px);
   box-shadow:
-    0 26px 50px rgba(0, 0, 0, 0.62),
-    0 3px 0 #05080f,
-    inset 0 1.5px 0 rgba(214, 236, 255, 0.42),
-    inset 1.5px 0 0 rgba(214, 236, 255, 0.16),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.6),
-    inset -1.5px 0 0 rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(120, 185, 255, 0.6),
-    0 0 26px rgba(70, 150, 255, 0.22);
+    0 28px 52px rgba(0, 0, 0, 0.68),
+    0 2px 0 #04070d,
+    inset 0 2px 1px rgba(200, 225, 255, 0.34),
+    inset 2px 0 1px rgba(200, 225, 255, 0.14),
+    inset 0 -3px 2px rgba(0, 0, 0, 0.65),
+    inset -2px 0 2px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(5, 8, 14, 0.9),
+    0 0 28px rgba(70, 150, 255, 0.18);
+}
+@media (max-width: 640px) {
+  .personal-topbar { align-items: flex-start; }
+  .streak-btn.streak-stage { padding: 10px; border-radius: 16px; }
+  .streak-btn.streak-stage::before { inset: 9px; }
+  .streak-stage .streak-btn-flame { --fire: 124px; margin-top: -30px; }
+  .streak-btn.streak-stage .streak-btn-text { margin: 0 6px 8px; font-size: 12px; }
+}
+
+/* "לוח מודעות ועדכונים" opens as a scroll hanging from the right edge: a
+   rod on top and one on the bottom, and the sheet between them unrolls
+   downward (the body row grows 0fr -> 1fr). Board popup only. */
+#boardOverlay { align-items: flex-start; padding: 64px 14px 20px; }
+#boardOverlay .personal-modal-card {
+  --unroll: 1fr;
+  width: min(410px, 100%);
+  max-width: none;
+  margin-left: auto;
+  margin-right: 0;
+  display: grid;
+  grid-template-rows: auto auto var(--unroll) auto;
+  padding-top: 14px;
+  padding-bottom: 0;
+  overflow: visible;
+  animation: scroll-unroll 0.85s cubic-bezier(0.3, 0.75, 0.2, 1) both;
+}
+#boardOverlay .personal-modal-body { min-height: 0; overflow-y: auto; }
+#boardOverlay .personal-modal-card::before,
+#boardOverlay .personal-modal-card::after {
+  content: '';
+  display: block;
+  height: 17px;
+  margin: 0 -12px;
+  border-radius: 9px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 38%, rgba(0, 0, 0, 0.45) 100%),
+    url('../assets/stone-plaque.webp') center / 300px auto,
+    #1c2a44;
+  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.55), inset 0 -2px 3px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(210, 232, 255, 0.4);
+}
+#boardOverlay .personal-modal-card::before { margin-top: -26px; margin-bottom: 12px; }
+#boardOverlay .personal-modal-card::after { margin-top: 14px; margin-bottom: -10px; }
+@keyframes scroll-unroll {
+  from { grid-template-rows: auto auto 0fr auto; }
+  to { grid-template-rows: auto auto 1fr auto; }
+}
+#boardOverlay .personal-modal-header { animation: scroll-fade 0.5s 0.35s ease both; }
+@keyframes scroll-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  #boardOverlay .personal-modal-card, #boardOverlay .personal-modal-header { animation: none; }
 }

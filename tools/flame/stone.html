@@ -1,0 +1,72 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>stone</title>
+<style>body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c" width="720" height="900"></canvas>
+<script>
+// One-off generator for assets/stone-plaque.webp: dark blue-slate granite
+// with mineral speckle, soft tonal clouds and a few hairline veins.
+// Seeded, so re-running always gives the exact same stone.
+const W = 720, H = 900;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let seed = 20240611;
+const hash = (x, y, s) => {
+  let n = (x * 374761393 + y * 668265263 + s * 2147483647 + seed) | 0;
+  n = (n ^ (n >>> 13)) * 1274126177; n = (n ^ (n >>> 16)) >>> 0;
+  return n / 4294967295;
+};
+const sm = (t) => t * t * (3 - 2 * t);
+function vnoise(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y), xf = sm(x - xi), yf = sm(y - yi);
+  const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
+  return a + (b - a) * xf + (c - a) * yf + (a - b - c + d) * xf * yf;
+}
+function fbm(x, y, s, oct) {
+  let v = 0, a = 0.5, n = 0;
+  for (let i = 0; i < oct; i++) { v += a * vnoise(x, y, s + i * 11); n += a; a *= 0.5; x *= 2.03; y *= 2.03; }
+  return v / n;
+}
+const img = ctx.createImageData(W, H);
+const d = img.data;
+// height field first, so a gentle emboss (light from the top-left) gives grain relief
+const hf = new Float32Array(W * H);
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    const big = fbm(x / 260, y / 260, 1, 4);
+    const mid = fbm(x / 70, y / 70, 20, 4);
+    const fine = fbm(x / 9, y / 9, 40, 3);
+    hf[y * W + x] = big * 0.5 + mid * 0.3 + fine * 0.35;
+  }
+}
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    const hx = hf[y * W + Math.min(x + 1, W - 1)] - hf[y * W + Math.max(x - 1, 0)];
+    const hy = hf[Math.min(y + 1, H - 1) * W + x] - hf[Math.max(y - 1, 0) * W + x];
+    const light = 0.5 - (hx + hy) * 3.2;                 // emboss
+    const cloud = fbm(x / 190 + 3, y / 190 + 7, 60, 4);  // slow tonal drift
+    const grain = fbm(x / 3.2, y / 3.2, 80, 2);
+    // base slate: cool, dark, slightly blue
+    let t = 0.06 + 0.30 * cloud * cloud * 2.0 + 0.55 * (light - 0.5) + 0.22 * (grain - 0.5) + 0.22 * (fbm(x / 28, y / 28, 160, 3) - 0.5);
+    // mineral speckle: sparse bright flecks and dark pits
+    const sp = hash(x, y, 99);
+    if (sp > 0.9935) t += 0.42 * (0.5 + 0.5 * hash(x, y, 7));
+    else if (sp < 0.003) t -= 0.12;
+    // hairline veins from ridged noise
+    const vein = 1 - Math.abs(2 * fbm(x / 150 + 11, y / 150 + 5, 120, 3) - 1);
+    const vv = Math.pow(Math.max(vein - 0.992, 0) / 0.008, 2.0) * (0.35 + 0.65 * fbm(x / 60, y / 60, 140, 2));
+    t += vv * 0.16;
+    t = Math.max(0, Math.min(1, t));
+    // vignette so the edges read as worn and darker
+    const ex = Math.min(x, W - 1 - x) / 70, ey = Math.min(y, H - 1 - y) / 70;
+    t *= 0.82 + 0.18 * sm(Math.min(1, Math.min(ex, ey)));
+    const k = i * 4;
+    d[k] = 14 + t * 74;
+    d[k + 1] = 22 + t * 92;
+    d[k + 2] = 36 + t * 124;
+    d[k + 3] = 255;
+  }
+}
+ctx.putImageData(img, 0, 0);
+window.done = true;
+</script></body></html>
