@@ -5652,3 +5652,36 @@ textarea.editable-input { display: block; resize: vertical; }
   color: var(--text-dim);
   direction: ltr;
 }
+
+/* Master's sentence wheel as a flowing drum (no arrows) */
+.master-reel .daily-wheel-glass { min-height: 138px; cursor: grab; }
+.reel-drum {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  padding-block: var(--pad, 40px);
+  outline: none;
+  z-index: 1;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 24%, #000 76%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 24%, #000 76%, transparent 100%);
+}
+.reel-drum::-webkit-scrollbar { display: none; }
+.reel-item {
+  height: 58px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  scroll-snap-align: center;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--crystal-ice);
+  text-shadow: 0 0 10px rgba(120, 195, 255, 0.3);
+  will-change: transform, opacity;
+}
+.reel-item.is-empty { height: 100%; opacity: 1; }

@@ -414,18 +414,15 @@ function wheelTabHTML() {
   return `${dailyWheelTimerHTML()}<div class="wheel-inline">${dailyWheelHTML()}</div>`;
 }
 
-// Master: the same glass wheel as the students' daily sentence, but it runs
-// through every sentence in the bank: scroll / swipe / arrows, one at a time.
+// Master: the same glass wheel as the students' daily sentence, but as a
+// flowing drum through every sentence in the bank (scroll / swipe).
 function wheelSentencesScrollHTML() {
   return `
     <div class="wheel-inline">
       <div class="daily-wheel master-reel" id="masterReel">
         <div class="daily-wheel-row">
-          <div class="daily-wheel-glass" tabindex="0">
-            <button type="button" class="reel-step reel-up" aria-label="הקודם">▲</button>
-            <div class="daily-wheel-reel" id="masterReelText"></div>
-            <button type="button" class="reel-step reel-down" aria-label="הבא">▼</button>
-            <span class="reel-count" id="masterReelCount"></span>
+          <div class="daily-wheel-glass">
+            <div class="reel-drum" id="masterReelDrum" tabindex="0"></div>
           </div>
         </div>
       </div>
@@ -1079,49 +1076,39 @@ export async function mountPersonalPage(container, session) {
   // reads or changes the 24h lock state.
   let masterReelIdx = 0;
   function wireSentenceReel() {
-    const card = container.querySelector('#masterReel');
-    if (!card) return;
-    const glass = card.querySelector('.daily-wheel-glass');
-    const text = card.querySelector('#masterReelText');
-    const count = card.querySelector('#masterReelCount');
+    const drum = container.querySelector('#masterReelDrum');
+    if (!drum) return;
     const list = wheelSentencesCache;
     if (!list.length) {
-      text.innerHTML = '<span class="daily-wheel-sentence">אין עדיין משפטים.</span>';
+      drum.innerHTML = '<div class="reel-item is-empty">אין עדיין משפטים.</div>';
       return;
     }
-    let i = Math.min(masterReelIdx, list.length - 1);
-    const show = (animate) => {
-      text.innerHTML = `<span class="daily-wheel-sentence${animate ? ' daily-wheel-cycling' : ''}">${escapeHtml(list[i].text)}</span>`;
-      count.textContent = `${i + 1} / ${list.length}`;
+    drum.innerHTML = list.map((x) => `<div class="reel-item">${escapeHtml(x.text)}</div>`).join('');
+    const items = Array.from(drum.children);
+    const ITEM = 58;
+    const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    drum.style.setProperty('--pad', Math.max(0, (drum.clientHeight - ITEM) / 2) + 'px');
+    // Cylinder: the line in the middle is full size, the ones above and below
+    // curve away, shrink and fade.
+    let raf = 0;
+    const paint = () => {
+      raf = 0;
+      const mid = drum.scrollTop + drum.clientHeight / 2;
+      let best = 0;
+      let bestD = Infinity;
+      items.forEach((el, idx) => {
+        const d = (el.offsetTop + ITEM / 2 - mid) / ITEM;
+        const ad = Math.abs(d);
+        if (ad < bestD) { bestD = ad; best = idx; }
+        if (still) return;
+        el.style.opacity = String(Math.max(0.12, 1 - 0.5 * ad));
+        el.style.transform = `perspective(240px) rotateX(${(-d * 26).toFixed(1)}deg) scale(${Math.max(0.7, 1 - 0.1 * ad).toFixed(3)})`;
+      });
+      masterReelIdx = best;
     };
-    let lockUntil = 0;
-    const go = (d) => {
-      if (Date.now() < lockUntil) return;
-      lockUntil = Date.now() + 180;
-      i = (i + d + list.length) % list.length;
-      masterReelIdx = i;
-      show(true);
-    };
-    show(false);
-    card.querySelector('.reel-up').addEventListener('click', () => go(-1));
-    card.querySelector('.reel-down').addEventListener('click', () => go(1));
-    glass.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      go(e.deltaY > 0 ? 1 : -1);
-    }, { passive: false });
-    glass.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowDown') { e.preventDefault(); go(1); }
-      if (e.key === 'ArrowUp') { e.preventDefault(); go(-1); }
-    });
-    let startY = null;
-    glass.addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) startY = e.clientY; });
-    glass.addEventListener('pointerup', (e) => {
-      if (startY === null) return;
-      const dy = e.clientY - startY;
-      startY = null;
-      if (Math.abs(dy) > 24) go(dy < 0 ? 1 : -1);
-    });
-    glass.addEventListener('pointercancel', () => { startY = null; });
+    drum.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(paint); }, { passive: true });
+    drum.scrollTop = masterReelIdx * ITEM;
+    paint();
   }
 
   let previewDay = (() => {
