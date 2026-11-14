@@ -61,13 +61,13 @@ const WHEEL_HINT_MAX_ACKS = 2;
 // empty and nothing real is ever read or written for it.
 const DEMO_SESSION = {
   id: '00000000-0000-0000-0000-000000000000',
-  fullName: 'תלמיד לדוגמה',
+  fullName: 'יובל',
   username: 'demo',
   role: 'user',
   permissions: {},
 };
 // Fixed numbers so the master can see the road with a streak "in progress".
-const DEMO_STREAK = { currentStreak: 12, bestStreak: 12, lastDay: null };
+const DEMO_STREAK = { currentStreak: 28, bestStreak: 28, lastDay: null };
 
 function wheelHintAcks(session) {
   try {
@@ -909,7 +909,7 @@ export async function mountPersonalPage(container, session) {
   }
 
   async function render() {
-    if (session.role === 'admin' && auth.isEditMode() && masterViewAsStudent) {
+    if (session.role === 'admin' && masterViewAsStudent) {
       await renderStudentPreview();
       return;
     }
@@ -969,7 +969,7 @@ export async function mountPersonalPage(container, session) {
         deviceAlertsHistoryCache,
         masterLoginAlertsHistoryCache,
         securityHistoryOpen,
-        auth.isEditMode() ? personalViewToggleHTML(false) : '',
+        personalViewToggleHTML(false),
         streakRewardsManagerHTML({
           rewards: streakRewardsCache,
           claims: streakClaimsCache,
