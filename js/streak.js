@@ -66,24 +66,122 @@ export function flameHTML(streak, extraClass = '') {
 }
 
 // --- the 3D fire -------------------------------------------------------------
-// Pre-rendered 12s loops (tools/flame -> assets/flame/flame-N.mp4), one per
-// stage of the streak. A streak of N days shows the highest clip <= N. The
-// clips are fire on pure black, screen-blended on the page (see .fire3d).
-const FIRE_DAYS = [0, 1, 2, 3, 5, 7, 10, 12, 15, 17, 20, 22, 25, 27, 30, 32, 35, 37, 40, 42, 45, 47, 50, 52, 55, 57, 60];
+// The fire is a small set of pre-rendered 12s loops (tools/flame ->
+// assets/flame/flame-*.mp4: fire on pure black, screen-blended on the page)
+// and each streak day COMPOSES one from the ladder below: a base clip, a
+// size, a glow, an optional hue turn (the orange first flashes become cold
+// blue), an optional travelling colour wave (a hue-shifted copy revealed by
+// a band that sweeps up the flame) and an optional gold tint. Size and glow
+// grow smoothly between ladder rows, so it changes every day; the clip /
+// wave / gold change at the rows. The fire stays blue throughout.
+//   d: first day, c: clip, s: size, g: glow, h: hue turn (deg),
+//   w: colour-wave level 0-1, gold: gold tint 0-1
+const FIRE_LADDER = [
+  { d: 0, c: '0', s: 0.9, g: 0.1 },
+  { d: 1, c: '1', s: 0.9, g: 0.15, h: 190 },
+  { d: 2, c: '2', s: 0.95, g: 0.2, h: 190 },
+  { d: 3, c: '3', s: 1, g: 0.25, h: 190 },
+  { d: 5, c: '10', s: 0.55, g: 0.25 },
+  { d: 7, c: '10', s: 0.68, g: 0.35 },
+  { d: 10, c: '10', s: 0.8, g: 0.45 },
+  { d: 15, c: '15', s: 0.88, g: 0.5 },
+  { d: 20, c: '20', s: 0.92, g: 0.55 },
+  { d: 25, c: '25', s: 0.96, g: 0.6 },
+  { d: 30, c: '50', s: 0.96, g: 0.65, w: 0.3 },
+  { d: 35, c: '50', s: 1, g: 0.7, w: 0.4 },
+  { d: 40, c: 'crown', s: 1, g: 0.75, w: 0.5 },
+  { d: 45, c: 'vortex', s: 1, g: 0.8, w: 0.6 },
+  { d: 50, c: 'vortex', s: 1.03, g: 0.85, w: 0.8, gold: 0.3 },
+  { d: 55, c: 'crown', s: 1.05, g: 0.9, w: 0.9, gold: 0.4 },
+  { d: 60, c: '60', s: 1.06, g: 0.95, w: 0.6 },
+  { d: 70, c: 'ultimate', s: 1.12, g: 1, w: 1, gold: 0.5 },
+];
 
-export function fireHTML(streak, extraClass = '') {
-  let day = 0;
-  for (const d of FIRE_DAYS) if (d <= streak) day = d;
-  const still = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  return `<span class="fire3d ${extraClass}" data-fire-day="${day}" aria-hidden="true"><video src="assets/flame/flame-${day}.mp4" poster="assets/flame/flame-${day}.webp" ${still ? '' : 'autoplay '}loop muted playsinline preload="metadata"></video></span>`;
+export function fireStageIndex(streak) {
+  let i = 0;
+  FIRE_LADDER.forEach((r, k) => { if (r.d <= streak) i = k; });
+  return i;
 }
 
-// Videos inserted through innerHTML don't always start on their own.
+export function fireHTML(streak, extraClass = '') {
+  const i = fireStageIndex(streak);
+  const row = FIRE_LADDER[i];
+  const next = FIRE_LADDER[i + 1];
+  const t = next ? Math.min(1, Math.max(0, (streak - row.d) / (next.d - row.d))) : 0;
+  const lerp = (x, y) => x + (y - x) * t;
+  const s = next && next.c === row.c ? lerp(row.s, next.s) : row.s;
+  const g = next ? lerp(row.g, next.g) : row.g;
+  const still = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const base = 'assets/flame/flame-' + row.c;
+  const play = still ? '' : 'autoplay ';
+  const hue = row.h ? 'filter:hue-rotate(' + row.h + 'deg);' : '';
+  const sc = 'scale:' + s.toFixed(3) + ';';
+  let html = '<video style="' + sc + hue + '" src="' + base + '.mp4" poster="' + base + '.webp" ' + play + 'loop muted playsinline preload="metadata"></video>';
+  if (row.w && !still) {
+    const rare = row.w < 0.45;
+    const wa = Math.min(1, 0.45 + row.w * 0.6).toFixed(2);
+    const wd = rare ? 40 : (22 - row.w * 10).toFixed(1);
+    html += '<video class="fire-wave' + (rare ? ' is-rare' : '') + '" aria-hidden="true" style="' + sc + '--wa:' + wa + ';--wd:' + wd + 's" src="' + base + '.mp4" ' + play + 'loop muted playsinline preload="metadata"></video>';
+  }
+  if (row.gold && !still) {
+    html += '<video class="fire-gold" aria-hidden="true" style="' + sc + '--ga:' + row.gold + '" src="' + base + '.mp4" ' + play + 'loop muted playsinline preload="metadata"></video>';
+  }
+  return '<span class="fire3d ' + extraClass + '" data-fire-clip="' + row.c + '" style="--fg:' + g.toFixed(2) + '" aria-hidden="true">' + html + '</span>';
+}
+
+// Videos inserted through innerHTML don't always start on their own; the
+// wave / gold copies are kept in step with the base clip.
 export function wakeFires(root) {
-  root.querySelectorAll('.fire3d video[autoplay]').forEach((v) => {
-    v.muted = true;
-    const p = v.play();
-    if (p && p.catch) p.catch(() => {});
+  root.querySelectorAll('.fire3d').forEach((host) => {
+    const vids = host.querySelectorAll('video[autoplay]');
+    vids.forEach((v) => {
+      v.muted = true;
+      const p = v.play();
+      if (p && p.catch) p.catch(() => {});
+    });
+    const [base, ...extra] = vids;
+    if (base && extra.length) {
+      base.addEventListener('playing', () => extra.forEach((v) => { v.currentTime = base.currentTime; }), { once: true });
+    }
+  });
+}
+
+// The master's own fire: always in a dark stone plaque (the blend needs a dark
+// backing) with a slider along the whole spectrum, 0 days .. 70 (the very
+// strongest one). The choice is remembered on this device.
+const MASTER_FIRE_KEY = 'hk_master_fire';
+function masterFireValue() {
+  try {
+    const raw = localStorage.getItem(MASTER_FIRE_KEY);
+    const v = Number(raw);
+    return raw !== null && Number.isFinite(v) && v >= 0 && v <= 70 ? v : 70;
+  } catch (e) {
+    return 70;
+  }
+}
+export function masterFireHTML() {
+  const v = masterFireValue();
+  return `
+    <div class="streak-btn streak-stage master-plaque">
+      <span class="streak-btn-flame" id="masterFireHost">${fireHTML(v)}</span>
+      <label class="streak-btn-text master-fire-ctl">עוצמת האש
+        <input type="range" id="masterFireRange" min="0" max="70" step="1" value="${v}" aria-label="עוצמת האש">
+        <span class="streak-btn-count" id="masterFireVal">${v}</span>
+      </label>
+    </div>`;
+}
+export function wireMasterFire(root) {
+  const range = root.querySelector('#masterFireRange');
+  const host = root.querySelector('#masterFireHost');
+  const val = root.querySelector('#masterFireVal');
+  if (!range || !host) return;
+  wakeFires(host);
+  range.addEventListener('input', () => {
+    const v = Number(range.value);
+    if (val) val.textContent = String(v);
+    host.innerHTML = fireHTML(v);
+    wakeFires(host);
+    try { localStorage.setItem(MASTER_FIRE_KEY, String(v)); } catch (e) { /* ignore */ }
   });
 }
 
@@ -242,6 +340,15 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
   const btnFlame = openBtn.querySelector('.streak-btn-flame');
   if (btnFlame) btnFlame.innerHTML = fireHTML(state.currentStreak);
   wakeFires(openBtn);
+  if (!isDemo) {
+    try {
+      const key = 'hk_fire_stage_' + session.id;
+      const idx = fireStageIndex(state.currentStreak);
+      const prevRaw = localStorage.getItem(key);
+      localStorage.setItem(key, String(idx));
+      if (prevRaw !== null && idx > Number(prevRaw)) setTimeout(() => pokeFlame(openBtn.querySelector('.streak-btn-flame')), 700);
+    } catch (e) { /* ignore */ }
+  }
 
   function paint() {
     body.innerHTML = streakModalBodyHTML({ state, rewards, claimedIds, canClaim: !isDemo });

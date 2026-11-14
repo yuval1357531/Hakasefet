@@ -5162,3 +5162,67 @@ textarea.editable-input { display: block; resize: vertical; }
 @media (prefers-reduced-motion: reduce) {
   #boardOverlay .personal-modal-card, #boardOverlay .personal-modal-header { animation: none; }
 }
+
+/* ============================================================
+   Composed fire (fireHTML ladder in js/streak.js): size = the `scale`
+   property on the video (so it composes with the tap pulse), glow = --fg,
+   the colour wave is a hue-shifted copy revealed by a band that sweeps up
+   the flame (green, red, yellow, then a full-spectrum pass), and the gold
+   tint is a gold-turned copy kept to the upper flame.
+   ============================================================ */
+.fire3d::after {
+  content: '';
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 22%;
+  bottom: 2%;
+  background: radial-gradient(closest-side at 50% 62%, rgba(80, 160, 255, calc(var(--fg, 0.5) * 0.30)), transparent 100%);
+  pointer-events: none;
+}
+.fire3d video { z-index: 1; transform-origin: 50% 88%; }
+.fire3d video.fire-wave,
+.fire3d video.fire-gold {
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.fire3d video.fire-wave {
+  opacity: var(--wa, 0.8);
+  -webkit-mask-image: linear-gradient(to top, transparent 36%, #000 50%, transparent 64%), radial-gradient(ellipse 50% 50% at 50% 52%, #000 62%, transparent 100%);
+  mask-image: linear-gradient(to top, transparent 36%, #000 50%, transparent 64%), radial-gradient(ellipse 50% 50% at 50% 52%, #000 62%, transparent 100%);
+  -webkit-mask-size: 100% 300%, 100% 100%;
+  mask-size: 100% 300%, 100% 100%;
+  -webkit-mask-position: 0 0, 0 0;
+  mask-position: 0 0, 0 0;
+  animation: fire-wave var(--wd, 16s) linear infinite;
+}
+.fire3d video.fire-wave.is-rare { animation-name: fire-wave-rare; }
+@keyframes fire-wave {
+  0% { -webkit-mask-position: 0 0%, 0 0; mask-position: 0 0%, 0 0; filter: hue-rotate(-100deg); }
+  22% { -webkit-mask-position: 0 100%, 0 0; mask-position: 0 100%, 0 0; filter: hue-rotate(-100deg); }
+  25% { -webkit-mask-position: 0 0%, 0 0; mask-position: 0 0%, 0 0; filter: hue-rotate(140deg); }
+  47% { -webkit-mask-position: 0 100%, 0 0; mask-position: 0 100%, 0 0; filter: hue-rotate(140deg); }
+  50% { -webkit-mask-position: 0 0%, 0 0; mask-position: 0 0%, 0 0; filter: hue-rotate(200deg); }
+  72% { -webkit-mask-position: 0 100%, 0 0; mask-position: 0 100%, 0 0; filter: hue-rotate(200deg); }
+  75% { -webkit-mask-position: 0 0%, 0 0; mask-position: 0 0%, 0 0; filter: hue-rotate(0deg); }
+  97%, 100% { -webkit-mask-position: 0 100%, 0 0; mask-position: 0 100%, 0 0; filter: hue-rotate(360deg); }
+}
+@keyframes fire-wave-rare {
+  0% { -webkit-mask-position: 0 0%, 0 0; mask-position: 0 0%, 0 0; filter: hue-rotate(-100deg); }
+  10%, 100% { -webkit-mask-position: 0 100%, 0 0; mask-position: 0 100%, 0 0; filter: hue-rotate(-100deg); }
+}
+.fire3d video.fire-gold {
+  opacity: var(--ga, 0.3);
+  filter: hue-rotate(190deg) saturate(1.2) brightness(1.1);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 40%, transparent 70%), radial-gradient(ellipse 50% 50% at 50% 52%, #000 62%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 40%, transparent 70%), radial-gradient(ellipse 50% 50% at 50% 52%, #000 62%, transparent 100%);
+}
+@media (prefers-reduced-motion: reduce) { .fire3d video.fire-wave, .fire3d video.fire-gold { display: none; } }
+
+/* Master: the strongest fire, in a stone plaque, with the intensity slider. */
+.streak-btn.streak-stage.master-plaque { cursor: default; }
+.streak-btn.streak-stage.master-plaque:hover { transform: none; }
+.master-fire-ctl { display: flex; align-items: center; gap: 10px; margin: 0 12px 8px; }
+.master-fire-ctl input[type='range'] { width: 130px; accent-color: #5aa7ff; cursor: pointer; }
