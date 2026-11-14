@@ -5608,3 +5608,13 @@ textarea.editable-input { display: block; resize: vertical; }
 .personal-top > .daily-wheel-timer .daily-wheel-timer-note {
   text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.85), 0 1px 0 rgba(190, 220, 255, 0.22);
 }
+
+/* Master top block: keep its own two-item layout (the student timer row must not leak in) */
+.master-top.personal-top { grid-template-rows: auto; grid-template-areas: "wheel . fire"; align-items: stretch; }
+.master-top.personal-top > .wheel-inline { grid-area: wheel; margin: 0; }
+.master-top.personal-top > .master-fire { grid-area: fire; justify-self: end; margin: 0; }
+@media (max-width: 720px) {
+  .master-top.personal-top { grid-template-columns: 1fr; grid-template-rows: auto auto; grid-template-areas: "fire" "wheel"; row-gap: 14px; }
+  .master-top.personal-top > .master-fire { justify-self: center; }
+  .master-top.personal-top > .wheel-inline { width: 100%; }
+}
