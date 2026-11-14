@@ -163,14 +163,14 @@ export function dailyWheelHTML() {
           <span class="daily-wheel-handle-grip" aria-hidden="true"></span>
         </button>
         <div class="daily-wheel-glass">
-          <div class="daily-wheel-reel" id="dailyWheelReel"><span class="daily-wheel-orb" aria-hidden="true">◆</span></div>
+          <div class="daily-wheel-reel" id="dailyWheelReel"><span class="daily-wheel-orb" aria-hidden="true">משפט יומי</span></div>
         </div>
       </div>
       <div class="daily-wheel-timer" id="dailyWheelTimer" hidden>
         <svg class="daily-wheel-timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M6 2h12M6 22h12M8 2c0 4 3 5 4 6 1-1 4-2 4-6M8 22c0-4 3-5 4-6 1 1 4 2 4 6"/>
         </svg>
-        <span class="daily-wheel-timer-value flip-clock" id="dailyWheelTimerValue" dir="ltr">${flipClockHTML(clockDigits(0))}</span>
+        <span class="daily-wheel-timer-note">חוזר מחר</span><span class="daily-wheel-timer-value flip-clock" id="dailyWheelTimerValue" dir="ltr">${flipClockHTML(clockDigits(0))}</span>
       </div>
     </div>`;
 }
@@ -202,18 +202,19 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
     dailyWheelStore.sentences.getAll(),
     options.demoSpin ? Promise.resolve(null) : dailyWheelStore.getMySpin(session.id),
   ]);
-  const spin = options.demoSpin
-    ? {
-        sentenceId: null,
-        sentenceText: (sentences[0] && sentences[0].text) || '',
-        spunAt: new Date(Date.now() - LOCK_MS + 20 * 3600000 + 14 * 60000 + 37000).toISOString(),
-        seenIds: [],
-      }
-    : realSpin;
+  // Master's student preview: starts unlocked so the whole pull sequence can
+  // be watched; after a pull it locks for 25 seconds only, then unlocks again.
+  const spin = options.demoSpin ? null : realSpin;
 
   let lockInterval = null;
   let seenSoFar = spin ? [...spin.seenIds, spin.sentenceId] : [];
   let suppressFlip = true; // first paint sets the digits without flipping
+  // Mirrors the lock state to the lever on the streak plaque (and to the
+  // optional onLockChange hook).
+  const notifyLock = (display) => {
+    root.dispatchEvent(new CustomEvent('wheel:lock', { detail: { locked: display !== null, display } }));
+    if (onLockChange) onLockChange(display);
+  };
 
   function showRevealed(text) {
     reel.innerHTML = `<span class="daily-wheel-sentence">${escapeHtml(text)}</span>`;
@@ -235,7 +236,7 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
         clearInterval(lockInterval);
         lockInterval = null;
       }
-      if (onLockChange) onLockChange(null);
+      notifyLock(null);
       return;
     }
     root.classList.add('is-locked');
@@ -244,7 +245,7 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
     const digits = clockDigits(msLeft);
     const digitEls = timerValueEl.querySelectorAll('.fc-digit');
     digitEls.forEach((el, i) => setFlipDigit(el, digits[i], !suppressFlip));
-    if (onLockChange) onLockChange(timeLeftDigits(msLeft));
+    notifyLock(timeLeftDigits(msLeft));
   }
 
   // When the drawer opens, every digit rolls from 0 up to the real value
@@ -268,7 +269,7 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
     }
   } else {
     suppressFlip = false;
-    if (onLockChange) onLockChange(null); // never spun yet -- available right now.
+    notifyLock(null); // never spun yet -- available right now.
   }
 
   // Instant, direct press feedback (item 4) -- pointerdown/up rather than
@@ -287,8 +288,13 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
     return;
   }
 
-  handle.addEventListener('click', () => {
+  // `gate` (optional promise): the reel keeps turning until it resolves --
+  // the lever on the streak plaque passes the fire's ignite animation here so
+  // the sentence only lands after the fire has finished growing.
+  function start(gate) {
     if (handle.disabled || root.classList.contains('is-spinning')) return;
+    let gateDone = !gate;
+    if (gate) gate.then(() => { gateDone = true; }, () => { gateDone = true; });
     root.classList.add('is-spinning');
     root.classList.remove('is-revealed');
     handle.disabled = true;
@@ -321,11 +327,18 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
         setTimeout(tick, delays[i]);
         return;
       }
+      if (!gateDone) {
+        setTimeout(tick, 260);
+        return;
+      }
       pickPromise.then(({ final, seenIds }) => {
         root.classList.remove('is-spinning');
         showRevealed(final.text);
         seenSoFar = seenIds;
-        dailyWheelStore.spin({ userId: session.id, sentenceId: final.id, sentenceText: final.text, seenIds }).then((saved) => {
+        const saving = options.demoSpin
+          ? Promise.resolve({ spunAt: new Date(Date.now() - LOCK_MS + 25000).toISOString() })
+          : dailyWheelStore.spin({ userId: session.id, sentenceId: final.id, sentenceText: final.text, seenIds });
+        saving.then((saved) => {
           if (!saved) return;
           suppressFlip = true;
           updateLockUI(saved.spunAt);
@@ -336,7 +349,9 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
       });
     }
     tick();
-  });
+  }
+  handle.addEventListener('click', () => start(null));
+  root.addEventListener('wheel:pull', (e) => start(e.detail && e.detail.gate));
 }
 
 // --- master-only: "ניהול משפטים לרכיב היומי" -----------------------------

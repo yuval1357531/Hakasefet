@@ -42,6 +42,9 @@ import { auth } from '../auth.js';
 import { streakStore } from '../data/streakStore.js';
 import {
   streakButtonHTML,
+  leverHTML,
+  igniteFlame,
+  wireFireDemo,
   masterFireHTML,
   wireMasterFire,
   wakeFires,
@@ -401,34 +404,15 @@ function boardModalHTML(broadcastItems, isOpen) {
 // completely untouched; only WHERE it renders changes. The closed tab
 // shows the live countdown via mountDailyWheel's onLockChange hook. ------
 
-// The "משפט יומי" tab: sits in the page flow on the right, between the top
-// row and the journal (the drawer itself opens from the right edge).
-function wheelTabHTML(isOpen) {
-  return `
-    <div class="wheel-tab-row">
-      <button type="button" class="wheel-tab" id="wheelTabBtn" aria-label="משפט יומי" aria-expanded="${isOpen ? 'true' : 'false'}">
-        <span class="wheel-tab-label">משפט יומי</span>
-        <span class="wheel-tab-timer" id="wheelTabTimer"></span>
-      </button>
-    </div>`;
+// The daily sentence: a wheel in the page flow, between the top row and the
+// journal. It is operated by the lever on the streak plaque (see
+// wireWheelDrawer below); its own handle stays hidden.
+function wheelTabHTML() {
+  return `<div class="wheel-inline">${dailyWheelHTML()}</div>`;
 }
 
-function wheelDrawerHTML(isOpen) {
-  return `
-    <div class="wheel-drawer-root${isOpen ? ' is-open' : ''}" id="wheelDrawerRoot">
-      <div class="wheel-drawer-overlay" id="wheelDrawerOverlay"></div>
-      <div class="wheel-drawer panel-card" id="wheelDrawer" role="dialog" aria-label="משפט יומי" aria-hidden="${isOpen ? 'false' : 'true'}">
-        <div class="wheel-drawer-swipe-hint" aria-hidden="true"><span></span><span></span><span></span></div>
-        <div class="wheel-drawer-header">
-          <span class="personal-help-row">
-            <h2 class="gold-title wheel-drawer-title">משפט יומי</h2>
-            ${helpTipHTML('daily-wheel', 'כאן אפשר לקבל משפט יומי קצר פעם ב-24 שעות. זה משפט או כיוון קטן שנועד לפתוח לך נקודת מחשבה להיום.')}
-          </span>
-          <button type="button" class="personal-modal-close" id="wheelDrawerClose" aria-label="סגירה">✕</button>
-        </div>
-        <div class="wheel-drawer-body">${dailyWheelHTML()}</div>
-      </div>
-    </div>`;
+function wheelDrawerHTML() {
+  return '';
 }
 
 // --- "צידה לדרך + הכלים שלי" -- same popup treatment, showing what the
@@ -463,7 +447,7 @@ export async function studentPageHTML(session, { boardModalOpen, trailModalOpen,
       </div>
       <div class="personal-topbar">
         ${personalBoardButtonHTML(unseenCount)}
-        <span class="streak-wrap">${streakButtonHTML(null)}${helpTipHTML('streak', 'הרצף סופר כמה ימים ברציפות נכנסת לכספת. כל יום שנכנסים האש גדלה. דילוג על יום שלם מחזיר את הרצף ל-0. לחיצה על הרצף פותחת את המפה: שם רואים את הדרך, את המתנות שמחכות בדרך ואת היעד הבא.')}</span>
+        <span class="streak-wrap">${streakButtonHTML(null)}${leverHTML()}${helpTipHTML('streak', 'הרצף סופר כמה ימים ברציפות נכנסת לכספת. כל יום שנכנסים האש גדלה. דילוג על יום שלם מחזיר את הרצף ל-0. לחיצה על הרצף פותחת את המפה: שם רואים את הדרך, את המתנות שמחכות בדרך ואת היעד הבא. משיכת הידית שלידו מדליקה את האש ופותחת את המשפט היומי, פעם ב-24 שעות.')}</span>
       </div>
       ${resumeHTML}
       ${wheelTabHTML(wheelDrawerOpen)}
@@ -870,7 +854,7 @@ export async function mountPersonalPage(container, session) {
     });
     container.innerHTML = `
       <div class="admin-page personal-view-toggle-wrap">${personalViewToggleHTML(true)}</div>
-      <div class="admin-preview-banner">תצוגה מקדימה — כך נראה האזור האישי אצל משתמש רגיל (ללא נתונים אמיתיים)</div>
+      <div class="admin-preview-banner">תצוגה מקדימה — כך נראה האזור האישי אצל משתמש רגיל (ללא נתונים אמיתיים) <button type="button" class="btn-ghost small" id="fireDemoBtn">הדגמת צמיחה</button></div>
       ${html}`;
     wireViewToggle();
     wireTrailNote();
@@ -887,6 +871,8 @@ export async function mountPersonalPage(container, session) {
       { demoSpin: true }
     );
     mountStreak(container, DEMO_SESSION, { demoState: DEMO_STREAK });
+    const fireDemoBtn = container.querySelector('#fireDemoBtn');
+    if (fireDemoBtn) wireFireDemo(container, fireDemoBtn);
     wireAttachmentLinks(container);
   }
 
@@ -1072,65 +1058,43 @@ export async function mountPersonalPage(container, session) {
   // a mobile swipe-left-to-close gesture. Purely a shell around the
   // untouched daily-wheel widget already mounted inside it; none of this
   // reads or changes the 24h lock state.
-  function wireWheelDrawer({ preview = false } = {}) {
-    const root = container.querySelector('#wheelDrawerRoot');
-    const tab = container.querySelector('#wheelTabBtn');
-    const overlay = container.querySelector('#wheelDrawerOverlay');
-    const drawer = container.querySelector('#wheelDrawer');
-    const closeBtn = container.querySelector('#wheelDrawerClose');
-    if (!root || !tab || !overlay || !drawer) return;
-
-    function setOpen(open) {
-      wheelDrawerOpen = open;
-      root.classList.toggle('is-open', open);
-      tab.setAttribute('aria-expanded', open ? 'true' : 'false');
-      drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
-      if (open) {        container.querySelector('#dailyWheel')?.dispatchEvent(new CustomEvent('wheeldrawer:open'));
+  function wireWheelDrawer() {
+    const lever = container.querySelector('#leverBtn');
+    const wheel = container.querySelector('#dailyWheel');
+    if (!lever || !wheel) return;
+    const timerEl = container.querySelector('#leverTimer');
+    let locked = false;
+    let busy = false;
+    // The wheel reports its lock state (also the countdown) after loading and
+    // after every pull.
+    wheel.addEventListener('wheel:lock', (e) => {
+      locked = e.detail.locked;
+      if (locked) busy = false;
+      if (!busy) lever.classList.toggle('is-pulled', locked);
+      lever.classList.toggle('is-used', locked);
+      if (timerEl) timerEl.textContent = locked ? e.detail.display : '';
+    });
+    lever.addEventListener('click', () => {
+      if (busy) return;
+      if (locked) {
+        lever.classList.remove('is-nudge');
+        void lever.offsetWidth;
+        lever.classList.add('is-nudge');
+        return;
       }
-    }
-
-    tab.addEventListener('click', () => setOpen(true));
-    overlay.addEventListener('click', () => setOpen(false));
-    if (closeBtn) closeBtn.addEventListener('click', () => setOpen(false));
-
-    // Swipe-to-close (mobile): the drawer sits at translateX(0) when open
-    // (see CSS), so dragging further left is a natural, direct extension
-    // of that same axis -- follow the finger 1:1 with no transition while
-    // dragging, then either finish the close or spring back open, both
-    // using the drawer's normal CSS transition for the same weighted,
-    // no-bounce settle every other panel in the app already uses.
-    let dragging = false;
-    let startX = 0;
-    let currentDx = 0;
-    const CLOSE_THRESHOLD = 90; // px of rightward drag that commits to closing
-
-    drawer.addEventListener('pointerdown', (e) => {
-      if (!root.classList.contains('is-open')) return;
-      // Ignore drags starting on interactive controls (the handle, inputs,
-      // buttons) so a press-and-hold on the wheel's own handle never gets
-      // mistaken for a swipe.
-      if (e.target.closest('button, input, textarea, a')) return;
-      dragging = true;
-      startX = e.clientX;
-      currentDx = 0;
-      drawer.classList.add('is-dragging');
-      drawer.setPointerCapture(e.pointerId);
+      busy = true;
+      lever.classList.add('is-pulled');
+      const host = container.querySelector('#masterFireHost') || container.querySelector('#streakOpenBtn .streak-btn-flame');
+      const gate = igniteFlame(host);
+      wheel.dispatchEvent(new CustomEvent('wheel:pull', { detail: { gate } }));
+      // Safety: if nothing got saved (no sentences / network), the lever comes back up.
+      setTimeout(() => {
+        if (!locked) {
+          busy = false;
+          lever.classList.remove('is-pulled');
+        }
+      }, 12000);
     });
-    drawer.addEventListener('pointermove', (e) => {
-      if (!dragging) return;
-      currentDx = Math.max(0, e.clientX - startX);
-      drawer.style.transform = `translateX(${currentDx}px)`;
-    });
-    function endDrag() {
-      if (!dragging) return;
-      dragging = false;
-      drawer.classList.remove('is-dragging');
-      drawer.style.transform = '';
-      if (Math.abs(currentDx) >= CLOSE_THRESHOLD) setOpen(false);
-      currentDx = 0;
-    }
-    drawer.addEventListener('pointerup', endDrag);
-    drawer.addEventListener('pointercancel', endDrag);
   }
 
   // The post-it "צידה לדרך + הכלים שלי": on tap it first slides out of the

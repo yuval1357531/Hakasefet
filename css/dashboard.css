@@ -5308,3 +5308,149 @@ textarea.editable-input { display: block; resize: vertical; }
 }
 .road-title { font-size: 15px; color: var(--crystal-ice); }
 .road-row.is-start .road-card { padding-top: 11px; }
+
+/* ============================================================
+   The lever on the streak plaque + the in-flow daily-sentence wheel +
+   the ignite show. Pulling the lever (once per 24h) grows the fire from a
+   spark AND spins the sentence; the sentence lands after the fire is done.
+   ============================================================ */
+.wheel-inline { width: min(360px, 100%); margin: 0 0 22px; }
+.wheel-inline .daily-wheel-handle { display: none; }
+.wheel-inline .daily-wheel { padding: 12px; }
+.wheel-inline .daily-wheel-glass { min-height: 74px; }
+.daily-wheel-orb { font-size: 19px; font-weight: 700; letter-spacing: 0.04em; }
+.daily-wheel:not(.is-revealed):not(.is-spinning) .daily-wheel-orb { animation: daily-wheel-breathe 3.4s ease-in-out infinite; }
+.daily-wheel-timer-note { font-size: 11px; color: #ff9a9a; letter-spacing: 0.03em; }
+.wheel-inline .daily-wheel-timer-value { border-color: rgba(255, 110, 110, 0.45); box-shadow: 0 0 12px rgba(255, 70, 70, 0.14); }
+.wheel-inline .fc-digit i, .wheel-inline .fc-sep { color: #ff8f8f; text-shadow: 0 0 8px rgba(255, 80, 80, 0.45); }
+
+.lever {
+  position: absolute;
+  left: calc(100% - 6px);
+  top: 46%;
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  z-index: 4;
+  -webkit-tap-highlight-color: transparent;
+}
+.streak-wrap > .streak-btn[hidden] ~ .lever { display: none; }
+.lever-boss {
+  position: absolute;
+  left: -6px;
+  top: -19px;
+  width: 30px;
+  height: 38px;
+  border-radius: 0 12px 12px 0;
+  background: linear-gradient(90deg, #1b2740 0%, #3b5078 45%, #8fa9d0 70%, #2b3b5e 100%);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -2px 3px rgba(0, 0, 0, 0.5);
+}
+.lever-boss::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 14px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #8fb7e8 55%, #1d3a6e);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.lever-arm {
+  position: absolute;
+  left: 13px;
+  top: -8px;
+  width: 80px;
+  height: 16px;
+  transform-origin: 8px 50%;
+  transform: rotate(var(--la, -42deg));
+  transition: transform 0.6s cubic-bezier(0.34, 1.45, 0.5, 1);
+}
+.lever.is-pulled .lever-arm { --la: 44deg; }
+.lever-rod {
+  position: absolute;
+  left: 0;
+  right: 14px;
+  top: 4px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #f1f7ff 0%, #9db3d4 38%, #3a4d70 78%, #1b2840 100%);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.55);
+}
+.lever-knob {
+  position: absolute;
+  right: 0;
+  top: -5px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #ffffff 0, #cfe9ff 18%, #5a9be0 56%, #17305e 100%);
+  box-shadow: 0 0 14px rgba(120, 195, 255, 0.75), 0 5px 9px rgba(0, 0, 0, 0.65), inset 0 -3px 5px rgba(0, 0, 40, 0.45);
+}
+.lever:not(.is-pulled) .lever-knob { animation: lever-call 3.2s ease-in-out infinite; }
+@keyframes lever-call {
+  0%, 70%, 100% { transform: translate(0, 0) scale(1); }
+  80% { transform: translate(2px, 5px) scale(1.1); box-shadow: 0 0 22px rgba(160, 220, 255, 1), 0 5px 9px rgba(0, 0, 0, 0.65); }
+  90% { transform: translate(0, 1px) scale(1.03); }
+}
+.lever:hover .lever-knob { box-shadow: 0 0 22px rgba(160, 220, 255, 1), 0 5px 9px rgba(0, 0, 0, 0.65), inset 0 -3px 5px rgba(0, 0, 40, 0.45); }
+.lever.is-used { cursor: default; }
+.lever.is-used .lever-arm { filter: saturate(0.3) brightness(0.7); }
+.lever.is-used .lever-knob { background: radial-gradient(circle at 34% 28%, #ffd9d9 0, #e07a7a 40%, #5a1b1b 100%); box-shadow: 0 0 10px rgba(255, 80, 80, 0.45), 0 5px 9px rgba(0, 0, 0, 0.65); }
+.lever.is-nudge .lever-arm { animation: lever-nudge 0.4s ease-out; }
+@keyframes lever-nudge { 0%, 100% { transform: rotate(44deg); } 40% { transform: rotate(32deg); } }
+.lever-timer {
+  position: absolute;
+  left: 30px;
+  top: 64px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 110, 110, 0.55);
+  background: rgba(50, 6, 6, 0.65);
+  color: #ff9a9a;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  direction: ltr;
+  display: none;
+}
+.lever.is-used .lever-timer:not(:empty) { display: block; }
+
+/* the ignite show (animates the videos themselves -- an ancestor transform
+   would isolate the screen blend) */
+.fire3d.is-igniting video { animation: fire-ignite 2.6s cubic-bezier(0.22, 0.8, 0.3, 1) both; transform-origin: 50% 92%; }
+@keyframes fire-ignite {
+  0% { transform: scale(0.18); opacity: 0.1; }
+  35% { transform: scale(0.45); opacity: 0.65; }
+  70% { transform: scale(1.12); opacity: 1; }
+  84% { transform: scale(1.22); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.fire-flash {
+  position: absolute;
+  inset: -12%;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 66%, rgba(235, 248, 255, 0.95), rgba(110, 180, 255, 0.4) 34%, transparent 62%);
+  opacity: 0;
+  animation: fire-flash 2.6s ease-out forwards;
+}
+@keyframes fire-flash { 0%, 62% { opacity: 0; } 74% { opacity: 0.95; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .fire3d.is-igniting video, .fire-flash { animation: none; }
+  .lever:not(.is-pulled) .lever-knob { animation: none; }
+  .lever-arm { transition: none; }
+}
+@media (max-width: 640px) {
+  .personal-topbar { flex-wrap: wrap; }
+  .lever-arm { width: 60px; }
+  .lever-knob { width: 22px; height: 22px; }
+  .lever-timer { top: 50px; left: 20px; }
+  .wheel-inline { width: 100%; }
+}
+#fireDemoBtn.is-on { border-color: var(--crystal-ice); color: var(--crystal-ice); }

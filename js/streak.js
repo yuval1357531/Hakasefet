@@ -162,13 +162,13 @@ function masterFireValue() {
 export function masterFireHTML() {
   const v = masterFireValue();
   return `
-    <div class="streak-btn streak-stage master-plaque">
+    <span class="streak-wrap"><div class="streak-btn streak-stage master-plaque">
       <span class="streak-btn-flame" id="masterFireHost">${fireHTML(v)}</span>
       <label class="streak-btn-text master-fire-ctl">עוצמת האש
         <input type="range" id="masterFireRange" min="0" max="70" step="1" value="${v}" aria-label="עוצמת האש">
         <span class="streak-btn-count" id="masterFireVal">${v}</span>
       </label>
-    </div>`;
+    </div>${leverHTML()}</span>`;
 }
 export function wireMasterFire(root) {
   const range = root.querySelector('#masterFireRange');
@@ -186,14 +186,16 @@ export function wireMasterFire(root) {
 }
 
 // Tap on the big flame: a quick pulse plus a small burst of sparks.
-function pokeFlame(host) {
+function pokeFlame(host, count = 8, pulse = true) {
   const flame = host.querySelector('.fire3d, .flame');
   if (!flame) return;
-  flame.classList.remove('is-poked');
-  void flame.offsetWidth;
-  flame.classList.add('is-poked');
+  if (pulse) {
+    flame.classList.remove('is-poked');
+    void flame.offsetWidth;
+    flame.classList.add('is-poked');
+  }
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 0; i < count; i += 1) {
     const p = document.createElement('i');
     p.className = 'flame-burst';
     const angle = (-90 + (Math.random() - 0.5) * 150) * (Math.PI / 180);
@@ -203,6 +205,78 @@ function pokeFlame(host) {
     p.addEventListener('animationend', () => p.remove());
     host.appendChild(p);
   }
+}
+
+// --- the lever on the plaque ------------------------------------------------
+// Pulling it (once per 24h) ignites the fire AND spins the daily sentence.
+export function leverHTML() {
+  return `
+    <button type="button" class="lever" id="leverBtn" aria-label="משוך את הידית: משפט יומי והבערת האש">
+      <span class="lever-boss" aria-hidden="true"></span>
+      <span class="lever-arm" aria-hidden="true"><span class="lever-rod"></span><span class="lever-knob"></span></span>
+      <span class="lever-timer" id="leverTimer" aria-hidden="true"></span>
+    </button>`;
+}
+
+// The fire wakes from small to full with a flash and a burst of sparks.
+// Resolves when the show is over (the sentence waits for it).
+const IGNITE_MS = 2600;
+export function igniteFlame(host) {
+  const fire = host && host.querySelector('.fire3d');
+  const still = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!fire || still) return new Promise((r) => setTimeout(r, 600));
+  fire.classList.remove('is-igniting');
+  void fire.offsetWidth;
+  fire.classList.add('is-igniting');
+  const flash = document.createElement('i');
+  flash.className = 'fire-flash';
+  flash.addEventListener('animationend', () => flash.remove());
+  fire.appendChild(flash);
+  setTimeout(() => pokeFlame(host, 12, false), 1700);
+  setTimeout(() => pokeFlame(host, 14, false), 2000);
+  setTimeout(() => fire.classList.remove('is-igniting'), IGNITE_MS + 100);
+  return new Promise((r) => setTimeout(r, IGNITE_MS));
+}
+
+// Master's student preview: "הדגמת צמיחה" -- every 10 seconds the fire steps
+// to the next stage of the ladder (0, 1, 2, 3, 5 ... 70) and after the top
+// it falls back to 0 and grows again, so every stage can be watched.
+let fireDemoTimer = null;
+export function wireFireDemo(root, btn) {
+  const days = FIRE_LADDER.map((r) => r.d);
+  const label = btn.textContent;
+  btn.addEventListener('click', () => {
+    if (fireDemoTimer) {
+      clearInterval(fireDemoTimer);
+      fireDemoTimer = null;
+      btn.classList.remove('is-on');
+      btn.textContent = label;
+      return;
+    }
+    let k = 0;
+    const step = () => {
+      if (!document.body.contains(btn)) {
+        clearInterval(fireDemoTimer);
+        fireDemoTimer = null;
+        return;
+      }
+      const d = days[k % days.length];
+      const open = root.querySelector('#streakOpenBtn');
+      const host = open && open.querySelector('.streak-btn-flame');
+      if (host) {
+        host.innerHTML = fireHTML(d);
+        const cnt = open.querySelector('.streak-btn-count');
+        if (cnt) cnt.textContent = String(d);
+        wakeFires(open);
+        if (k % days.length !== 0) pokeFlame(host, 14, true);
+      }
+      k += 1;
+    };
+    step();
+    fireDemoTimer = setInterval(step, 10000);
+    btn.classList.add('is-on');
+    btn.textContent = 'עצור הדגמה';
+  });
 }
 
 // --- student button + popup ------------------------------------------------
