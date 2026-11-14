@@ -363,6 +363,17 @@ export function dailyWheelManagerHTML({ sentences, editing }) {
         ${isEditing ? '<button type="button" class="btn-ghost small" id="dailyWheelCancelEdit">ביטול</button>' : ''}
       </div>
     </form>
+    ${isEditing ? '' : `
+    <form id="dailyWheelBulkForm" novalidate style="margin-top:14px">
+      <div class="field-group">
+        <label for="dailyWheelBulkInput">הוספה מרובה — משפט בכל שורה (אפשר גם "נושא | משפט")</label>
+        <textarea id="dailyWheelBulkInput" rows="6" placeholder="משפט ראשון&#10;משפט שני&#10;נושא | משפט שלישי"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn-gold small">הוספת כל השורות</button>
+        <span id="dailyWheelBulkMsg" class="placeholder-desc" style="margin:0"></span>
+      </div>
+    </form>`}
     <button type="button" class="btn-ghost small compact-list-open-btn" id="dailyWheelSentencesOpenBtn">
       משפטים קיימים${count ? `<span class="admin-badge admin-badge-neutral">${count}</span>` : ''}
     </button>`;
@@ -424,6 +435,35 @@ export function wireDailyWheelManager(root, { sentences, rerender, getEditingId,
     }
     await rerender();
   });
+
+  const bulk = root.querySelector('#dailyWheelBulkForm');
+  if (bulk) {
+    bulk.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = root.querySelector('#dailyWheelBulkMsg');
+      const items = root.querySelector('#dailyWheelBulkInput').value
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((l) => {
+          const i = l.indexOf('|');
+          return i > 0 ? { topic: l.slice(0, i).trim(), text: l.slice(i + 1).trim() } : { text: l };
+        })
+        .filter((it) => it.text);
+      if (!items.length) return;
+      const existing = new Set(sentences.map((s) => s.text));
+      const fresh = items.filter((it) => !existing.has(it.text));
+      const created = await dailyWheelStore.sentences.createMany(fresh);
+      if (created === null) {
+        if (msg) msg.textContent = 'השמירה נכשלה';
+        return;
+      }
+      sentences.push(...created);
+      await rerender();
+      const m2 = root.querySelector('#dailyWheelBulkMsg');
+      if (m2) m2.textContent = `נוספו ${created.length} משפטים` + (items.length > fresh.length ? ` (דולגו ${items.length - fresh.length} כפולים)` : '');
+    });
+  }
 
   const cancel = root.querySelector('#dailyWheelCancelEdit');
   if (cancel) {

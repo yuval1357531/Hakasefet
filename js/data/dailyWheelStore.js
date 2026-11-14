@@ -37,6 +37,14 @@ export const dailyWheelStore = {
       if (error || !data) return null;
       return toSentence(data);
     },
+    // Bulk add: `items` = [{ text, topic? }]. Returns the created sentences.
+    async createMany(items) {
+      const rows = items.map((it) => ({ id: makeId(), text: it.text, ...(it.topic ? { topic: it.topic } : {}) }));
+      if (!rows.length) return [];
+      const { data, error } = await supabase.from('daily_wheel_sentences').insert(rows).select();
+      if (error || !data) return null;
+      return data.map(toSentence);
+    },
     async update(id, text) {
       const { data, error } = await supabase.from('daily_wheel_sentences').update({ text }).eq('id', id).select().single();
       if (error || !data) return null;

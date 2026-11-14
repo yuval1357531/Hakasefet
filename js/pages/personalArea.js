@@ -401,35 +401,28 @@ function boardModalHTML(broadcastItems, isOpen) {
 // completely untouched; only WHERE it renders changes. The closed tab
 // shows the live countdown via mountDailyWheel's onLockChange hook. ------
 
-// `showHint`: the bouncing "לחץ לפתיחת המשפט היומי" arrow beside the tab --
-// students (and the master's student-view preview) only, finite on purpose
-// (see wireWheelDrawer: gone after "הבנתי" twice, or once the drawer opens).
-function wheelDrawerHTML(isOpen, showHint = false) {
-  const hintHTML = showHint
-    ? `
-      <div class="wheel-hint" id="wheelHint">
-        <div class="wheel-hint-inner">
-          <svg class="wheel-hint-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H5M11 6l-6 6 6 6"/></svg>
-          <div class="wheel-hint-body">
-            <span class="wheel-hint-text">המשפט היומי שלך מחכה כאן</span>
-            <button type="button" class="wheel-hint-ok" id="wheelHintOk">הבנתי</button>
-          </div>
-        </div>
-      </div>`
-    : '';
+// The "משפט יומי" tab: sits in the page flow on the right, between the top
+// row and the journal (the drawer itself opens from the right edge).
+function wheelTabHTML(isOpen) {
+  return `
+    <div class="wheel-tab-row">
+      <button type="button" class="wheel-tab" id="wheelTabBtn" aria-label="משפט יומי" aria-expanded="${isOpen ? 'true' : 'false'}">
+        <span class="wheel-tab-label">משפט יומי</span>
+        <span class="wheel-tab-timer" id="wheelTabTimer"></span>
+      </button>
+    </div>`;
+}
+
+function wheelDrawerHTML(isOpen) {
   return `
     <div class="wheel-drawer-root${isOpen ? ' is-open' : ''}" id="wheelDrawerRoot">
-      <button type="button" class="wheel-tab" id="wheelTabBtn" aria-label="דיוק יומי" aria-expanded="${isOpen ? 'true' : 'false'}">
-        <span class="wheel-tab-mark" aria-hidden="true">◆</span>
-        <span class="wheel-tab-timer" id="wheelTabTimer"></span>
-      </button>${hintHTML}
       <div class="wheel-drawer-overlay" id="wheelDrawerOverlay"></div>
-      <div class="wheel-drawer panel-card" id="wheelDrawer" role="dialog" aria-label="דיוק יומי" aria-hidden="${isOpen ? 'false' : 'true'}">
+      <div class="wheel-drawer panel-card" id="wheelDrawer" role="dialog" aria-label="משפט יומי" aria-hidden="${isOpen ? 'false' : 'true'}">
         <div class="wheel-drawer-swipe-hint" aria-hidden="true"><span></span><span></span><span></span></div>
         <div class="wheel-drawer-header">
           <span class="personal-help-row">
-            <h2 class="gold-title wheel-drawer-title">דיוק יומי</h2>
-            ${helpTipHTML('daily-wheel', 'כאן אפשר לקבל דיוק יומי קצר פעם ב-24 שעות. זה משפט או כיוון קטן שנועד לפתוח לך נקודת מחשבה להיום.')}
+            <h2 class="gold-title wheel-drawer-title">משפט יומי</h2>
+            ${helpTipHTML('daily-wheel', 'כאן אפשר לקבל משפט יומי קצר פעם ב-24 שעות. זה משפט או כיוון קטן שנועד לפתוח לך נקודת מחשבה להיום.')}
           </span>
           <button type="button" class="personal-modal-close" id="wheelDrawerClose" aria-label="סגירה">✕</button>
         </div>
@@ -470,15 +463,16 @@ export async function studentPageHTML(session, { boardModalOpen, trailModalOpen,
       </div>
       <div class="personal-topbar">
         ${personalBoardButtonHTML(unseenCount)}
-        ${streakButtonHTML(null)}
+        <span class="streak-wrap">${streakButtonHTML(null)}${helpTipHTML('streak', 'הרצף סופר כמה ימים ברציפות נכנסת לכספת. כל יום שנכנסים האש גדלה. דילוג על יום שלם מחזיר את הרצף ל-0. לחיצה על הרצף פותחת את המפה: שם רואים את הדרך, את המתנות שמחכות בדרך ואת היעד הבא.')}</span>
       </div>
       ${resumeHTML}
+      ${wheelTabHTML(wheelDrawerOpen)}
       ${notebookHTML(ownEntries, personalItems)}
     </div>
     ${boardModalHTML(broadcastItems, boardModalOpen)}
     ${trailModalHTML(journalEntries, trailModalOpen)}
     ${streakModalHTML()}
-    ${wheelDrawerHTML(wheelDrawerOpen, forceWheelHint || wheelHintAcks(session) < WHEEL_HINT_MAX_ACKS)}`,
+    ${wheelDrawerHTML(wheelDrawerOpen)}`,
     resumeLessonId,
   };
 }
@@ -979,6 +973,7 @@ export async function mountPersonalPage(container, session) {
         }),
         openAccordions.has('streak-rewards')
       ) + wheelDrawerHTML(wheelDrawerOpen);
+      container.querySelector('.personal-page-actions')?.insertAdjacentHTML('afterend', wheelTabHTML(wheelDrawerOpen));
       wireViewToggle();
       wakeFires(container);
       wireMasterFire(container);
@@ -1085,35 +1080,12 @@ export async function mountPersonalPage(container, session) {
     const closeBtn = container.querySelector('#wheelDrawerClose');
     if (!root || !tab || !overlay || !drawer) return;
 
-    // The arrow beside the tab (students + the master's preview): shown
-    // until "הבנתי" has been pressed twice across visits, never twice in
-    // one page load, and gone for good once the drawer is actually opened.
-    const hint = container.querySelector('#wheelHint');
-    const hintSession = preview ? null : session;
-    function finishHint() {
-      if (!hint) return;
-      if (!hintSession) {
-        hint.hidden = true; // preview: just hide, never remembered
-        return;
-      }
-      if (wheelHintDoneThisLoad) return;
-      wheelHintDoneThisLoad = true;
-      bumpWheelHintAcks(hintSession);
-      hint.hidden = true;
-    }
-    if (hint) {
-      if (wheelHintDoneThisLoad && !preview) hint.hidden = true;
-      container.querySelector('#wheelHintOk')?.addEventListener('click', finishHint);
-    }
-
     function setOpen(open) {
       wheelDrawerOpen = open;
       root.classList.toggle('is-open', open);
       tab.setAttribute('aria-expanded', open ? 'true' : 'false');
       drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
-      if (open) {
-        finishHint();
-        container.querySelector('#dailyWheel')?.dispatchEvent(new CustomEvent('wheeldrawer:open'));
+      if (open) {        container.querySelector('#dailyWheel')?.dispatchEvent(new CustomEvent('wheeldrawer:open'));
       }
     }
 
@@ -1130,7 +1102,7 @@ export async function mountPersonalPage(container, session) {
     let dragging = false;
     let startX = 0;
     let currentDx = 0;
-    const CLOSE_THRESHOLD = 90; // px of leftward drag that commits to closing
+    const CLOSE_THRESHOLD = 90; // px of rightward drag that commits to closing
 
     drawer.addEventListener('pointerdown', (e) => {
       if (!root.classList.contains('is-open')) return;
@@ -1146,7 +1118,7 @@ export async function mountPersonalPage(container, session) {
     });
     drawer.addEventListener('pointermove', (e) => {
       if (!dragging) return;
-      currentDx = Math.min(0, e.clientX - startX);
+      currentDx = Math.max(0, e.clientX - startX);
       drawer.style.transform = `translateX(${currentDx}px)`;
     });
     function endDrag() {

@@ -5226,3 +5226,85 @@ textarea.editable-input { display: block; resize: vertical; }
 .streak-btn.streak-stage.master-plaque:hover { transform: none; }
 .master-fire-ctl { display: flex; align-items: center; gap: 10px; margin: 0 12px 8px; }
 .master-fire-ctl input[type='range'] { width: 130px; accent-color: #5aa7ff; cursor: pointer; }
+
+/* ============================================================
+   Round: "משפט יומי" tab in the page flow on the right, drawer from the
+   right edge, clearer "?" marks, streak help + cue, softer map.
+   ============================================================ */
+
+/* the "?" marks: bigger, filled, readable everywhere */
+.help-tip {
+  width: 20px;
+  height: 20px;
+  font-size: 12.5px;
+  font-weight: 700;
+  opacity: 1;
+  color: #0b1424;
+  background: linear-gradient(160deg, #ffe9a8 0%, #f3c65a 100%);
+  border: 1px solid rgba(255, 220, 130, 0.9);
+  box-shadow: 0 0 10px rgba(243, 198, 90, 0.4);
+}
+.help-tip:hover { color: #0b1424; border-color: #fff1c4; box-shadow: 0 0 14px rgba(243, 198, 90, 0.7); }
+:is(.personal-notebook, .personal-notebook-block) .help-tip { color: #0b1424; opacity: 1; }
+
+/* streak: "?" sits on the plaque corner, the plaque says it opens the map */
+.streak-wrap { position: relative; display: inline-flex; align-self: flex-start; }
+.streak-wrap > .help-tip { position: absolute; top: -8px; inset-inline-start: -8px; z-index: 3; }
+.streak-wrap > .streak-btn[hidden] + .help-tip { display: none; }
+.streak-btn-cue {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: #8fd0ff;
+  text-shadow: 0 0 10px rgba(120, 195, 255, 0.5);
+  animation: streak-cue 2.6s ease-in-out infinite;
+}
+@keyframes streak-cue { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .streak-btn-cue { animation: none; } }
+
+/* daily sentence: a pill in the flow, drawer from the right */
+.wheel-tab-row { display: flex; justify-content: flex-start; margin: -30px 0 18px; }
+.wheel-tab {
+  position: static;
+  transform: none;
+  flex-direction: row;
+  gap: 10px;
+  padding: 8px 16px;
+  border: 1px solid rgba(140, 200, 255, 0.4);
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(230, 244, 255, 0.1);
+}
+.wheel-tab:hover { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 18px rgba(120, 195, 255, 0.2); }
+.wheel-tab-label { font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--crystal-ice); }
+.wheel-drawer {
+  left: auto;
+  right: 0;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  transform: translateX(100%);
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.5);
+}
+.wheel-drawer-root.is-open .wheel-drawer { transform: translateX(0); }
+
+/* the map: no boxes, an open glowing way with the goal written along it */
+.road-rail { width: 4px; right: 20px; background: linear-gradient(180deg, rgba(99,171,255,0.28), rgba(99,171,255,0.08)); }
+.road-rail-fill { filter: blur(0.3px); }
+.road-node { border-radius: 50%; border-width: 2px; box-shadow: 0 0 18px rgba(99, 171, 255, 0.12); }
+.road-card {
+  border: 0;
+  background: none;
+  padding: 4px 0 0;
+  gap: 3px;
+}
+.road-row.is-locked .road-card { opacity: 0.85; }
+.road-days {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0;
+  background: linear-gradient(160deg, #ffffff 0%, #bfe0ff 50%, #6fb2f0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.road-title { font-size: 15px; color: var(--crystal-ice); }
+.road-row.is-start .road-card { padding-top: 11px; }

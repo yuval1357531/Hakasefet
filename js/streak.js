@@ -212,7 +212,7 @@ export function streakButtonHTML(state) {
   return `
     <button type="button" class="streak-btn streak-stage${n > 0 ? ' is-lit' : ''}" id="streakOpenBtn" aria-haspopup="dialog"${state ? '' : ' hidden'}>
       <span class="streak-btn-flame">${state ? fireHTML(n) : ''}</span>
-      <span class="streak-btn-text">הרצף שלך<span class="streak-btn-count">${n}</span></span>
+      <span class="streak-btn-text">הרצף שלך<span class="streak-btn-count">${n}</span><span class="streak-btn-cue">לחץ לפתיחת המפה ◂</span></span>
     </button>`;
 }
 
