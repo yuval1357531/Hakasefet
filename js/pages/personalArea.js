@@ -459,12 +459,12 @@ export async function studentPageHTML(session, { boardModalOpen, trailModalOpen,
         <h1 class="gold-title placeholder-title">שלום, ${escapeHtml(firstName(session.fullName || session.username))} האגדי</h1>
         <img src="assets/jaurius-mask-logo-240.png" alt="" class="personal-page-icon">
       </div>
-      <div class="personal-topbar">
+      <div class="personal-topbar personal-top">
         ${personalBoardButtonHTML(unseenCount)}
+        ${wheelTabHTML(wheelDrawerOpen)}
         <span class="streak-wrap">${streakButtonHTML(null)}${leverHTML()}${helpTipHTML('streak', 'הרצף סופר כמה ימים ברציפות נכנסת לכספת. כל יום שנכנסים האש גדלה. דילוג על יום שלם מחזיר את הרצף ל-0. לחיצה על הרצף פותחת את המפה: שם רואים את הדרך, את המתנות שמחכות בדרך ואת היעד הבא. משיכת הידית שלידו מדליקה את האש ופותחת את המשפט היומי, פעם ב-24 שעות.')}</span>
       </div>
       ${resumeHTML}
-      ${wheelTabHTML(wheelDrawerOpen)}
       ${notebookHTML(ownEntries, personalItems)}
     </div>
     ${boardModalHTML(broadcastItems, boardModalOpen)}
@@ -771,9 +771,12 @@ function masterPageHTML(
         <h1 class="gold-title placeholder-title">שלום ג'אוריוס האגדי</h1>
         <img src="assets/jaurius-mask-logo-240.png" alt="" class="personal-page-icon">
       </div>
-      <div class="master-fire">${masterFireHTML()}</div>
       <div class="personal-page-actions">
         <a href="#/admin" class="admin-manage-link">ניהול מערכת ומשתמשים</a>
+      </div>
+      <div class="master-top personal-top">
+        <div class="master-fire">${masterFireHTML()}</div>
+        ${wheelSentencesScrollHTML(wheelSentences)}
       </div>
       ${securityAlertsHTML(securityAlerts, masterLoginAlerts, studentNameById, securityBubbleOpen)}
       ${securityAlertsHistoryHTML(deviceAlertsHistory, masterLoginAlertsHistory, studentNameById, securityHistoryOpen)}
@@ -973,7 +976,6 @@ export async function mountPersonalPage(container, session) {
         }),
         openAccordions.has('streak-rewards')
       ) + wheelDrawerHTML(wheelDrawerOpen);
-      container.querySelector('.personal-page-actions')?.insertAdjacentHTML('afterend', wheelSentencesScrollHTML(wheelSentencesCache));
       wireViewToggle();
       wakeFires(container);
       wireMasterFire(container);

@@ -5489,3 +5489,73 @@ textarea.editable-input { display: block; resize: vertical; }
   color: var(--crystal-ice);
 }
 .sentence-scroll { padding-block: 24px; }
+
+/* ============================================================
+   Top block, one aligned unit. Student: board button over the daily-sentence
+   stone slab on the right, the plaque (with the lever) on the left, the slab
+   ending exactly where the plaque ends. Master: fire plaque and the scrolling
+   list of sentences side by side at the same height. On phones the slab drops
+   under the plaque row at full width.
+   ============================================================ */
+.personal-top {
+  display: grid;
+  grid-template-columns: 280px 1fr auto;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "board . plaque" "wheel . plaque";
+  align-items: start;
+  column-gap: 0;
+}
+.personal-top > .personal-help-row { grid-area: board; display: flex; align-items: center; gap: 6px; }
+.personal-top > .personal-help-row .personal-board-btn { flex: 1; text-align: center; }
+.personal-top > .wheel-inline { grid-area: wheel; width: auto; margin: 10px 0 0; align-self: stretch; }
+.personal-top > .streak-wrap { grid-area: plaque; justify-self: end; }
+.personal-top .daily-wheel,
+.personal-top .sentence-scroll-card {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 0;
+  border-radius: 20px;
+  background:
+    linear-gradient(150deg, rgba(210, 230, 255, 0.10) 0%, rgba(210, 230, 255, 0) 34%),
+    linear-gradient(330deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 40%),
+    url('../assets/stone-plaque.webp') center / cover,
+    #17243a;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.6),
+    0 2px 0 #04070d,
+    inset 0 2px 1px rgba(200, 225, 255, 0.28),
+    inset 0 -3px 2px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(5, 8, 14, 0.9);
+}
+.personal-top .daily-wheel { padding: 12px; }
+.personal-top .daily-wheel-row { flex: 1; }
+.personal-top .daily-wheel-glass,
+.personal-top .sentence-scroll {
+  background: linear-gradient(180deg, rgba(3, 6, 12, 0.9), rgba(6, 11, 20, 0.84));
+  border: 0;
+  box-shadow: inset 0 5px 12px rgba(0, 0, 0, 0.9), inset 0 0 0 1px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(190, 220, 255, 0.25);
+}
+.personal-top .sentence-scroll-card { padding: 12px; }
+.personal-top .sentence-scroll { flex: 1; height: auto; min-height: 96px; }
+
+.master-top { grid-template-areas: "wheel . fire"; grid-template-rows: auto; align-items: stretch; margin-bottom: 18px; }
+.master-top > .master-fire { grid-area: fire; justify-self: end; margin: 0; }
+.master-top > .wheel-inline { margin: 0; }
+
+@media (max-width: 720px) {
+  .personal-top {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    grid-template-areas: "board plaque" "wheel wheel";
+    column-gap: 66px;
+  }
+  .personal-top > .personal-help-row .personal-board-btn { padding: 6px 8px; line-height: 1.35; }
+  .personal-top > .wheel-inline { width: 100%; margin: 14px 0 0; }
+  .master-top { grid-template-columns: 1fr; grid-template-areas: "fire" "wheel"; row-gap: 14px; column-gap: 0; }
+  .master-top > .master-fire { justify-self: center; }
+}
+
+.daily-wheel-timer[hidden] { display: none; }
