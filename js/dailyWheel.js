@@ -336,7 +336,7 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
         showRevealed(final.text);
         seenSoFar = seenIds;
         const saving = options.demoSpin
-          ? Promise.resolve({ spunAt: new Date(Date.now() - LOCK_MS + 25000).toISOString() })
+          ? Promise.resolve({ spunAt: new Date(Date.now() - LOCK_MS + 4000).toISOString() })
           : dailyWheelStore.spin({ userId: session.id, sentenceId: final.id, sentenceText: final.text, seenIds });
         saving.then((saved) => {
           if (!saved) return;

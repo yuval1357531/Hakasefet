@@ -43,6 +43,7 @@ import { streakStore } from '../data/streakStore.js';
 import {
   streakButtonHTML,
   leverHTML,
+  fireHTML,
   igniteFlame,
   wireFireDemo,
   masterFireHTML,
@@ -70,7 +71,8 @@ const DEMO_SESSION = {
   permissions: {},
 };
 // Fixed numbers so the master can see the road with a streak "in progress".
-const DEMO_STREAK = { currentStreak: 28, bestStreak: 28, lastDay: null };
+// The master's student preview starts on day 1; every pull of the lever adds a day.
+const DEMO_STREAK = { currentStreak: 1, bestStreak: 1, lastDay: null };
 
 function wheelHintAcks(session) {
   try {
@@ -409,6 +411,18 @@ function boardModalHTML(broadcastItems, isOpen) {
 // wireWheelDrawer below); its own handle stays hidden.
 function wheelTabHTML() {
   return `<div class="wheel-inline">${dailyWheelHTML()}</div>`;
+}
+
+// Master: no lever, no timer -- just a scrolling reel of every sentence.
+function wheelSentencesScrollHTML(sentences) {
+  const items = (sentences || []).map((s) => `<div class="sentence-scroll-item">${escapeHtml(s.text)}</div>`).join('');
+  return `
+    <div class="wheel-inline">
+      <div class="daily-wheel sentence-scroll-card">
+        <div class="sentence-scroll-count">כל המשפטים (${(sentences || []).length}) · גלול</div>
+        <div class="sentence-scroll" tabindex="0">${items || '<div class="sentence-scroll-item">אין עדיין משפטים.</div>'}</div>
+      </div>
+    </div>`;
 }
 
 function wheelDrawerHTML() {
@@ -860,7 +874,7 @@ export async function mountPersonalPage(container, session) {
     wireTrailNote();
     wireStudentPopups();
     wireTrailExpand(container);
-    wireWheelDrawer({ preview: true });
+    wireWheelDrawer(true);
     const tabTimerEl = container.querySelector('#wheelTabTimer');
     mountDailyWheel(
       container.querySelector('#dailyWheel'),
@@ -870,7 +884,7 @@ export async function mountPersonalPage(container, session) {
       },
       { demoSpin: true }
     );
-    mountStreak(container, DEMO_SESSION, { demoState: DEMO_STREAK });
+    mountStreak(container, DEMO_SESSION, { demoState: { ...DEMO_STREAK, currentStreak: previewDay, bestStreak: previewDay } });
     const fireDemoBtn = container.querySelector('#fireDemoBtn');
     if (fireDemoBtn) wireFireDemo(container, fireDemoBtn);
     wireAttachmentLinks(container);
@@ -959,7 +973,7 @@ export async function mountPersonalPage(container, session) {
         }),
         openAccordions.has('streak-rewards')
       ) + wheelDrawerHTML(wheelDrawerOpen);
-      container.querySelector('.personal-page-actions')?.insertAdjacentHTML('afterend', wheelTabHTML(wheelDrawerOpen));
+      container.querySelector('.personal-page-actions')?.insertAdjacentHTML('afterend', wheelSentencesScrollHTML(wheelSentencesCache));
       wireViewToggle();
       wakeFires(container);
       wireMasterFire(container);
@@ -973,11 +987,6 @@ export async function mountPersonalPage(container, session) {
       wireAccordions(container, { state: openAccordions, rerender: render });
       // Same left-side "דיוק יומי" drawer the students get -- the master
       // sees the daily sentence the same way, using the identical widget.
-      wireWheelDrawer();
-      const masterTabTimerEl = container.querySelector('#wheelTabTimer');
-      mountDailyWheel(container.querySelector('#dailyWheel'), session, (display) => {
-        if (masterTabTimerEl) masterTabTimerEl.textContent = display || 'זמין';
-      });
     } else {
       const { html, resumeLessonId } = await studentPageHTML(session, { boardModalOpen, trailModalOpen, wheelDrawerOpen });
       container.innerHTML = html;
@@ -1058,7 +1067,8 @@ export async function mountPersonalPage(container, session) {
   // a mobile swipe-left-to-close gesture. Purely a shell around the
   // untouched daily-wheel widget already mounted inside it; none of this
   // reads or changes the 24h lock state.
-  function wireWheelDrawer() {
+  let previewDay = 1;
+  function wireWheelDrawer(preview = false) {
     const lever = container.querySelector('#leverBtn');
     const wheel = container.querySelector('#dailyWheel');
     if (!lever || !wheel) return;
@@ -1084,7 +1094,16 @@ export async function mountPersonalPage(container, session) {
       }
       busy = true;
       lever.classList.add('is-pulled');
-      const host = container.querySelector('#masterFireHost') || container.querySelector('#streakOpenBtn .streak-btn-flame');
+      const open = container.querySelector('#streakOpenBtn');
+      const host = open && open.querySelector('.streak-btn-flame');
+      if (preview && host) {
+        // master's student view: every pull is one more day on the fire
+        previewDay = previewDay >= 70 ? 1 : previewDay + 1;
+        host.innerHTML = fireHTML(previewDay);
+        const cnt = open.querySelector('.streak-btn-count');
+        if (cnt) cnt.textContent = String(previewDay);
+        wakeFires(open);
+      }
       const gate = igniteFlame(host);
       wheel.dispatchEvent(new CustomEvent('wheel:pull', { detail: { gate } }));
       // Safety: if nothing got saved (no sentences / network), the lever comes back up.

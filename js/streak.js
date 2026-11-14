@@ -162,13 +162,13 @@ function masterFireValue() {
 export function masterFireHTML() {
   const v = masterFireValue();
   return `
-    <span class="streak-wrap"><div class="streak-btn streak-stage master-plaque">
+    <div class="streak-btn streak-stage master-plaque">
       <span class="streak-btn-flame" id="masterFireHost">${fireHTML(v)}</span>
       <label class="streak-btn-text master-fire-ctl">עוצמת האש
         <input type="range" id="masterFireRange" min="0" max="70" step="1" value="${v}" aria-label="עוצמת האש">
         <span class="streak-btn-count" id="masterFireVal">${v}</span>
       </label>
-    </div>${leverHTML()}</span>`;
+    </div>`;
 }
 export function wireMasterFire(root) {
   const range = root.querySelector('#masterFireRange');
