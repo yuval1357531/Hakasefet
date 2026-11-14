@@ -414,14 +414,20 @@ function wheelTabHTML() {
   return `${dailyWheelTimerHTML()}<div class="wheel-inline">${dailyWheelHTML()}</div>`;
 }
 
-// Master: no lever, no timer -- just a scrolling reel of every sentence.
-function wheelSentencesScrollHTML(sentences) {
-  const items = (sentences || []).map((s) => `<div class="sentence-scroll-item">${escapeHtml(s.text)}</div>`).join('');
+// Master: the same glass wheel as the students' daily sentence, but it runs
+// through every sentence in the bank: scroll / swipe / arrows, one at a time.
+function wheelSentencesScrollHTML() {
   return `
     <div class="wheel-inline">
-      <div class="daily-wheel sentence-scroll-card">
-        <div class="sentence-scroll-count">כל המשפטים (${(sentences || []).length}) · גלול</div>
-        <div class="sentence-scroll" tabindex="0">${items || '<div class="sentence-scroll-item">אין עדיין משפטים.</div>'}</div>
+      <div class="daily-wheel master-reel" id="masterReel">
+        <div class="daily-wheel-row">
+          <div class="daily-wheel-glass" tabindex="0">
+            <button type="button" class="reel-step reel-up" aria-label="הקודם">▲</button>
+            <div class="daily-wheel-reel" id="masterReelText"></div>
+            <button type="button" class="reel-step reel-down" aria-label="הבא">▼</button>
+            <span class="reel-count" id="masterReelCount"></span>
+          </div>
+        </div>
       </div>
     </div>`;
 }
@@ -980,7 +986,7 @@ export async function mountPersonalPage(container, session) {
       wireViewToggle();
       wakeFires(container);
       wireMasterFire(container);
-      container.querySelectorAll('.sentence-scroll').forEach((el) => el.style.setProperty('--sh', el.clientHeight + 'px'));
+      wireSentenceReel();
       wireStreakRewardsManager(container, {
         rewards: streakRewardsCache,
         rerender: render,
@@ -1071,6 +1077,53 @@ export async function mountPersonalPage(container, session) {
   // a mobile swipe-left-to-close gesture. Purely a shell around the
   // untouched daily-wheel widget already mounted inside it; none of this
   // reads or changes the 24h lock state.
+  let masterReelIdx = 0;
+  function wireSentenceReel() {
+    const card = container.querySelector('#masterReel');
+    if (!card) return;
+    const glass = card.querySelector('.daily-wheel-glass');
+    const text = card.querySelector('#masterReelText');
+    const count = card.querySelector('#masterReelCount');
+    const list = wheelSentencesCache;
+    if (!list.length) {
+      text.innerHTML = '<span class="daily-wheel-sentence">אין עדיין משפטים.</span>';
+      return;
+    }
+    let i = Math.min(masterReelIdx, list.length - 1);
+    const show = (animate) => {
+      text.innerHTML = `<span class="daily-wheel-sentence${animate ? ' daily-wheel-cycling' : ''}">${escapeHtml(list[i].text)}</span>`;
+      count.textContent = `${i + 1} / ${list.length}`;
+    };
+    let lockUntil = 0;
+    const go = (d) => {
+      if (Date.now() < lockUntil) return;
+      lockUntil = Date.now() + 180;
+      i = (i + d + list.length) % list.length;
+      masterReelIdx = i;
+      show(true);
+    };
+    show(false);
+    card.querySelector('.reel-up').addEventListener('click', () => go(-1));
+    card.querySelector('.reel-down').addEventListener('click', () => go(1));
+    glass.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      go(e.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
+    glass.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); go(1); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); go(-1); }
+    });
+    let startY = null;
+    glass.addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) startY = e.clientY; });
+    glass.addEventListener('pointerup', (e) => {
+      if (startY === null) return;
+      const dy = e.clientY - startY;
+      startY = null;
+      if (Math.abs(dy) > 24) go(dy < 0 ? 1 : -1);
+    });
+    glass.addEventListener('pointercancel', () => { startY = null; });
+  }
+
   let previewDay = (() => {
     try {
       const v = Number(localStorage.getItem('hk_preview_day'));
