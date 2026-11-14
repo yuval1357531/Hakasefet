@@ -166,13 +166,20 @@ export function dailyWheelHTML() {
           <div class="daily-wheel-reel" id="dailyWheelReel"><span class="daily-wheel-orb" aria-hidden="true">משפט יומי</span></div>
         </div>
       </div>
-      <div class="daily-wheel-timer" id="dailyWheelTimer" hidden>
-        <svg class="daily-wheel-timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M6 2h12M6 22h12M8 2c0 4 3 5 4 6 1-1 4-2 4-6M8 22c0-4 3-5 4-6 1 1 4 2 4 6"/>
-        </svg>
-        <span class="daily-wheel-timer-note">חוזר מחר</span><span class="daily-wheel-timer-value flip-clock" id="dailyWheelTimerValue" dir="ltr">${flipClockHTML(clockDigits(0))}</span>
-      </div>
     </div>`;
+}
+
+// The lock countdown: rendered as its own element so the page can put it
+// wherever it fits (under the board button, beside the plaque).
+export function dailyWheelTimerHTML() {
+  return `
+    <div class="daily-wheel-timer" id="dailyWheelTimer" hidden>
+      <svg class="daily-wheel-timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6 2h12M6 22h12M8 2c0 4 3 5 4 6 1-1 4-2 4-6M8 22c0-4 3-5 4-6 1 1 4 2 4 6"/>
+      </svg>
+      <span class="daily-wheel-timer-note">חוזר מחר</span><span class="daily-wheel-timer-value flip-clock" id="dailyWheelTimerValue" dir="ltr">${flipClockHTML(clockDigits(0))}</span>
+    </div>
+  `;
 }
 
 // Mounts fresh every time it's called -- fetches its own sentence bank +
@@ -194,8 +201,9 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
   if (!root) return;
   const reel = root.querySelector('#dailyWheelReel');
   const handle = root.querySelector('#dailyWheelHandle');
-  const timerEl = root.querySelector('#dailyWheelTimer');
-  const timerValueEl = root.querySelector('#dailyWheelTimerValue');
+  const scope = root.closest('.personal-top') || root;
+  const timerEl = scope.querySelector('#dailyWheelTimer');
+  const timerValueEl = scope.querySelector('#dailyWheelTimerValue');
   if (!reel || !handle || !timerEl || !timerValueEl) return;
 
   const [sentences, realSpin] = await Promise.all([

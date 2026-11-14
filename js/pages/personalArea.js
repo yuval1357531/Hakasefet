@@ -27,6 +27,7 @@ import { trailMediaHTML, trailTextHTML, wireTrailExpand } from '../insightsTicke
 import { accordionHTML, wireAccordions } from '../adminAccordion.js';
 import {
   dailyWheelHTML,
+  dailyWheelTimerHTML,
   mountDailyWheel,
   dailyWheelManagerHTML,
   wireDailyWheelManager,
@@ -410,7 +411,7 @@ function boardModalHTML(broadcastItems, isOpen) {
 // journal. It is operated by the lever on the streak plaque (see
 // wireWheelDrawer below); its own handle stays hidden.
 function wheelTabHTML() {
-  return `<div class="wheel-inline">${dailyWheelHTML()}</div>`;
+  return `${dailyWheelTimerHTML()}<div class="wheel-inline">${dailyWheelHTML()}</div>`;
 }
 
 // Master: no lever, no timer -- just a scrolling reel of every sentence.
@@ -979,6 +980,7 @@ export async function mountPersonalPage(container, session) {
       wireViewToggle();
       wakeFires(container);
       wireMasterFire(container);
+      container.querySelectorAll('.sentence-scroll').forEach((el) => el.style.setProperty('--sh', el.clientHeight + 'px'));
       wireStreakRewardsManager(container, {
         rewards: streakRewardsCache,
         rerender: render,
@@ -1069,7 +1071,14 @@ export async function mountPersonalPage(container, session) {
   // a mobile swipe-left-to-close gesture. Purely a shell around the
   // untouched daily-wheel widget already mounted inside it; none of this
   // reads or changes the 24h lock state.
-  let previewDay = 1;
+  let previewDay = (() => {
+    try {
+      const v = Number(localStorage.getItem('hk_preview_day'));
+      return Number.isFinite(v) && v >= 1 && v <= 70 ? v : 1;
+    } catch (e) {
+      return 1;
+    }
+  })();
   function wireWheelDrawer(preview = false) {
     const lever = container.querySelector('#leverBtn');
     const wheel = container.querySelector('#dailyWheel');
@@ -1101,6 +1110,7 @@ export async function mountPersonalPage(container, session) {
       if (preview && host) {
         // master's student view: every pull is one more day on the fire
         previewDay = previewDay >= 70 ? 1 : previewDay + 1;
+        try { localStorage.setItem('hk_preview_day', String(previewDay)); } catch (e) { /* ignore */ }
         host.innerHTML = fireHTML(previewDay);
         const cnt = open.querySelector('.streak-btn-count');
         if (cnt) cnt.textContent = String(previewDay);
