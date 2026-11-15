@@ -5910,7 +5910,7 @@ textarea.editable-input { display: block; resize: vertical; }
    a real 3D ice-slab render, tools/flame/ice3d-asset.html) */
 .lesson-tab.is-ice {
   overflow: visible;
-  margin-top: 8px;
+  margin-top: 0;
   margin-bottom: 0;
   padding-left: 22px;
   padding-right: 22px;
@@ -5928,22 +5928,22 @@ textarea.editable-input { display: block; resize: vertical; }
 .lesson-tab.is-ice .ice-frame {
   --h: var(--ice-h, 58px);
   position: absolute;
-  left: calc(var(--h) * -0.2137);
-  right: calc(var(--h) * -0.2137);
-  top: -35.5%;
-  bottom: -83.8%;
+  left: calc(var(--h) * -0.0116);
+  right: calc(var(--h) * -0.0116);
+  top: -3.5%;
+  bottom: -45.9%;
   z-index: 2;
   pointer-events: none;
   background:
     url('../assets/ice3d/cap-l.webp') left top / auto 100% no-repeat,
     url('../assets/ice3d/cap-r.webp') right top / auto 100% no-repeat,
-    url('../assets/ice3d/mid.webp') calc(var(--h) * 0.725 - 2px) 0 / calc(100% - var(--h) * 1.45 + 4px) 100% no-repeat;
+    url('../assets/ice3d/mid.webp') calc(var(--h) * 0.494 - 2px) 0 / calc(100% - var(--h) * 0.988 + 4px) 100% no-repeat;
 }
 .lesson-tab.is-ice.is-ready .ice-frame {
   background:
     url('../assets/ice3d/cap-l-warm.webp') left top / auto 100% no-repeat,
     url('../assets/ice3d/cap-r-warm.webp') right top / auto 100% no-repeat,
-    url('../assets/ice3d/mid-warm.webp') calc(var(--h) * 0.725 - 2px) 0 / calc(100% - var(--h) * 1.45 + 4px) 100% no-repeat;
+    url('../assets/ice3d/mid-warm.webp') calc(var(--h) * 0.494 - 2px) 0 / calc(100% - var(--h) * 0.988 + 4px) 100% no-repeat;
 }
 /* the whole lesson sits under a layer of clear glossy ice: what is written on
    it is seen through the glass (slightly soft), with window reflections */
@@ -5970,6 +5970,27 @@ textarea.editable-input { display: block; resize: vertical; }
     inset 0 0 0 1px rgba(255, 225, 180, 0.22),
     inset 0 -10px 18px rgba(230, 150, 60, 0.3);
 }
+/* every few seconds a cold glint slides across the ice (soft frosty light,
+   not a diamond sparkle); idle most of the cycle */
+.lesson-tab.is-ice .ice-glaze { overflow: hidden; }
+.lesson-tab.is-ice .ice-glaze::after {
+  content: '';
+  position: absolute;
+  top: -10%; bottom: -10%;
+  left: 0;
+  width: 38%;
+  transform: translateX(-130%) skewX(-18deg);
+  background: linear-gradient(90deg, rgba(220, 245, 255, 0), rgba(220, 245, 255, 0.32) 45%, rgba(255, 255, 255, 0.5) 55%, rgba(220, 245, 255, 0));
+  animation: ice-glint 6s ease-in-out infinite;
+}
+.lesson-tab.is-ice.is-ready .ice-glaze::after {
+  background: linear-gradient(90deg, rgba(255, 235, 205, 0), rgba(255, 235, 205, 0.3) 45%, rgba(255, 250, 240, 0.5) 55%, rgba(255, 235, 205, 0));
+}
+@keyframes ice-glint {
+  0%, 62% { transform: translateX(-130%) skewX(-18deg); }
+  88%, 100% { transform: translateX(330%) skewX(-18deg); }
+}
+@media (prefers-reduced-motion: reduce) { .lesson-tab.is-ice .ice-glaze::after { animation: none; } }
 /* the unlock number sits ON the ice (above the glass and the frame), sharp --
    only the lesson name is seen through the glass */
 .lesson-tab.is-ice .ice-num,
