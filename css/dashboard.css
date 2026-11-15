@@ -5980,3 +5980,9 @@ textarea.editable-input { display: block; resize: vertical; }
     inset 0 0 0 1px rgba(255, 225, 180, 0.22),
     inset 0 -10px 18px rgba(230, 150, 60, 0.3);
 }
+/* the unlock number sits ON the ice (above the glass and the frame), sharp --
+   only the lesson name is seen through the glass */
+.lesson-tab.is-ice .ice-num {
+  position: relative;
+  z-index: 3;
+}
