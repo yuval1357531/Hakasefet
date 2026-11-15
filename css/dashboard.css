@@ -302,14 +302,14 @@ body::before {
 .app-main[data-active-section="personalGuidance"]::before {
   background:
     linear-gradient(180deg, rgba(4, 6, 11, 0.4) 0%, rgba(4, 6, 11, 0.24) 38%, rgba(4, 6, 11, 0.5) 100%),
-    url("../assets/personalGuidance-wall-bg.png") 20% center / cover no-repeat,
+    url("../assets/personalGuidance-wall-bg.webp") 20% center / cover no-repeat,
     var(--obsidian);
   filter: brightness(0.55);
 }
 .app-main[data-active-section="personalGuidance"]::after,
 .app-main[data-active-section="personalGuidance"] .content-area::before,
 .app-main[data-active-section="personalGuidance"] .content-area::after {
-  background: url("../assets/personalGuidance-wall-bg.png") 20% center / cover no-repeat;
+  background: url("../assets/personalGuidance-wall-bg.webp") 20% center / cover no-repeat;
   filter: saturate(1.1) brightness(0.8);
 }
 /* Upper breathing layer re-aimed at the photo's own large upper-left
@@ -5910,8 +5910,9 @@ textarea.editable-input { display: block; resize: vertical; }
    a real 3D ice-slab render, tools/flame/ice3d-asset.html) */
 .lesson-tab.is-ice {
   overflow: visible;
-  margin-top: 30px;
-  margin-bottom: 66px;
+  margin-top: 20px;
+  margin-bottom: 22px;
+  z-index: 2; /* the icicles hang over the next lesson instead of leaving a gap */
   border-color: rgba(200, 235, 255, 0.35);
 }
 .lesson-tab.is-ice .ice-video,
@@ -5963,4 +5964,47 @@ textarea.editable-input { display: block; resize: vertical; }
     inset 0 1.5px 0 rgba(255, 255, 255, 0.55),
     inset 0 0 0 1px rgba(255, 225, 180, 0.22),
     inset 0 -10px 18px rgba(230, 150, 60, 0.3);
+}
+
+/* The ice is always alive, even where the video is not allowed to play (iPhone
+   low-power mode blocks autoplay): a light sweep crosses the glass and glints
+   twinkle, in CSS, on top of the rendered clip. */
+@media (prefers-reduced-motion: no-preference) {
+  .lesson-tab.is-ice .ice-glaze::before,
+  .lesson-tab.is-ice .ice-glaze::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .lesson-tab.is-ice .ice-glaze::before {
+    background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.34) 47%, rgba(190, 235, 255, 0.3) 52%, transparent 62%);
+    background-size: 260% 100%;
+    background-position: 135% 0;
+    mix-blend-mode: screen;
+    animation: ice-sweep 4.6s ease-in-out infinite;
+  }
+  .lesson-tab.is-ice .ice-glaze::after {
+    background:
+      radial-gradient(circle 2.2px at 14% 34%, #fff 0, rgba(255, 255, 255, 0) 100%),
+      radial-gradient(circle 1.8px at 33% 70%, #fff 0, rgba(255, 255, 255, 0) 100%),
+      radial-gradient(circle 2.4px at 52% 26%, #fff 0, rgba(255, 255, 255, 0) 100%),
+      radial-gradient(circle 1.8px at 71% 64%, #fff 0, rgba(255, 255, 255, 0) 100%),
+      radial-gradient(circle 2.2px at 88% 36%, #fff 0, rgba(255, 255, 255, 0) 100%);
+    animation: ice-twinkle 2.4s ease-in-out infinite alternate;
+  }
+  .lesson-tab.is-ice.is-ready .ice-glaze::before {
+    background: linear-gradient(105deg, transparent 38%, rgba(255, 240, 215, 0.36) 47%, rgba(255, 200, 130, 0.3) 52%, transparent 62%);
+    background-size: 260% 100%;
+    background-position: 135% 0;
+  }
+}
+@keyframes ice-sweep {
+  0%, 18% { background-position: 135% 0; }
+  72%, 100% { background-position: -35% 0; }
+}
+@keyframes ice-twinkle {
+  0% { opacity: 0.15; }
+  100% { opacity: 1; }
 }
