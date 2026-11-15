@@ -162,6 +162,7 @@ export function lockedTabHTML(lesson) {
       <span class="lesson-tab-title">${escapeHtml(lesson.title)}</span>
       <span class="lesson-lock-note">${note}</span>
       <span class="ice-glaze" aria-hidden="true"></span>
+      <span class="ice-frame" aria-hidden="true"></span>
       <span class="ice-drips" aria-hidden="true"></span>
     </button>`;
 }
