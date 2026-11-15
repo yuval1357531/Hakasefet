@@ -9,6 +9,7 @@
 import { supabase } from './supabaseClient.js';
 import { vaultStore } from './data/vaultStore.js';
 import { freedomStore } from './data/freedomStore.js';
+import { auth } from './auth.js';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -37,9 +38,45 @@ function toStub(r) {
   };
 }
 
-// Every frozen (not yet melted) lesson of this student, all sections. [] for
-// the master, or if the SQL was not run yet.
+// The master sees every lesson on the server, so for him the ice is worked out
+// here: each lesson that carries a number is frozen according to the day on
+// his own preview fire (the one every pull of the lever moves up by one, kept
+// in localStorage as hk_preview_day), exactly as a student on that day would
+// see it. Melting is only
+// simulated for the master (this session, nothing is written), so he can test
+// it again and again. In edit mode the pages do not ask for this at all.
+const simMelted = new Set();
+async function masterLockedLessons() {
+  let best = 1;
+  try {
+    const v = Number(localStorage.getItem('hk_preview_day'));
+    if (Number.isFinite(v) && v >= 1) best = v;
+  } catch (e) {
+    best = 1;
+  }
+  const [v, f] = await Promise.all([vaultStore.lessons.getActive(), freedomStore.lessons.getActive()]);
+  const stub = (section, l) => ({
+    section,
+    id: l.id,
+    title: l.title,
+    order: l.order,
+    unlockStreak: l.unlockStreak,
+    daysLeft: Math.max(0, l.unlockStreak - best),
+    ready: best >= l.unlockStreak,
+    isActive: true,
+    locked: true,
+  });
+  return [
+    ...v.filter((l) => l.unlockStreak > 0 && !simMelted.has('vault:' + l.id)).map((l) => stub('vault', l)),
+    ...f.filter((l) => l.unlockStreak > 0 && !simMelted.has('survivalToFreedom:' + l.id)).map((l) => stub('survivalToFreedom', l)),
+  ];
+}
+
+// Every frozen (not yet melted) lesson of this user, all sections. Students:
+// from the server. Master: worked out from his own streak (see above). []
+// if the SQL was not run yet.
 export async function fetchAllLockedLessons() {
+  if (auth.isAdmin()) return masterLockedLessons();
   try {
     const { data, error } = await supabase.rpc('hk_locked_lessons');
     if (error || !Array.isArray(data)) return [];
@@ -57,7 +94,8 @@ export async function fetchLockedLessons(sectionId) {
 // Open lessons + frozen stubs, in the lessons' own order.
 export function mergeLockedLessons(open, locked) {
   if (!locked.length) return open;
-  return [...open, ...locked].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const frozen = new Set(locked.map((l) => l.id));
+  return [...open.filter((l) => !frozen.has(l.id)), ...locked].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 // Melts one lesson on the server (only succeeds if the best streak reached it).
@@ -174,8 +212,12 @@ export function wireLockedTabs(container, lessons, { sectionId, store, onMelted 
       if (busy) return;
       busy = true;
       btn.classList.add('is-melting');
-      const [ok] = await Promise.all([meltLesson(sectionId, lesson.id), wait(1300)]);
+      // the master only previews: nothing is written for him
+      const isMaster = auth.isAdmin();
+      if (isMaster) simMelted.add(sectionId + ':' + lesson.id);
+      const [ok] = await Promise.all([isMaster ? true : meltLesson(sectionId, lesson.id), wait(1300)]);
       if (!ok) {
+        simMelted.delete(sectionId + ':' + lesson.id);
         busy = false;
         btn.classList.remove('is-melting');
         window.alert('ההמסה לא הצליחה. נסה שוב בעוד רגע.');

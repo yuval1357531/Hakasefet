@@ -132,13 +132,25 @@ async function resolveRoute(hash) {
   // user sees (inactive content included), even though their real
   // permissions/RLS access never change.
   const isAdmin = auth.isEditMode();
+  // Same lookups as before, just started together instead of one after the
+  // other: the lesson itself (vault / freedom lesson routes) does not depend
+  // on the section record, so it no longer waits behind it.
+  const lessonLookup =
+    parts[1] === 'lesson' && parts[2]
+      ? section.id === FREEDOM_SECTION_ID
+        ? freedomStore.lessons.getById(parts[2])
+        : section.id === VAULT_SECTION_ID
+          ? vaultStore.lessons.getById(parts[2])
+          : null
+      : null;
+  if (lessonLookup) lessonLookup.catch(() => {}); // awaited below; this only avoids a stray unhandled rejection if we return early
   const sectionRecord = await contentStore.sections.getById(section.id);
   if (!isAdmin && sectionRecord && !sectionRecord.isActive) return { notFound: true };
 
   if (section.id === FREEDOM_SECTION_ID) {
     if (parts.length === 1) return { freedomHome: true, section };
     if (parts[1] === 'lesson' && parts[2]) {
-      const lesson = await freedomStore.lessons.getById(parts[2]);
+      const lesson = await lessonLookup;
       if (!lesson) return { notFound: true };
       if (!isAdmin && !lesson.isActive) return { notFound: true };
       return { freedomLesson: true, section, lesson };
@@ -149,7 +161,7 @@ async function resolveRoute(hash) {
   if (section.id === VAULT_SECTION_ID) {
     if (parts.length === 1) return { vaultHome: true, section };
     if (parts[1] === 'lesson' && parts[2]) {
-      const lesson = await vaultStore.lessons.getById(parts[2]);
+      const lesson = await lessonLookup;
       if (!lesson) return { notFound: true };
       if (!isAdmin && !lesson.isActive) return { notFound: true };
       return { vaultLesson: true, section, lesson };
