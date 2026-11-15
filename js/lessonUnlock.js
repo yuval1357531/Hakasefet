@@ -141,6 +141,11 @@ const ICE_BASE = 'assets/ice/ice';
 // Videos inserted through innerHTML don't always start on their own.
 function wakeIce(root) {
   const still = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  root.querySelectorAll('.lesson-tab.is-ice').forEach((t) => {
+    const set = () => t.style.setProperty('--ice-h', t.offsetHeight + 'px');
+    set();
+    if (window.ResizeObserver) new ResizeObserver(set).observe(t);
+  });
   root.querySelectorAll('.ice-video').forEach((v) => {
     v.muted = true;
     if (still) {
@@ -163,7 +168,6 @@ export function lockedTabHTML(lesson) {
       <span class="lesson-lock-note">${note}</span>
       <span class="ice-glaze" aria-hidden="true"></span>
       <span class="ice-frame" aria-hidden="true"></span>
-      <span class="ice-drips" aria-hidden="true"></span>
     </button>`;
 }
 
