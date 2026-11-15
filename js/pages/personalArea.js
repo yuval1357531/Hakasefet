@@ -157,13 +157,19 @@ async function resumeBannerHTML(session) {
   const [lessons, progress] = await Promise.all([loadAccessibleLessons(session), progressStore.getForUser(session.id)]);
   const byLessonId = new Map(progress.map((p) => [p.lessonId, p]));
 
-  let resume = null;
-  for (const l of lessons) {
-    const p = byLessonId.get(l.id);
-    if (p && !p.isCompleted && p.lastWatchedAt) {
-      if (!resume || new Date(p.lastWatchedAt) > new Date(resume.progress.lastWatchedAt)) resume = { lesson: l, progress: p };
+  // The last lesson left unfinished -- the vault first (that is where people
+  // actually stop mid-way); other sections only when no vault lesson is open.
+  const latest = (pool) => {
+    let best = null;
+    for (const l of pool) {
+      const p = byLessonId.get(l.id);
+      if (p && !p.isCompleted && p.lastWatchedAt) {
+        if (!best || new Date(p.lastWatchedAt) > new Date(best.progress.lastWatchedAt)) best = { lesson: l, progress: p };
+      }
     }
-  }
+    return best;
+  };
+  const resume = latest(lessons.filter((l) => l.sectionId === 'vault')) || latest(lessons);
 
   const dismissedId = sessionStorage.getItem(RESUME_DISMISS_KEY);
   const showResume = resume && resume.lesson.id !== dismissedId;
@@ -171,7 +177,7 @@ async function resumeBannerHTML(session) {
 
   return {
     html: `
-    <div class="personal-resume-banner" data-section="${resume.lesson.sectionId}">
+    <div class="personal-resume-banner personal-resume-tile" data-section="${resume.lesson.sectionId}">
       <a class="personal-resume-main" href="#/${resume.lesson.sectionId}/lesson/${resume.lesson.id}" id="resumeContinueLink">
         <span class="personal-resume-thumb" aria-hidden="true">▶</span>
         <span class="personal-resume-text">
@@ -465,10 +471,10 @@ export async function studentPageHTML(session, { boardModalOpen, trailModalOpen,
       </div>
       <div class="personal-topbar personal-top">
         ${personalBoardButtonHTML(unseenCount)}
+        ${resumeHTML}
         ${wheelTabHTML(wheelDrawerOpen)}
         <span class="streak-wrap">${streakButtonHTML(null)}${leverHTML()}${helpTipHTML('streak', 'הרצף סופר כמה ימים ברציפות נכנסת לכספת. כל יום שנכנסים האש גדלה. דילוג על יום שלם מחזיר את הרצף ל-0. לחיצה על הרצף פותחת את המפה: שם רואים את הדרך, את המתנות שמחכות בדרך ואת היעד הבא. משיכת הידית שלידו מדליקה את האש ופותחת את המשפט היומי, פעם ב-24 שעות.')}</span>
       </div>
-      ${resumeHTML}
       ${notebookHTML(ownEntries, personalItems)}
     </div>
     ${boardModalHTML(broadcastItems, boardModalOpen)}

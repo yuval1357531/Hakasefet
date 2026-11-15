@@ -183,7 +183,7 @@ export async function mountVaultHome(container, section, session) {
       const done = completedIds.has(lesson.id);
       const titleHTML = escapeHtml(lesson.title);
       return `
-        <a class="lesson-tab ${done ? 'is-done' : ''}" href="#/${section.id}/lesson/${lesson.id}">
+        <a class="lesson-tab ${done ? 'is-done' : ''}${lesson.justMelted ? ' is-just-melted' : ''}" href="#/${section.id}/lesson/${lesson.id}">
           <span class="lesson-tab-check">${done ? '✓' : ''}</span>
           <span class="lesson-tab-title">${titleHTML}</span>
         </a>`;
@@ -454,7 +454,15 @@ export async function mountVaultHome(container, section, session) {
       setEditingId: (v) => { editingGroupId = v; },
     });
 
-    wireLockedTabs(container, lessons);
+    wireLockedTabs(container, lessons, {
+      sectionId: 'vault',
+      store: vaultStore,
+      onMelted: (full) => {
+        const i = lessons.findIndex((l) => l.id === full.id);
+        if (i !== -1) lessons[i] = { ...full, justMelted: true };
+        paint();
+      },
+    });
     wireUnlockForms(container, { store: vaultStore, lessons, setEditing: (v) => { editingUnlockId = v; }, rerender: paint });
 
     const addForm = container.querySelector('#addLessonForm');

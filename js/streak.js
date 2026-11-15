@@ -11,6 +11,7 @@
 // personalArea.js's "ניהול מתנות הרצף" accordion.
 
 import { streakStore } from './data/streakStore.js';
+import { fetchIceGoals, meltLesson } from './lessonUnlock.js';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -28,6 +29,7 @@ const ICONS = {
   gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v9h14v-9M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>',
   meeting: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 5.5a3 3 0 0 1 0 5.5M18 14.8c1.8.7 3 2.3 3 5.2"/></svg>',
   course: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l9-4 9 4-9 4-9-4z"/><path d="M7 10.5V16c0 1.4 2.2 3 5 3s5-1.6 5-3v-5.5"/></svg>',
+  ice: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 2.5L15 4M9 20l3-2.5 3 2.5M3 10.5l3.6-.8-.7-3.6M21 13.5l-3.6.8.7 3.6M3 13.5l3.6.8-.7 3.6M21 10.5l-3.6-.8.7-3.6"/></svg>',
   lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
 };
@@ -321,6 +323,27 @@ function roadRowHTML(reward, streak, best, claimedIds, canClaim) {
 // between two nodes is squeezed into the middle 40% of the gap so the
 // "you are here" marker never lands on top of a node; `onNode` is true when
 // the streak sits exactly on a milestone (the node itself is the marker).
+// A frozen-lessons goal on the road: the number the master chose, with the
+// lessons that melt at it. Same row shape as a gift so the rail lines up.
+function iceRowHTML(goal, streak, best, canMelt) {
+  const reached = best >= goal.days;
+  const names = goal.lessons.map((l) => escapeHtml(l.title)).join(' · ');
+  let action;
+  if (reached && canMelt) action = `<button type="button" class="btn-gold small road-melt-btn" data-ice-days="${goal.days}">המס את הקרח</button>`;
+  else if (reached) action = '<span class="road-note">מוכן להמסה</span>';
+  else action = `<span class="road-note">עוד ${goal.days - streak} ${daysWord(goal.days - streak)}</span>`;
+  return `
+    <div class="road-row is-ice ${reached ? 'is-ready' : 'is-locked'}" data-ice-row="${goal.days}">
+      <span class="road-node">${ICONS.ice}</span>
+      <div class="road-card">
+        <span class="road-days">${goal.days} ${daysWord(goal.days)}</span>
+        <span class="road-title">שיעור קפוא בקרח</span>
+        <span class="road-desc">${names}</span>
+        ${action}
+      </div>
+    </div>`;
+}
+
 function roadPosition(streak, rewards) {
   let passed = 0;
   let prevDays = 0;
@@ -336,26 +359,32 @@ function roadPosition(streak, rewards) {
   return { pos: passed, onNode: true };
 }
 
-export function streakModalBodyHTML({ state, rewards, claimedIds, canClaim }) {
+export function streakModalBodyHTML({ state, rewards: giftRewards, claimedIds, canClaim, iceGoals = [] }) {
   const streak = state ? state.currentStreak : 0;
   const best = state ? state.bestStreak : 0;
+  const rewards = giftRewards;
   const next = rewards.find((r) => r.days > streak);
+  // Gifts and frozen-lesson goals share one road, ordered by day.
+  const stops = [
+    ...rewards.map((r) => ({ days: r.days, ice: false, reward: r })),
+    ...iceGoals.map((g) => ({ days: g.days, ice: true, goal: g })),
+  ].sort((a, b) => a.days - b.days || (a.ice ? 1 : 0) - (b.ice ? 1 : 0));
   const sub = next
     ? `עוד ${next.days - streak} ${daysWord(next.days - streak)} למתנה הבאה`
     : rewards.length
       ? 'הגעת לכל המתנות. כל הכבוד'
       : 'המתנות בדרך';
-  const { pos, onNode } = roadPosition(streak, rewards);
+  const { pos, onNode } = roadPosition(streak, stops);
   const showHere = streak > 0 && !onNode;
-  const road = rewards.length
+  const road = stops.length
     ? `
-    <div class="road" style="--road-n:${rewards.length};--road-pos:${pos.toFixed(3)}">
+    <div class="road" style="--road-n:${stops.length};--road-pos:${pos.toFixed(3)}">
       <div class="road-rail" aria-hidden="true">
         <div class="road-rail-fill"></div>
         ${showHere ? `<span class="road-here" title="אתה כאן">${streak}</span>` : ''}
       </div>
       <div class="road-row is-start"><span class="road-node"></span><div class="road-card"><span class="road-title">ההתחלה</span></div></div>
-      ${rewards.map((r) => roadRowHTML(r, streak, best, claimedIds, canClaim)).join('')}
+      ${stops.map((p) => (p.ice ? iceRowHTML(p.goal, streak, best, canClaim) : roadRowHTML(p.reward, streak, best, claimedIds, canClaim))).join('')}
     </div>`
     : '';
   return `
@@ -394,11 +423,13 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
   if (!openBtn || !overlay || !body) return;
 
   const isDemo = !!demoState;
-  const [state, rewards, claimedList] = await Promise.all([
+  const [state, rewards, claimedList, iceGoalsAll] = await Promise.all([
     isDemo ? Promise.resolve(demoState) : streakStore.touch(),
     streakStore.rewards.getAll(),
     isDemo ? Promise.resolve([]) : streakStore.claims.getForUser(session.id),
+    fetchIceGoals(isDemo),
   ]);
+  let iceGoals = iceGoalsAll;
 
   // Tables not created yet (supabase-streak.sql not run) -- show nothing
   // rather than a broken, always-zero streak.
@@ -425,10 +456,23 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
   }
 
   function paint() {
-    body.innerHTML = streakModalBodyHTML({ state, rewards, claimedIds, canClaim: !isDemo });
+    body.innerHTML = streakModalBodyHTML({ state, rewards, claimedIds, canClaim: !isDemo, iceGoals });
     const flameBtn = body.querySelector('#streakFlameBtn');
     if (flameBtn) flameBtn.addEventListener('click', () => pokeFlame(flameBtn));
     wakeFires(body);
+    body.querySelectorAll('.road-melt-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const days = Number(btn.dataset.iceDays);
+        const goal = iceGoals.find((g) => g.days === days);
+        if (!goal) return;
+        const row = btn.closest('.road-row');
+        row?.classList.add('is-melting');
+        const results = await Promise.all(goal.lessons.map((l) => meltLesson(l.section, l.id)));
+        if (results.every(Boolean)) iceGoals = iceGoals.filter((g) => g.days !== days);
+        setTimeout(paint, 1100);
+      });
+    });
     body.querySelectorAll('.road-claim-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
         btn.disabled = true;

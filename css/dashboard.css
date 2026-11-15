@@ -5746,3 +5746,131 @@ textarea.editable-input { display: block; resize: vertical; }
   line-height: 1;
   vertical-align: middle;
 }
+/* ===== קרח: שיעורים קפואים + יעדי הקרח במפה ===== */
+.lesson-tab.is-ice {
+  opacity: 1;
+  border: 1px solid rgba(190, 230, 255, 0.55);
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 24%),
+    repeating-linear-gradient(62deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 16px),
+    linear-gradient(160deg, rgba(150, 205, 245, 0.3), rgba(70, 130, 190, 0.2) 55%, rgba(170, 220, 250, 0.28));
+  box-shadow:
+    inset 0 0 18px rgba(190, 230, 255, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 14px rgba(120, 190, 255, 0.18);
+  color: #d6efff;
+}
+.app-main .admin-page .lesson-tab.is-ice .lesson-tab-title {
+  background: none;
+  color: #e4f5ff;
+  -webkit-text-fill-color: #e4f5ff;
+  text-shadow: 0 1px 6px rgba(120, 190, 255, 0.35);
+}
+.ice-num {
+  flex: none;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 7px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #0b2540;
+  background: linear-gradient(160deg, #f4fbff, #b9ddf7 55%, #8fc4ee);
+  box-shadow: inset 0 1px 0 #fff, 0 0 10px rgba(160, 215, 255, 0.55);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.lesson-tab.is-ice .lesson-lock-note { color: #bfe3ff; }
+.lesson-tab.is-ice.is-ready {
+  border-color: rgba(255, 205, 140, 0.75);
+  animation: ice-ready-glow 2.2s ease-in-out infinite;
+}
+.lesson-tab.is-ice.is-ready .ice-num { background: linear-gradient(160deg, #fff6e6, #ffd9a0 55%, #ffb866); color: #4a2400; box-shadow: inset 0 1px 0 #fff, 0 0 14px rgba(255, 190, 110, 0.7); }
+.lesson-tab.is-ice.is-ready .lesson-lock-note { color: #ffd9a3; font-weight: 700; }
+@keyframes ice-ready-glow {
+  0%, 100% { box-shadow: inset 0 0 18px rgba(190, 230, 255, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 0 10px rgba(255, 190, 110, 0.25); }
+  50% { box-shadow: inset 0 0 22px rgba(255, 220, 170, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 24px rgba(255, 190, 110, 0.6); }
+}
+/* the melt: warms up, sags and runs away; the real lesson then takes its place */
+.lesson-tab.is-ice.is-melting { animation: ice-melt 1.25s ease-in forwards; pointer-events: none; }
+@keyframes ice-melt {
+  0% { opacity: 1; transform: none; filter: none; }
+  30% { opacity: 1; transform: none; filter: brightness(1.3) sepia(0.5) saturate(1.5); }
+  100% { opacity: 0; transform: translateY(14px) scaleY(0.45); filter: blur(3px) brightness(1.2); }
+}
+.lesson-tab.is-just-melted { animation: ice-just-melted 0.9s ease-out; }
+@keyframes ice-just-melted {
+  0% { opacity: 0; transform: scale(0.96); box-shadow: 0 0 26px rgba(255, 190, 110, 0.8); }
+  100% { opacity: 1; transform: none; box-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lesson-tab.is-ice.is-ready, .lesson-tab.is-just-melted { animation: none; }
+}
+
+.lesson-row-unlock.is-set { color: #bfe3ff; }
+
+/* map: the ice stops on the road */
+.road-row.is-ice .road-node {
+  border-color: rgba(190, 230, 255, 0.75);
+  color: #d6efff;
+  background: linear-gradient(160deg, #1b3a58, #0c1a2c);
+}
+.road-row.is-ice .road-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.road-row.is-ice.is-ready .road-title { color: #ffd9a3; }
+.road-row.is-ice.is-melting .road-card { animation: ice-melt 1.1s ease-in forwards; }
+
+/* "המשך צפייה": a small stone square in the top block, under the board button */
+.personal-top {
+  grid-template-rows: auto auto auto 1fr;
+  grid-template-areas: "board . plaque" "resume . plaque" "timer . plaque" "wheel . plaque";
+}
+.personal-top > .personal-resume-tile {
+  grid-area: resume;
+  position: relative;
+  width: 148px;
+  height: auto;
+  min-height: 72px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 18px;
+  display: block;
+  background:
+    linear-gradient(150deg, rgba(210, 230, 255, 0.10) 0%, rgba(210, 230, 255, 0) 34%),
+    linear-gradient(330deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 40%),
+    url('../assets/stone-plaque.webp') center / cover,
+    #17243a;
+  box-shadow:
+    0 12px 22px rgba(0, 0, 0, 0.55),
+    0 2px 0 #04070d,
+    inset 0 2px 1px rgba(200, 225, 255, 0.28),
+    inset 0 -3px 2px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(5, 8, 14, 0.9);
+}
+.personal-resume-tile .personal-resume-main { flex-direction: column; align-items: flex-start; gap: 6px; height: auto; }
+.personal-resume-tile .personal-resume-thumb { width: 24px; height: 24px; border-radius: 50%; }
+.personal-resume-tile .personal-resume-title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.personal-resume-tile .personal-resume-dismiss { position: absolute; top: 6px; left: 6px; width: 18px; height: 18px; font-size: 9px; }
+@media (max-width: 720px) {
+  .personal-top {
+    grid-template-rows: auto auto auto auto;
+    grid-template-areas: "board plaque" "resume plaque" "timer plaque" "wheel wheel";
+  }
+  .personal-top > .personal-resume-tile { width: min(100%, 140px); }
+}
