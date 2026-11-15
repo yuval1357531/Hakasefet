@@ -22,6 +22,7 @@ import { usersStore } from '../data/usersStore.js';
 import { notebookStore } from '../data/notebookStore.js';
 import { focusStore } from '../data/focusStore.js';
 import { journalStore } from '../data/journalStore.js';
+import { streakStore, dayChipHTML } from '../data/streakStore.js';
 import { vaultStore } from '../data/vaultStore.js';
 import { freedomStore } from '../data/freedomStore.js';
 import { personalGuidanceStore } from '../data/personalGuidanceStore.js';
@@ -62,9 +63,9 @@ export function computeJournalNewCounts(students, entries) {
 // naturally on mobile (see .student-folder-list in dashboard.css). `count`
 // (new journal entries since the master last checked) renders as a small
 // quiet badge, omitted entirely when there's nothing new.
-function studentButtonHTML(user, count) {
+function studentButtonHTML(user, count, day) {
   const badge = count > 0 ? `<span class="admin-badge">${count}</span>` : '';
-  return `<button type="button" class="student-folder-btn" data-id="${user.id}">${escapeHtml(user.fullName)}${badge}</button>`;
+  return `<button type="button" class="student-folder-btn" data-id="${user.id}">${escapeHtml(user.fullName)}${dayChipHTML(day)}${badge}</button>`;
 }
 
 // --- "+" bubble 1: personal note straight into this student's journal ---
@@ -176,6 +177,8 @@ export async function mountStudentFolders(container) {
   // refetched) the moment a badge is cleared, same "no reload" pattern as
   // every other piece of state on this page.
   let journalCounts = new Map();
+  // userId -> the streak day each student is on (shown next to the name).
+  let streakDays = new Map();
   // Guards a race where the master closes the modal (or opens a
   // different student) while the previous student's data is still being
   // fetched -- the stale response is simply discarded instead of painting
@@ -196,7 +199,7 @@ export async function mountStudentFolders(container) {
         </div>
         <div class="student-folder-list">${
           students.length
-            ? students.map((u) => studentButtonHTML(u, journalCounts.get(u.id) || 0)).join('')
+            ? students.map((u) => studentButtonHTML(u, journalCounts.get(u.id) || 0, streakDays.get(u.id))).join('')
             : '<p class="placeholder-desc">אין עדיין תלמידים במערכת.</p>'
         }</div>
       </div>
@@ -368,7 +371,8 @@ export async function mountStudentFolders(container) {
     });
   }
 
-  const [allUsers, allEntries] = await Promise.all([usersStore.getAll(), notebookStore.getAll()]);
+  const [allUsers, allEntries, days] = await Promise.all([usersStore.getAll(), notebookStore.getAll(), streakStore.getDaysForAll()]);
+  streakDays = days;
   students = allUsers.filter((u) => u.role !== 'admin');
   journalCounts = computeJournalNewCounts(students, allEntries);
   render();

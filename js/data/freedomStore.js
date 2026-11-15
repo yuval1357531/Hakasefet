@@ -17,6 +17,7 @@ function toLesson(row) {
     descriptionMode: row.description_mode,
     order: row.order,
     isActive: row.is_active,
+    unlockStreak: row.unlock_streak ?? null,
   };
 }
 
@@ -193,6 +194,7 @@ const lessonsApi = {
     if (changes.hintText !== undefined) payload.hint_text = changes.hintText;
     if (changes.descriptionMode !== undefined) payload.description_mode = changes.descriptionMode;
     if (changes.isActive !== undefined) payload.is_active = changes.isActive;
+    if (changes.unlockStreak !== undefined) payload.unlock_streak = changes.unlockStreak;
     if (changes.order !== undefined) payload.order = changes.order;
     const { data, error } = await supabase.from('freedom_lessons').update(payload).eq('id', id).select().single();
     if (error || !data) return null;

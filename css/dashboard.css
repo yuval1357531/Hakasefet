@@ -5685,3 +5685,64 @@ textarea.editable-input { display: block; resize: vertical; }
   will-change: transform, opacity;
 }
 .reel-item.is-empty { height: 100%; opacity: 1; }
+/* ===== נעילת שיעורים לפי רצף ===== */
+/* Student: a locked lesson stays in the list, dimmed, with a lock and how
+   many days are left. Tap -> small popup (js/lessonUnlock.js). */
+.lesson-tab.is-locked {
+  opacity: 0.55;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  text-align: start;
+  border-style: dashed;
+}
+.lesson-tab.is-locked::after { content: none; }
+.lesson-lock-icon { border-color: transparent; font-size: 15px; }
+.lesson-lock-note {
+  margin-inline-start: auto;
+  flex: none;
+  font-size: 11.5px;
+  color: var(--gold-light);
+  white-space: nowrap;
+}
+.lesson-lock-modal-icon { font-size: 30px; margin: 0 0 8px; line-height: 1; }
+.lesson-lock-modal-actions { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.lesson-lock-modal-actions .btn-gold { display: inline-block; text-decoration: none; }
+
+/* Master: lock button on every lesson row + its inline form. */
+.lesson-row-unlock {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12.5px;
+  line-height: 1;
+  padding: 4px;
+  opacity: 0.7;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+.lesson-row-unlock:hover { opacity: 1; color: var(--gold-light); }
+.lesson-row-unlock.is-set { color: var(--gold-light); opacity: 1; font-weight: 700; }
+.lesson-row-unlock-form { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; flex-wrap: wrap; }
+.lesson-unlock-label { font-size: 12.5px; color: var(--text-muted); white-space: nowrap; margin: 0; }
+.lesson-row-unlock-form .lesson-unlock-input { width: 74px; flex: none; text-align: center; }
+.lesson-unlock-hint { font-size: 11px; color: var(--text-dim); }
+
+/* Master lists: the student's streak day next to the name. */
+.student-day-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 17px;
+  padding: 0 7px;
+  margin-inline-start: 7px;
+  border-radius: 999px;
+  background: rgba(99, 171, 255, 0.16);
+  border: 1px solid var(--border-gold);
+  color: var(--gold-light);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}

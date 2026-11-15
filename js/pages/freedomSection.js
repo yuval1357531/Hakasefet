@@ -47,6 +47,15 @@ import {
 } from '../insightsTicker.js';
 import { accordionHTML, wireAccordions } from '../adminAccordion.js';
 import { backButtonHTML, wirePageBackButton } from '../pageBackButton.js';
+import {
+  fetchLockedLessons,
+  mergeLockedLessons,
+  lockedTabHTML,
+  wireLockedTabs,
+  unlockButtonHTML,
+  unlockFormRowHTML,
+  wireUnlockForms,
+} from '../lessonUnlock.js';
 
 const STATUS_LABELS = { pending: 'ממתין', approved: 'מאושר', hidden: 'מוסתר' };
 const STATUS_BADGE = { pending: '', approved: 'badge-active', hidden: 'badge-blocked' };
@@ -94,6 +103,8 @@ export async function mountFreedomHome(container, section, session) {
   // pencil button in the row's action strip, not tied to the title's own
   // width -- see the lesson-row-title-form branch in the tabs map below).
   let editingLessonTitleId = null;
+  // Which lesson's "נפתח ברצף של N ימים" field the master is editing.
+  let editingUnlockId = null;
   // Which collapsible management panels are open -- kept across
   // re-renders so the panel the master is actively working in doesn't
   // snap shut on them.
@@ -109,15 +120,16 @@ export async function mountFreedomHome(container, section, session) {
 
   async function loadData() {
     const editMode = auth.isEditMode();
-    const [sr, ls, up, ac, hl] = await Promise.all([
+    const [sr, ls, up, ac, hl, lk] = await Promise.all([
       contentStore.sections.getById(section.id),
       editMode ? freedomStore.lessons.getAll() : freedomStore.lessons.getActive(),
       progressStore.getForUser(session.id),
       freedomCommentsStore.getApprovedAll(),
       editMode ? freedomStore.highlights.getAll() : freedomStore.highlights.getActive(),
+      editMode ? [] : fetchLockedLessons('survivalToFreedom'),
     ]);
     sectionRecord = sr;
-    lessons = ls;
+    lessons = mergeLockedLessons(ls, lk);
     userProgress = up;
     approvedComments = ac;
     highlights = hl;
@@ -134,6 +146,7 @@ export async function mountFreedomHome(container, section, session) {
         const done = completedIds.has(lesson.id);
 
         if (!editMode) {
+          if (lesson.locked) return lockedTabHTML(lesson);
           const titleHTML = escapeHtml(lesson.title);
           return `
             <a class="lesson-tab ${done ? 'is-done' : ''}" href="#/${section.id}/lesson/${lesson.id}">
@@ -150,6 +163,7 @@ export async function mountFreedomHome(container, section, session) {
         // in the action strip, not glued to the text), hide/show, and a
         // small round delete icon. Every action here (edit/delete/hide/
         // reorder) patches local state and repaints -- no page reload.
+        if (editingUnlockId === lesson.id) return unlockFormRowHTML(lesson, reorderButtonsHTML(lesson.id));
         if (editingLessonTitleId === lesson.id) {
           return `
             <div class="lesson-row-manage ${!lesson.isActive ? 'lesson-row-inactive' : ''}">
@@ -170,6 +184,7 @@ export async function mountFreedomHome(container, section, session) {
               <span class="lesson-tab-title">${titleHTML}</span>
             </a>
             <button type="button" class="lesson-row-edit" data-lesson-action="edit-title" data-lesson-id="${lesson.id}" title="עריכת שם">✎</button>
+            ${unlockButtonHTML(lesson)}
             <button type="button" class="lesson-row-toggle ${!lesson.isActive ? 'is-hidden' : ''}" data-lesson-action="toggle-active" data-lesson-id="${lesson.id}" title="${lesson.isActive ? 'הסתרה' : 'הפעלה'}">${lesson.isActive ? '👁' : '🚫'}</button>
             <button type="button" class="lesson-row-delete" data-lesson-action="delete" data-lesson-id="${lesson.id}" title="מחיקה">🗑</button>
           </div>`;
@@ -266,6 +281,9 @@ export async function mountFreedomHome(container, section, session) {
       setEditingId: (v) => { editingHighlightId = v; },
     });
 
+    wireLockedTabs(container, lessons);
+    wireUnlockForms(container, { store: freedomStore, lessons, setEditing: (v) => { editingUnlockId = v; }, rerender: paint });
+
     const addForm = container.querySelector('#addLessonForm');
     if (addForm) {
       addForm.addEventListener('submit', async (e) => {
@@ -285,7 +303,10 @@ export async function mountFreedomHome(container, section, session) {
         e.stopPropagation();
         const id = btn.dataset.lessonId;
         const action = btn.dataset.lessonAction;
-        if (action === 'edit-title') {
+        if (action === 'edit-unlock') {
+          editingUnlockId = id;
+          paint();
+        } else if (action === 'edit-title') {
           editingLessonTitleId = id;
           paint();
         } else if (action === 'toggle-active') {

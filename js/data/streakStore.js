@@ -25,7 +25,31 @@ function makeId() {
   return 'sr-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
+// Calendar date (YYYY-MM-DD) in Israel, `offsetDays` from today.
+function israelDate(offsetDays = 0) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(Date.now() + offsetDays * 86400000));
+}
+
+// "יום 14" next to a student's name (master lists). `day` is null when the
+// student has no streak row yet -- nothing is drawn then.
+export function dayChipHTML(day) {
+  if (day === null || day === undefined) return '';
+  return `<span class="student-day-chip" title="יום ברצף">יום ${day}</span>`;
+}
+
 export const streakStore = {
+  // Master only (RLS): userId -> the streak day the student is on right now.
+  // A streak whose last visit is older than yesterday is already broken, so
+  // it reads 0 until their next visit restarts it at 1.
+  async getDaysForAll() {
+    const { data, error } = await supabase.from('login_streaks').select('user_id, current_streak, last_day');
+    const map = new Map();
+    if (error || !data) return map;
+    const yesterday = israelDate(-1);
+    data.forEach((r) => map.set(r.user_id, r.last_day && r.last_day >= yesterday ? r.current_streak : 0));
+    return map;
+  },
+
   // Counts today's visit (no-op when already counted today) and returns the
   // up-to-date streak, or null if the feature isn't set up in the database.
   async touch() {

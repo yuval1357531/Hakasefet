@@ -15,6 +15,7 @@
 import { usersStore } from '../data/usersStore.js';
 import { SECTIONS } from '../sections.config.js';
 import { accordionHTML, wireAccordions } from '../adminAccordion.js';
+import { streakStore, dayChipHTML } from '../data/streakStore.js';
 
 const CREATE_ERROR_MESSAGES = {
   email_taken: 'האימייל הזה כבר רשום במערכת.',
@@ -70,6 +71,8 @@ function resetEventRow(ev) {
 export async function mountManageUsers(container) {
   const openAccordions = new Set();
   let users = [];
+  // userId -> the streak day each student is on (shown next to the name).
+  let streakDays = new Map();
   // Client-side only -- filters the already-fetched `users` array by name
   // or email. Persisted across re-renders (module-level, not re-read from
   // the DOM) so creating/editing a user doesn't silently clear it.
@@ -160,9 +163,13 @@ export async function mountManageUsers(container) {
 
   // --- "משתמשים קיימים" -- plain name buttons, never a table/card grid. -
 
-  function userButtonHTML(user) {
+  function userButtonInnerHTML(user) {
     const masterTag = user.role === 'admin' ? ' <span class="muted-note">(מאסטר)</span>' : '';
-    return `<button type="button" class="student-folder-btn" data-id="${user.id}">${escapeHtml(user.fullName)}${masterTag}</button>`;
+    return `${escapeHtml(user.fullName)}${masterTag}${user.role === 'admin' ? '' : dayChipHTML(streakDays.get(user.id))}`;
+  }
+
+  function userButtonHTML(user) {
+    return `<button type="button" class="student-folder-btn" data-id="${user.id}">${userButtonInnerHTML(user)}</button>`;
   }
 
   // "הכל / פעילים / חסומים / לא פעילים" -- purely a display filter over the
@@ -318,6 +325,7 @@ export async function mountManageUsers(container) {
 
   async function render() {
     users = await usersStore.getAll();
+    streakDays = await streakStore.getDaysForAll();
     const resetEvents = await usersStore.getPasswordResetEvents();
     const openUser = openUserId ? users.find((u) => u.id === openUserId) : null;
 
@@ -396,7 +404,7 @@ export async function mountManageUsers(container) {
     if (title) title.textContent = user.fullName;
     if (body) body.innerHTML = userBubbleBodyHTML(user);
     const nameBtn = container.querySelector(`.student-folder-btn[data-id="${id}"]`);
-    if (nameBtn) nameBtn.textContent = user.fullName + (user.role === 'admin' ? ' (מאסטר)' : '');
+    if (nameBtn) nameBtn.innerHTML = userButtonInnerHTML(user);
     wireBubbleBody(user);
   }
 
