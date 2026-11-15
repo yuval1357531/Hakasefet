@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ice render</title>
+<style>
+  html, body { margin: 0; background: #000; color: #9ab; font: 12px/1.4 monospace; }
+  canvas { display: block; background: #000; }
+  #log { padding: 8px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1000" height="170"></canvas>
+<div id="log"></div>
+
+<!-- Offline render of the frozen-lesson ice slab (NOT part of the site).
+     One exactly-looping clip: a light sweep crosses the facets and sparkles
+     twinkle, everything else is a fixed block of glacier ice.
+       node tools/flame/render-server.cjs <outDir> 8091  ->  /ice.html?capture=1 -->
+<script id="fs" type="x-shader/x-fragment">#version 300 es
+precision highp float;
+uniform vec2 uRes;
+uniform float uPh;
+uniform float uWarm;   // 0 = frozen, 1 = ready to melt (warm glow)
+out vec4 outCol;
+const float TAU = 6.28318530718;
+
+float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+vec2 h22(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+float vn(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1, 0)), u.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), u.x), u.y);
+}
+float fbm(vec2 p) {
+  float s = 0.0, a = 0.5;
+  for (int i = 0; i < 5; i++) { s += a * vn(p); p = p * 2.03 + vec2(11.7, 5.3); a *= 0.5; }
+  return s;
+}
+// voronoi: x = distance to the nearest point, y = exact distance to the nearest cell border, zw = cell id
+vec4 vor(vec2 p) {
+  vec2 ip = floor(p), fp = fract(p);
+  float d1 = 8.0; vec2 id = vec2(0.0), c1 = vec2(0.0);
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec2 g = vec2(float(i), float(j));
+    vec2 r = g + h22(ip + g) - fp;
+    float d = dot(r, r);
+    if (d < d1) { d1 = d; id = ip + g; c1 = r; }
+  }
+  float ed = 8.0;
+  for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) {
+    vec2 g = vec2(float(i), float(j));
+    vec2 r = g + h22(ip + g) - fp;
+    if (dot(c1 - r, c1 - r) > 1e-5) ed = min(ed, dot(0.5 * (c1 + r), normalize(r - c1)));
+  }
+  return vec4(sqrt(d1), ed, id);
+}
+
+void main() {
+  vec2 uv = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y) / uRes;
+  float asp = uRes.x / uRes.y;
+  vec2 p = vec2(uv.x * asp, uv.y);
+  float ph = uPh;
+  vec2 drift = vec2(cos(TAU * ph), sin(TAU * ph)) * 0.12;
+
+  // body of the ice: deep glacier blue, lighter toward the top
+  vec3 deep = vec3(0.02, 0.1, 0.19), mid = vec3(0.05, 0.25, 0.38), lite = vec3(0.2, 0.55, 0.7);
+  vec3 col = mix(mid, deep, smoothstep(0.0, 1.0, uv.y) * 0.9);
+  // trapped cloud / frozen-in haze
+  float hz = fbm(p * 2.2 + drift * 0.5 + 3.0);
+  col = mix(col, lite, smoothstep(0.45, 0.85, hz) * 0.4);
+  
+
+  // the planes are bent by the flow of the ice, so no edge is ever straight
+  vec2 warp = vec2(fbm(p * 1.7 + 4.0), fbm(p * 1.7 + 21.0)) - 0.5;
+  vec2 pw = p + warp * 0.55;
+  // a deeper layer of old fractures, dim and soft, to give the block depth
+  vec4 vd = vor(pw * 1.5 + 90.0);
+  col += vec3(0.1, 0.3, 0.5) * (1.0 - smoothstep(0.0, 0.07, vd.y)) * 0.3 * smoothstep(0.3, 0.7, vn(pw * 3.0 + 7.0));
+  col *= 0.9 + 0.25 * h21(vd.zw);
+  // crystal facets: every cell its own brightness, like planes of ice
+  vec4 v = vor(pw * 2.0 + 17.0);
+  float fac = h21(v.zw);
+  col *= 0.82 + 0.4 * fac;
+  col += vec3(0.04, 0.1, 0.16) * smoothstep(0.4, 0.9, fac);
+  // fracture planes between facets: thin bright lines, broken up by noise
+  float broken = smoothstep(0.52, 0.8, vn(pw * 5.0 + v.zw));
+  float e = 1.0 - smoothstep(0.0, 0.022, v.y);
+  col += vec3(0.6, 0.9, 1.0) * e * broken * 0.7;
+  col += vec3(0.16, 0.4, 0.66) * (1.0 - smoothstep(0.0, 0.14, v.y)) * 0.16;
+  // a few long deep cracks
+  vec4 v2 = vor(pw * 0.9 + 41.0);
+  float crack = (1.0 - smoothstep(0.0, 0.008, v2.y)) * smoothstep(0.5, 0.75, vn(pw * 2.6 + 2.0));
+  col = mix(col, vec3(0.88, 0.98, 1.0), crack * 0.8);
+  col -= vec3(0.05, 0.08, 0.1) * (1.0 - smoothstep(0.008, 0.045, v2.y)) * smoothstep(0.5, 0.75, vn(pw * 2.6 + 2.0));
+
+  // trapped air bubbles
+  vec2 bp = p * 4.2;
+  vec2 bi = floor(bp), bf = fract(bp) - 0.5;
+  if (h21(bi + 5.0) > 0.8) {
+    vec2 off = (h22(bi) - 0.5) * 0.45;
+    float r = 0.07 + 0.13 * h21(bi + 9.0);
+    float d = length(bf - off);
+    float ring = smoothstep(r, r - 0.025, d) - smoothstep(r - 0.025, r - 0.07, d);
+    col *= 1.0 - 0.28 * smoothstep(r - 0.04, r - 0.12, d);
+    col += vec3(0.75, 0.92, 1.0) * ring * 0.55;
+    col += vec3(1.0) * smoothstep(0.03, 0.0, length(bf - off - vec2(-0.35, -0.35) * r)) * 0.7;
+  }
+
+  // light sweep: crosses the whole slab once per loop, lighting facet after facet
+  float band = p.x * 0.9 + p.y * 0.55;
+  float c = mix(-0.7, asp * 0.9 + 1.0, ph);
+  float sw = exp(-pow((band - c) / 0.2, 2.0));
+  col += vec3(0.5, 0.82, 1.0) * sw * (0.1 + 0.5 * fac * fac + 0.9 * e * broken);
+
+  // sparkles: tiny crossed glints that twinkle (integer cycles per loop = seamless)
+  vec2 sp = p * 13.0;
+  vec2 si = floor(sp), sf = fract(sp) - 0.5;
+  float sh = h21(si + 13.0);
+  if (sh > 0.955) {
+    vec2 off = (h22(si + 3.0) - 0.5) * 0.6;
+    vec2 q = sf - off;
+    float tw = 0.5 + 0.5 * sin(TAU * (ph * (1.0 + floor(sh * 40.0 - 38.0)) + sh * 37.0));
+    tw = tw * tw;
+    float star = smoothstep(0.16, 0.0, length(q)) * 0.9
+      + (smoothstep(0.018, 0.0, abs(q.x)) * smoothstep(0.38, 0.0, abs(q.y))
+       + smoothstep(0.018, 0.0, abs(q.y)) * smoothstep(0.38, 0.0, abs(q.x))) * 0.8;
+    col += vec3(0.92, 0.98, 1.0) * star * tw;
+  }
+
+  // frosted rim top and bottom, and a cold surface sheen on top
+  float edgeV = abs(uv.y - 0.5) * 2.0;
+  float fr = 0.0;
+  col += (vn(p * 70.0) - 0.5) * 0.045;
+  col += vec3(0.4, 0.75, 0.9) * smoothstep(0.3, 0.0, uv.y) * 0.1;
+
+  // ready to melt: a warm glow rising from underneath
+  col = mix(col, col * vec3(1.18, 1.0, 0.82) + vec3(0.32, 0.17, 0.03) * smoothstep(0.2, 1.0, uv.y), uWarm);
+
+  col = pow(clamp(col, 0.0, 1.0), vec3(0.92));
+  outCol = vec4(col, 1.0);
+}
+</script>
+
+<script>
+const canvas = document.getElementById('c');
+const log = (m) => { document.getElementById('log').textContent += m + '\n'; };
+const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
+const vs = `#version 300 es
+in vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
+function sh(type, src) {
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { log(gl.getShaderInfoLog(s)); throw new Error('shader'); }
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs));
+gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, document.getElementById('fs').textContent));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(prog, 'a');
+gl.enableVertexAttribArray(loc);
+gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+const U = (n) => gl.getUniformLocation(prog, n);
+window.renderAt = (ph, warm = 0) => {
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.uniform2f(U('uRes'), canvas.width, canvas.height);
+  gl.uniform1f(U('uPh'), ph);
+  gl.uniform1f(U('uWarm'), warm);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+};
+window.renderAt(0.3, 0);
+
+// ?capture=1&n=120&warm=0|1 -> POST n frames of one loop to the render server
+const q = new URLSearchParams(location.search);
+if (q.get('capture')) {
+  (async () => {
+    const n = Number(q.get('n') || 120);
+    const warm = Number(q.get('warm') || 0);
+    const set = q.get('set') || (warm ? 'ice_warm' : 'ice');
+    for (let i = 0; i < n; i++) {
+      window.renderAt(i / n, warm);
+      const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+      await fetch(`/frame?set=${set}&i=${i}`, { method: 'POST', body: blob });
+    }
+    log('captured ' + n + ' frames -> ' + set);
+    window.__done = true;
+  })();
+}
+</script>
+</body>
+</html>

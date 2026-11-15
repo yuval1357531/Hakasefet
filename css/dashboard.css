@@ -5874,3 +5874,93 @@ textarea.editable-input { display: block; resize: vertical; }
   }
   .personal-top > .personal-resume-tile { width: min(100%, 140px); }
 }
+/* the ice is a rendered clip behind the row's content */
+.lesson-tab.is-ice {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: #0a1c30;
+  border: 1px solid rgba(200, 235, 255, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 0 16px rgba(190, 230, 255, 0.4),
+    0 0 14px rgba(120, 190, 255, 0.22);
+}
+.lesson-tab.is-ice .ice-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+  pointer-events: none;
+}
+/* a soft shade behind the text so the title stays readable on the ice */
+.lesson-tab.is-ice::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(3, 12, 26, 0.3), rgba(3, 12, 26, 0.5) 55%, rgba(3, 12, 26, 0.25));
+  pointer-events: none;
+}
+.lesson-tab.is-ice.is-ready { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 0 18px rgba(255, 210, 150, 0.45), 0 0 18px rgba(255, 190, 110, 0.4); }
+/* frozen shell: a thick puffy rim of dripped-and-frozen water around the
+   button, with icicles hanging from it (assets/ice3d/frame*.webp, drips*.webp,
+   a real 3D ice-slab render, tools/flame/ice3d-asset.html) */
+.lesson-tab.is-ice {
+  overflow: visible;
+  margin-top: 30px;
+  margin-bottom: 66px;
+  border-color: rgba(200, 235, 255, 0.35);
+}
+.lesson-tab.is-ice .ice-video,
+.lesson-tab.is-ice::before { border-radius: inherit; }
+.lesson-tab.is-ice::after {
+  content: '';
+  position: absolute;
+  inset: -31px -20px -23px -20px;
+  z-index: 2;
+  border-style: solid;
+  border-color: transparent;
+  border-width: 31px 20px 23px 20px;
+  border-image: url('../assets/ice3d/frame.webp') 153 100 117 100 fill / 31px 20px 23px 20px / 0 stretch;
+  pointer-events: none;
+}
+.lesson-tab.is-ice.is-ready::after { border-image-source: url('../assets/ice3d/frame-warm.webp'); }
+.lesson-tab.is-ice .ice-drips {
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: calc(100% + 14px);
+  height: 66px;
+  z-index: 1;
+  background: url('../assets/ice3d/drips.webp') repeat-x left top / auto 100%;
+  pointer-events: none;
+}
+.lesson-tab.is-ice.is-ready .ice-drips { background-image: url('../assets/ice3d/drips-warm.webp'); }
+/* the whole lesson sits under a layer of clear glossy ice: what is written on
+   it is seen through the glass (slightly soft), with window reflections */
+.lesson-tab.is-ice .ice-glaze {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(1.1px) saturate(1.15);
+  backdrop-filter: blur(1.1px) saturate(1.15);
+  background:
+    linear-gradient(118deg, rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0.2) 30%, rgba(255, 255, 255, 0.05) 38%, rgba(255, 255, 255, 0) 48%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.26) 0, rgba(255, 255, 255, 0.04) 22%, rgba(255, 255, 255, 0) 45%),
+    linear-gradient(0deg, rgba(90, 190, 230, 0.16), rgba(90, 190, 230, 0) 40%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.55),
+    inset 0 0 0 1px rgba(210, 240, 255, 0.18),
+    inset 0 -10px 16px rgba(30, 110, 160, 0.3);
+}
+.lesson-tab.is-ice.is-ready .ice-glaze {
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.55),
+    inset 0 0 0 1px rgba(255, 225, 180, 0.22),
+    inset 0 -10px 18px rgba(230, 150, 60, 0.3);
+}

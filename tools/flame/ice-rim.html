@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ice rim render</title>
+<style>
+  html, body { margin: 0; background: #1a2a3c; color: #9ab; font: 12px/1.4 monospace; }
+  canvas { display: block; }
+  #log { padding: 8px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1120" height="264"></canvas>
+<div id="log"></div>
+
+<!-- Offline render (NOT part of the site) of the thick frozen shell that sits
+     around a frozen lesson button: the puffy rim of water that dripped and
+     froze (mode 0, a 9-slice border image) and the icicles hanging from its
+     bottom edge (mode 1, a repeating strip). Transparent PNGs.
+       node tools/flame/render-server.cjs <outDir> 8091
+       /ice-rim.html?mode=0&warm=0&capture=1   (and mode=1, warm=0|1) -->
+<script id="fs" type="x-shader/x-fragment">#version 300 es
+precision highp float;
+uniform vec2 uRes;
+uniform int uMode;
+uniform float uWarm;
+out vec4 outCol;
+
+float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+float vn(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1, 0)), u.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), u.x), u.y);
+}
+float fbm(vec2 p) {
+  float s = 0.0, a = 0.5;
+  for (int i = 0; i < 4; i++) { s += a * vn(p); p = p * 2.03 + vec2(11.7, 5.3); a *= 0.5; }
+  return s;
+}
+float sdRR(vec2 p, vec2 b, float r) {
+  vec2 q = abs(p) - b + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+const vec3 LIGHT = vec3(-0.45, -0.62, 0.64);
+
+// Clear glaze ice (freezing-rain ice): see-through, glossy, dark refractive
+// edges where the surface turns steep, a big soft window reflection, a sharp
+// specular glint, and a caustic of focused light on the far side of each lump.
+vec4 glass(vec3 n, float h, float tipT, vec2 p) {
+  vec3 L = normalize(LIGHT);
+  float ndl = dot(n, L);
+  float edge = 1.0 - n.z;
+  vec3 col = vec3(0.46, 0.78, 0.96);
+  float a = 0.3 + 0.5 * pow(edge, 0.85);
+  col = mix(col, vec3(0.05, 0.24, 0.38), clamp(pow(edge, 0.75) * 0.95, 0.0, 1.0));
+  float win = smoothstep(0.5, 0.95, ndl);
+  col += vec3(0.85, 0.96, 1.0) * win * 0.5;
+  a += win * 0.45;
+  vec3 rf = reflect(vec3(0, 0, -1), n);
+  float sp = pow(clamp(dot(rf, L), 0.0, 1.0), 48.0);
+  col += vec3(1.0) * sp * 1.7;
+  a += sp;
+  float ca = pow(clamp(dot(normalize(vec3(-n.xy, 0.55)), normalize(vec3(-L.xy, 0.7))), 0.0, 1.0), 14.0) * h;
+  col += vec3(0.6, 0.93, 1.0) * ca * 0.55;
+  a += ca * 0.3;
+  col += vec3(0.35) * (vn(p * 0.11) - 0.5) * 0.12;
+  float lum = dot(col, vec3(0.3, 0.5, 0.2));
+  vec3 warm = vec3(1.0, 0.76, 0.46) * (lum * 1.15 + 0.12) + vec3(0.25, 0.1, 0.0) * edge;
+  col = mix(col, warm, uWarm * 0.9);
+  return vec4(clamp(col, 0.0, 1.0), clamp(a * mix(1.0, 0.7, tipT * tipT), 0.0, 1.0));
+}
+
+// ---------- mode 0: a solid block of ice around the lesson ----------
+// A thick slab with bevelled edges (bright facet lines both sides), a rough
+// cut outline, a cloudy pale core with white fracture veins and trapped air.
+const float DIN = 20.0;
+float f2f1(vec2 p) {
+  vec2 ip = floor(p), fp = fract(p);
+  float d1 = 8.0, d2 = 8.0;
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec2 g = vec2(float(i), float(j));
+    vec2 r = g + vec2(h21(ip + g), h21(ip + g + 7.3)) - fp;
+    float d = dot(r, r);
+    if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+  }
+  return sqrt(d2) - sqrt(d1);
+}
+vec3 rim(vec2 p) {
+  vec2 c = uRes * 0.5;
+  vec2 b = uRes * 0.5 - 45.0;
+  float s = sdRR(p - c, b, 40.0);
+  float low = smoothstep(-0.2, 1.0, (p.y - c.y) / b.y);
+  float E = 38.0 + 7.0 * (fbm(p * 0.02) * 2.0 - 1.0) + 4.0 * (abs(vn(p * 0.045) - 0.5) * 2.0 - 0.5) + 4.0 * low * vn(p * 0.012 + 3.0);
+  E = clamp(E, 28.0, 45.0);
+  float t = (s + DIN) / (E + DIN);
+  float h = t <= 0.0 || t >= 1.0 ? 0.0 : smoothstep(0.0, 0.26, t) * smoothstep(1.0, 0.72, t);
+  return vec3(h, E - s, E);
+}
+
+vec4 shadeRim(vec2 p) {
+  vec3 r = rim(p);
+  float s = (r.z - r.y);
+  float aa = clamp(r.y / 1.4, 0.0, 1.0) * clamp((s + DIN) / 3.0, 0.0, 1.0);
+  if (aa <= 0.0) return vec4(0.0);
+  float e = 1.5;
+  float hx = rim(p + vec2(e, 0)).x - rim(p - vec2(e, 0)).x;
+  float hy = rim(p + vec2(0, e)).x - rim(p - vec2(0, e)).x;
+  vec3 n = normalize(vec3(-30.0 * hx / (2.0 * e), -30.0 * hy / (2.0 * e), 1.0));
+  vec4 g = glass(n, r.x, 0.0, p);
+  // cloudy pale core of the block (frozen-in air), clearer toward the edges
+  float inner = smoothstep(0.1, 0.5, r.x);
+  float cl = smoothstep(0.35, 0.8, fbm(p * 0.028 + 9.0)) * inner;
+  vec3 cloud = vec3(0.8, 0.92, 1.0);
+  g.rgb = mix(g.rgb, cloud * (0.75 + 0.25 * fbm(p * 0.09)), cl * 0.75);
+  g.a = max(g.a, 0.62 + 0.3 * cl) * (0.6 + 0.4 * inner) ;
+  // white fracture veins and a few deep dark ones
+  float fv = f2f1(p * 0.045 + 5.0);
+  float vein = (1.0 - smoothstep(0.0, 0.05, fv)) * smoothstep(0.45, 0.75, vn(p * 0.03 + 2.0)) * inner;
+  g.rgb = mix(g.rgb, vec3(0.95, 0.99, 1.0), vein * 0.9);
+  g.a = max(g.a, vein * 0.95);
+  // trapped air bubbles
+  vec2 bp = p * 0.12; vec2 bi = floor(bp), bf = fract(bp) - 0.5;
+  if (h21(bi + 4.0) > 0.82) {
+    float rad = 0.12 + 0.12 * h21(bi + 2.0);
+    float d2 = length(bf - (vec2(h21(bi), h21(bi + 7.0)) - 0.5) * 0.4);
+    float ring = smoothstep(rad, rad - 0.03, d2) - smoothstep(rad - 0.04, rad - 0.1, d2);
+    g.rgb += vec3(0.9, 0.98, 1.0) * ring * 0.7 * inner;
+    g.a = max(g.a, ring * 0.9 * inner);
+    g.rgb *= 1.0 - 0.25 * smoothstep(rad - 0.05, rad - 0.15, d2) * inner;
+  }
+  g.a *= aa;
+  return g;
+}
+
+// ---------- mode 1: lip + icicles ----------
+// One smooth signed-distance field: a continuous lip along the top with
+// icicles of every size growing out of it (smooth union = the water pooled at
+// the base of each one), lit from the same side as the rim.
+float smin(float a, float b, float k) {
+  float h = max(k - abs(a - b), 0.0) / k;
+  return min(a, b) - h * h * k * 0.25;
+}
+const float TOPY = 22.0;
+float dripD(vec2 p, out float tipT) {
+  float x = p.x, y = p.y;
+  float lipB = TOPY + 7.0 * (fbm(vec2(x * 0.025, 1.0)) - 0.45) * 2.0;
+  float D = y - lipB;
+  tipT = 0.0;
+  float cw = 80.0;
+  float cell = floor(x / cw);
+  for (int k = -2; k <= 2; k++) {
+    float cc = cell + float(k);
+    float r1 = h21(vec2(cc, 3.0)), r2 = h21(vec2(cc, 9.0)), r3 = h21(vec2(cc, 17.0)), r4 = h21(vec2(cc, 23.0));
+    if (r1 < 0.1) continue;
+    float cx = (cc + 0.15 + 0.7 * r2) * cw;
+    float L = 18.0 + 78.0 * pow(r3, 1.5);
+    float w0 = 24.0 + 26.0 * r4;
+    float tt = clamp((y - lipB) / L, 0.0, 1.0);
+    float wob = 1.0 + 0.045 * sin(y * 0.13 + cc * 1.7) + 0.025 * sin(y * 0.29 + cc);
+    float rad = (w0 * 0.5 * pow(1.0 - tt, 0.62) + 2.6) * wob;
+    float body = max(abs(x - cx) - rad, y - (lipB + L - 2.4));
+    float cap = length(vec2(x - cx, y - (lipB + L - 2.4))) - 2.6;
+    float di = min(body, cap);
+    // a bead of water gathering on the tip of some of them
+    if (r1 > 0.7) di = min(di, length(vec2(x - cx, y - (lipB + L + 5.0))) - 5.6);
+    float before = D;
+    D = smin(D, di, 13.0);
+    if (di < before) tipT = tt;
+  }
+  return D;
+}
+
+float dripH(vec2 q) {
+  float t0;
+  return sqrt(clamp(-dripD(q, t0) / 20.0, 0.0, 1.0));
+}
+
+vec4 shadeDrips(vec2 p) {
+  float tipT;
+  float D = dripD(p, tipT);
+  float aa = clamp(0.5 - D / 1.3, 0.0, 1.0);
+  if (aa <= 0.0) return vec4(0.0);
+  float e = 1.5;
+  float hx = dripH(p + vec2(e, 0)) - dripH(p - vec2(e, 0));
+  float hy = dripH(p + vec2(0, e)) - dripH(p - vec2(0, e));
+  float h = dripH(p);
+  vec3 n = normalize(vec3(-9.0 * hx / (2.0 * e) * 6.0, -9.0 * hy / (2.0 * e) * 6.0, 1.0));
+  vec4 g = glass(n, h, tipT, p);
+  g.a *= aa;
+  return g;
+}
+
+void main() {
+  vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);
+  outCol = uMode == 0 ? shadeRim(p) : shadeDrips(p);
+}
+</script>
+
+<script>
+const q = new URLSearchParams(location.search);
+const mode = Number(q.get('mode') || 0);
+const warm = Number(q.get('warm') || 0);
+const canvas = document.getElementById('c');
+if (mode === 1) { canvas.width = 1032; canvas.height = 120; }
+const log = (m) => { document.getElementById('log').textContent += m + '\n'; };
+const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true, premultipliedAlpha: false, alpha: true });
+const vs = `#version 300 es
+in vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
+function sh(type, src) {
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { log(gl.getShaderInfoLog(s)); throw new Error('shader'); }
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs));
+gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, document.getElementById('fs').textContent));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(prog, 'a');
+gl.enableVertexAttribArray(loc);
+gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+gl.viewport(0, 0, canvas.width, canvas.height);
+gl.clearColor(0, 0, 0, 0);
+gl.clear(gl.COLOR_BUFFER_BIT);
+gl.disable(gl.BLEND);
+gl.uniform2f(gl.getUniformLocation(prog, 'uRes'), canvas.width, canvas.height);
+gl.uniform1i(gl.getUniformLocation(prog, 'uMode'), mode);
+gl.uniform1f(gl.getUniformLocation(prog, 'uWarm'), warm);
+gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+if (q.get('capture')) {
+  (async () => {
+    const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+    await fetch(`/frame?set=rim_m${mode}_w${warm}&i=0`, { method: 'POST', body: blob });
+    window.__done = true;
+  })();
+}
+</script>
+</body>
+</html>

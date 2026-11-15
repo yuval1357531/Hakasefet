@@ -96,14 +96,35 @@ export async function fetchIceGoals(isDemo) {
 
 // --- student: a frozen lesson row -----------------------------------------
 
+// The ice itself is a real rendered clip (tools/flame/ice.html): a block of
+// glacier ice with a light sweep and twinkling glints, same craft as the fire.
+const ICE_BASE = 'assets/ice/ice';
+
+// Videos inserted through innerHTML don't always start on their own.
+function wakeIce(root) {
+  const still = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  root.querySelectorAll('.ice-video').forEach((v) => {
+    v.muted = true;
+    if (still) {
+      v.removeAttribute('autoplay');
+      return;
+    }
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {});
+  });
+}
+
 export function lockedTabHTML(lesson) {
   const left = Math.max(0, lesson.daysLeft || 0);
   const note = lesson.ready ? 'מוכן להמסה ◂' : `עוד ${left} ${daysWord(left)}`;
   return `
     <button type="button" class="lesson-tab is-locked is-ice${lesson.ready ? ' is-ready' : ''}" data-locked-lesson="${escapeHtml(lesson.id)}">
+      <video class="ice-video" aria-hidden="true" src="${ICE_BASE}${lesson.ready ? '-warm' : ''}.mp4" poster="${ICE_BASE}${lesson.ready ? '-warm' : ''}.webp" autoplay loop muted playsinline preload="metadata"></video>
       <span class="ice-num" aria-hidden="true">${lesson.unlockStreak}</span>
       <span class="lesson-tab-title">${escapeHtml(lesson.title)}</span>
       <span class="lesson-lock-note">${note}</span>
+      <span class="ice-glaze" aria-hidden="true"></span>
+      <span class="ice-drips" aria-hidden="true"></span>
     </button>`;
 }
 
@@ -140,6 +161,7 @@ function showLockedModal(container, lesson) {
 // missing. sectionId/store: the section's own ids and lessons store;
 // onMelted(fullLesson) lets the page swap the stub for the real lesson.
 export function wireLockedTabs(container, lessons, { sectionId, store, onMelted }) {
+  wakeIce(container);
   container.querySelectorAll('[data-locked-lesson]').forEach((btn) => {
     let busy = false;
     btn.addEventListener('click', async () => {
