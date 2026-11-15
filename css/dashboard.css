@@ -5888,7 +5888,7 @@ textarea.editable-input { display: block; resize: vertical; }
 }
 .lesson-tab.is-ice .ice-video {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -5899,7 +5899,7 @@ textarea.editable-input { display: block; resize: vertical; }
 .lesson-tab.is-ice::before {
   content: '';
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: -1;
   background: linear-gradient(90deg, rgba(3, 12, 26, 0.3), rgba(3, 12, 26, 0.5) 55%, rgba(3, 12, 26, 0.25));
   pointer-events: none;
@@ -5910,8 +5910,9 @@ textarea.editable-input { display: block; resize: vertical; }
    a real 3D ice-slab render, tools/flame/ice3d-asset.html) */
 .lesson-tab.is-ice {
   overflow: visible;
-  margin-top: 20px;
-  margin-bottom: 22px;
+  margin-top: 8px;
+  margin-bottom: 14px;
+  padding: 22px 24px 18px;
   z-index: 2; /* the icicles hang over the next lesson instead of leaving a gap */
   border-color: rgba(200, 235, 255, 0.35);
 }
@@ -5920,12 +5921,14 @@ textarea.editable-input { display: block; resize: vertical; }
 .lesson-tab.is-ice::after {
   content: '';
   position: absolute;
-  inset: -31px -20px -23px -20px;
+  /* drawn INSIDE the button's own box (not spilling out of it), so no parent
+     can clip it away; the button has matching padding below */
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 2;
   border-style: solid;
   border-color: transparent;
-  border-width: 31px 20px 23px 20px;
-  border-image: url('../assets/ice3d/frame.webp') 153 100 117 100 fill / 31px 20px 23px 20px / 0 stretch;
+  border-width: 21px 14px 16px 14px;
+  border-image: url('../assets/ice3d/frame.webp') 153 100 117 100 fill / 21px 14px 16px 14px / 0 stretch;
   pointer-events: none;
 }
 .lesson-tab.is-ice.is-ready::after { border-image-source: url('../assets/ice3d/frame-warm.webp'); }
@@ -5933,8 +5936,8 @@ textarea.editable-input { display: block; resize: vertical; }
   position: absolute;
   left: -8px;
   right: -8px;
-  top: calc(100% + 14px);
-  height: 66px;
+  top: calc(100% - 6px);
+  height: 62px;
   z-index: 1;
   background: url('../assets/ice3d/drips.webp') repeat-x left top / auto 100%;
   pointer-events: none;
@@ -5944,7 +5947,7 @@ textarea.editable-input { display: block; resize: vertical; }
    it is seen through the glass (slightly soft), with window reflections */
 .lesson-tab.is-ice .ice-glaze {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 1;
   border-radius: inherit;
   pointer-events: none;
