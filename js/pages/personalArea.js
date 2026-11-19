@@ -23,7 +23,7 @@ import { freedomStore } from '../data/freedomStore.js';
 import { personalGuidanceStore } from '../data/personalGuidanceStore.js';
 import { journalStore } from '../data/journalStore.js';
 import { notebookStore } from '../data/notebookStore.js';
-import { trailMediaHTML, trailTextHTML, wireTrailExpand } from '../insightsTicker.js';
+import { trailMediaHTML, trailTextHTML, trailMediaKind, wireTrailExpand } from '../insightsTicker.js';
 import { accordionHTML, wireAccordions } from '../adminAccordion.js';
 import {
   dailyWheelHTML,
@@ -260,6 +260,9 @@ export function journalItemHTML(entry) {
       <div class="journal-item-main">
         ${trailTextHTML(entry.highlight.text, 'journal-item-text')}
         ${lessonLink ? `<div class="journal-item-source">מהשיעור: ${lessonLink}</div>` : ''}
+        <button type="button" class="trail-reveal-all-link journal-reveal-more" data-trail-reveal-all
+          data-reveal-text="${escapeAttr(entry.highlight.text)}" data-reveal-desc="${escapeAttr(entry.highlight.description || '')}"
+          data-reveal-media="${escapeAttr(entry.highlight.mediaUrl || '')}" data-reveal-media-kind="${escapeAttr(trailMediaKind(entry.highlight.mediaUrl || ''))}">הצג עוד</button>
       </div>
       ${trailMediaHTML(entry.highlight.mediaUrl)}
     </div>`;

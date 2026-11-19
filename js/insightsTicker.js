@@ -407,7 +407,7 @@ export function trailNotesForLesson(highlights, lessonId) {
   return (highlights || []).filter((h) => (h.linkedLessonIds || []).includes(lessonId));
 }
 
-function trailMediaKind(mediaUrl) {
+export function trailMediaKind(mediaUrl) {
   if (/\.(mp4|webm|mov|m4v)(\?|$)/i.test(mediaUrl)) return 'video';
   if (/\.(jpe?g|png|gif|webp|avif)(\?|$)/i.test(mediaUrl)) return 'image';
   return 'file';

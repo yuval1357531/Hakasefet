@@ -39,7 +39,7 @@ const svg = (p) => `<svg viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`;
 const SPK = '<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/>';
 const SPEAKER = {
   on: { icon: svg(SPK + '<path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/>'), label: 'מוזיקה פועלת. לחץ להשתקה' },
-  muted: { icon: svg(SPK), label: 'מושתק. בכניסה הבאה המוזיקה תחזור. לחץ לכיבוי מלא' },
+  muted: { icon: svg(SPK), label: 'מושתק. לחץ לכיבוי מלא' },
   off: { icon: svg(SPK + '<path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>'), label: 'כבוי. לחץ להפעלה' },
 };
 const ARROWS = svg('<path d="M19 8a7 7 0 0 0-12-2L5 8M5 4v4h4"/><path d="M5 16a7 7 0 0 0 12 2l2-2M19 20v-4h-4"/>');
@@ -64,9 +64,11 @@ export function initAmbientMusic(session) {
   const offKey = `vault_music_off_${session.id}`;
   const idxKey = `vault_music_idx_${session.id}`;
 
-  // 'on' | 'muted' | 'off'. Only 'off' is remembered between visits; 'muted'
-  // is just for this visit, as agreed.
-  let mode = lsGet(offKey) === '1' ? 'off' : 'on';
+  // 'on' | 'muted' | 'off'. The user's last speaker choice is remembered
+  // between visits ('1' = off, 'm' = muted), so the app never reopens with
+  // music against what they chose.
+  const savedMode = lsGet(offKey);
+  let mode = savedMode === '1' ? 'off' : savedMode === 'm' ? 'muted' : 'on';
   let trackIdx = Math.max(0, Math.min(TRACKS.length - 1, parseInt(lsGet(idxKey) || '0', 10) || 0));
   let started = false; // a tap has unlocked audio
   let playing = false; // the music is (meant to be) audible right now
@@ -295,7 +297,7 @@ export function initAmbientMusic(session) {
     if (!started && mode === 'on') { unlock(); return; } // first tap just starts the music
     started = true;
     mode = mode === 'on' ? 'muted' : mode === 'muted' ? 'off' : 'on';
-    lsSet(offKey, mode === 'off' ? '1' : null);
+    lsSet(offKey, mode === 'off' ? '1' : mode === 'muted' ? 'm' : null);
     paintSpeaker();
     reconcile();
   });

@@ -3417,6 +3417,9 @@ body.sidebar-open .sidebar-peek { display: none; }
   cursor: pointer;
 }
 .trail-reveal-all-link:hover { color: var(--gold-light); }
+/* personal journal: one "הצג עוד" per saved item opens everything (text, media,
+   description) in the shared bubble, so the small text-only link is not needed */
+.journal-item .trail-text-more { display: none; }
 /* "הצג הכל" bubble content (opens in the shared trail-lightbox). */
 .trail-reveal-media { margin: 14px 0; }
 .trail-reveal-desc {
@@ -5997,4 +6000,25 @@ textarea.editable-input { display: block; resize: vertical; }
 .lesson-tab.is-ice .lesson-lock-note {
   position: relative;
   z-index: 3;
+}
+
+/* Lesson view: while a lesson page is open (body.lesson-view, set by
+   dashboard.js from the route) only the lesson's own video should be
+   working. The app shell's decorative looping animations are frozen in
+   place (paused, not removed) so nothing else spends energy; they resume
+   from the same frame when the lesson is left. Lesson content, comments,
+   buttons and transitions are untouched. */
+body.lesson-view .sidebar,
+body.lesson-view .sidebar *,
+body.lesson-view .sidebar *::before,
+body.lesson-view .sidebar *::after,
+body.lesson-view .sidebar-peek,
+body.lesson-view .sidebar-peek::before,
+body.lesson-view .sidebar-peek::after,
+body.lesson-view .app-main::before,
+body.lesson-view .app-main::after,
+body.lesson-view .content-area::before,
+body.lesson-view .content-area::after,
+body.lesson-view .lesson-title-heading {
+  animation-play-state: paused !important;
 }

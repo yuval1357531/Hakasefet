@@ -290,6 +290,9 @@ async function init(session) {
   }
 
   async function handleRoute() {
+    // Lesson view: freezes the shell's decorative animations (see
+    // body.lesson-view in dashboard.css); cleared on any other route.
+    document.body.classList.toggle('lesson-view', window.location.hash.split('/').includes('lesson'));
     setActive(activeIdFromHash(window.location.hash));
     if (isMobile()) closeSidebar();
     const hash = window.location.hash;
