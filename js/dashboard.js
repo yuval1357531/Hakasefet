@@ -88,7 +88,8 @@ async function init(session) {
   }
 
   function navItemHTML(id, label, icon) {
-    const news = id === 'personalGuidance' && !pgNewSeen()
+    // Only for users WITHOUT access -- they are the ones whose section changed.
+    const news = id === 'personalGuidance' && session.role !== 'admin' && !session.permissions.personalGuidance && !pgNewSeen()
       ? '<span class="nav-new-badge" aria-hidden="true">1</span><span class="nav-new-note">עבר שינוי קל, שימו לב</span>'
       : '';
     return `<a class="nav-item" data-id="${id}" href="#/${id}">
