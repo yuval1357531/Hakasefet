@@ -60,6 +60,65 @@ const STATUS_BADGE = { pending: '', approved: 'badge-active', hidden: 'badge-blo
 // section's own title/description, just under its own locked_* columns --
 // deliberately separate fields, since this message is for a completely
 // different audience than the real unlocked content.
+// The two options shown on the "no access" screen. Prices live here in one
+// place. 299 is the Vault-member right (shown against a struck-through
+// 499); the 399 intro price and the 10-session pack are for people outside
+// the Vault and are deliberately NOT shown here.
+const PG_WHATSAPP = '972509977677';
+const PG_MEETING_PRICE = '299';
+const PG_MEETING_LIST_PRICE = '499';
+const PG_PROGRAM_PRICE = '6,200';
+
+function waLink(text) {
+  return `https://wa.me/${PG_WHATSAPP}?text=${encodeURIComponent(text)}`;
+}
+
+const GEM_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M2 9h20M9 3 7 9l5 12M15 3l2 6-5 12" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round" opacity=".7"/></svg>';
+
+function offerCtaHTML(message) {
+  return `
+    <div class="pg-offer-cta">
+      <a class="btn-gold pg-offer-btn" href="${waLink(message)}" target="_blank" rel="noopener">אני מעוניין</a>
+      <span class="pg-offer-bubble">לחץ כדי לדבר עם יובל</span>
+    </div>`;
+}
+
+function offersHTML() {
+  return `
+    <div class="pg-offers">
+      <div class="pg-offer">
+        <span class="pg-offer-ribbon">רק לחברי כספת</span>
+        <span class="pg-offer-gem">${GEM_SVG}</span>
+        <h3 class="pg-offer-title">פגישה אישית 1 על 1</h3>
+        <p class="pg-offer-text">שעה אחת בזום, אני ואתה. לפתור משהו מדויק ולצאת עם כיוון ברור. בלי התחייבות להמשך.</p>
+        <div class="pg-offer-price pg-offer-price-member">
+          <span class="pg-offer-was"><small>מחיר רגיל</small><s>₪${PG_MEETING_LIST_PRICE}</s></span>
+          <span class="pg-offer-now"><small>לחברי כספת</small><strong>₪${PG_MEETING_PRICE}</strong></span>
+        </div>
+        <p class="pg-offer-note">זכות של חברי כספת, מתי שבא לך. הצעה לזמן מוגבל, לא בטוח שתישאר לתמיד. ההצעה קיימת כרגע.</p>
+        ${offerCtaHTML('היי יובל, אני מעוניין לקבוע פגישה אישית 1 על 1')}
+      </div>
+      <div class="pg-offer">
+        <span class="pg-offer-gem">${GEM_SVG}</span>
+        <h3 class="pg-offer-title">ליווי שליטה בשפיכה וטיפול בשפיכה מהירה</h3>
+        <p class="pg-offer-text">מטפל בשפיכה מהירה, גמירה מהירה, חוסר ביטחון וביצועים במיטה, ומביא אותך למצב שאתה מאסטר במיטה. <span class="pg-offer-underline">מתאים במיוחד למי שבזוגיות</span></p>
+        <div class="pg-offer-price"><strong>₪${PG_PROGRAM_PRICE}</strong></div>
+        <details class="pg-offer-more">
+          <summary>מה כלול <span>(לחץ כדי לראות)</span></summary>
+          <ul>
+            <li>פגישת אסטרטגיה עם יובל</li>
+            <li>3 חודשי תקשורת אישית בוואטסאפ, ובמידת הצורך שיחת טלפון בתיאום</li>
+            <li>שנה בכספת במתנה</li>
+            <li>פורטל הליווי: הידע והכלים</li>
+          </ul>
+          <p class="pg-offer-note">לא מתאים לכל אחד, ולכן חשוב לי לדבר איתך קודם ולהבין מה אנחנו רוצים לפתור.</p>
+        </details>
+        ${offerCtaHTML('היי יובל, אני מעוניין בליווי שליטה בשפיכה וטיפול בשפיכה מהירה')}
+      </div>
+    </div>`;
+}
+
 function lockedHTML(sectionRecord, section, editable, faqs = [], editingFaqId = null, isManagerOpen = false) {
   const lockedTitle = (sectionRecord && sectionRecord.lockedTitle) || 'ליווי אישי';
   const lockedDescription =
@@ -85,10 +144,11 @@ function lockedHTML(sectionRecord, section, editable, faqs = [], editingFaqId = 
     <div class="admin-page">
       <div class="admin-page-header">
         <h1 class="gold-title placeholder-title">${titleHTML}</h1>
-        <p class="placeholder-desc">${descHTML}</p>
+        ${editable ? `<p class="placeholder-desc">${descHTML}</p>` : ''}
       </div>
-      <div class="placeholder-badge">🔒 אין לך גישה לאזור זה כרגע</div>
-      <p class="lesson-text" style="margin-top: 18px;">${ctaHTML}</p>
+      <div class="placeholder-badge">אתה לא בליווי אישי כרגע</div>
+      ${offersHTML()}
+      ${editable ? `<p class="lesson-text" style="margin-top: 18px;">${ctaHTML}</p>` : ''}
       ${mediaHTML}
       ${lockedFaqHTML(faqs)}
       ${editable ? accordionHTML('locked-faq-manage', 'ניהול שאלות ותשובות', lockedFaqManagerHTML(faqs, editingFaqId), { isOpen: isManagerOpen }) : ''}
@@ -375,26 +435,28 @@ export async function mountPersonalGuidanceHome(container, section, session) {
     const editMode = auth.isEditMode();
     // Master preview toggle: show the (editable) locked screen instead of
     // the real content, without touching any real permission.
-    if (editMode && viewAsLocked) {
+    if (auth.isAdmin() && viewAsLocked) {
       container.innerHTML =
         viewModeToggleHTML(viewAsLocked) +
-        lockedHTML(sectionRecord, section, true, lockedFaqs, editingFaqId, openAccordions.has('locked-faq-manage'));
-      wireEditableFields(container, {
-        onSave: async (id, field, value) => {
-          const updated = await contentStore.sections.update(id, { [field]: value });
-          if (updated) sectionRecord = updated;
-        },
-        rerender: paint,
-      });
+        lockedHTML(sectionRecord, section, editMode, lockedFaqs, editingFaqId, openAccordions.has('locked-faq-manage'));
       wireViewToggle();
       wireLockedFaqToggle(container);
-      wireLockedFaqManager(container, {
-        faqs: lockedFaqs,
-        rerender: paint,
-        getEditingId: () => editingFaqId,
-        setEditingId: (v) => { editingFaqId = v; },
-      });
-      wireAccordions(container, { state: openAccordions, rerender: paint });
+      if (editMode) {
+        wireEditableFields(container, {
+          onSave: async (id, field, value) => {
+            const updated = await contentStore.sections.update(id, { [field]: value });
+            if (updated) sectionRecord = updated;
+          },
+          rerender: paint,
+        });
+        wireLockedFaqManager(container, {
+          faqs: lockedFaqs,
+          rerender: paint,
+          getEditingId: () => editingFaqId,
+          setEditingId: (v) => { editingFaqId = v; },
+        });
+        wireAccordions(container, { state: openAccordions, rerender: paint });
+      }
       return;
     }
     const label = (sectionRecord && sectionRecord.title) || section.label;
@@ -545,7 +607,7 @@ export async function mountPersonalGuidanceHome(container, section, session) {
 
     container.innerHTML = `
       <div class="admin-page">
-        ${editMode ? viewModeToggleHTML(viewAsLocked) : ''}
+        ${auth.isAdmin() ? viewModeToggleHTML(viewAsLocked) : ''}
         <div class="admin-page-header">
           <h1 class="gold-title placeholder-title">${titleHTML}</h1>
           <p class="placeholder-desc">${descHTML}</p>
