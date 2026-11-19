@@ -76,9 +76,23 @@ async function init(session) {
     (s) => session.role === 'admin' || session.permissions[s.id] || s.alwaysVisibleLocked
   );
 
+  // "What's new" nudge on ליווי אישי: a +1 badge and a short note until this
+  // user opens that section once (remembered per account on this device).
+  const PG_NEW_KEY = `vault_pg_new_seen_${session.id}`;
+  function pgNewSeen() {
+    try { return localStorage.getItem(PG_NEW_KEY) === '1'; } catch (e) { return false; }
+  }
+  function markPgNewSeen() {
+    try { localStorage.setItem(PG_NEW_KEY, '1'); } catch (e) { /* just shows again */ }
+    sidebar.querySelectorAll('.nav-new-badge, .nav-new-note').forEach((el) => el.remove());
+  }
+
   function navItemHTML(id, label, icon) {
+    const news = id === 'personalGuidance' && !pgNewSeen()
+      ? '<span class="nav-new-badge" aria-hidden="true">1</span><span class="nav-new-note">עבר שינוי קל, שימו לב</span>'
+      : '';
     return `<a class="nav-item" data-id="${id}" href="#/${id}">
-      <span class="nav-label">${label}</span>
+      <span class="nav-label">${label}</span>${news}
     </a>`;
   }
 
@@ -294,6 +308,7 @@ async function init(session) {
     // body.lesson-view in dashboard.css); cleared on any other route.
     document.body.classList.toggle('lesson-view', window.location.hash.split('/').includes('lesson'));
     setActive(activeIdFromHash(window.location.hash));
+    if (activeIdFromHash(window.location.hash) === 'personalGuidance') markPgNewSeen();
     if (isMobile()) closeSidebar();
     const hash = window.location.hash;
     const result = isHeavyRoute(hash)
