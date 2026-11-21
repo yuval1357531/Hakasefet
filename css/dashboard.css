@@ -6153,3 +6153,15 @@ body.lesson-view .lesson-title-heading {
   font-weight: 700;
   z-index: 3;
 }
+
+/* Honest note on the program card (pre-rotation blue renders crimson here). */
+.pg-offer-warn {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(90, 135, 255, 0.7);
+  border-radius: 10px;
+  background: rgba(55, 100, 235, 0.16);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text);
+}
