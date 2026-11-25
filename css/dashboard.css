@@ -6183,11 +6183,16 @@ body.lesson-view .lesson-title-heading {
   align-items: center;
 }
 .vert {
-  --wick: 9px;
+  --wick: 8px;
   --gap: 5px;
+  --wl: 1;
+  --wr: 1;
+  --k: 1;
+  --sx: 0px;
   display: block;
   flex: none;
-  width: var(--w);
+  width: calc(var(--w) * var(--k));
+  transform: translateX(var(--sx));
   height: calc(var(--spine-px) - 8px);
   margin-top: 8px;
   border-radius: 2px;
@@ -6201,12 +6206,21 @@ body.lesson-view .lesson-title-heading {
   content: '';
   position: absolute;
   top: calc(50% - 0.5px);
-  width: var(--wick);
   height: 1px;
   background: rgba(140, 200, 255, 0.4);
 }
-.vert::before { left: calc(-1 * (var(--gap) + var(--wick) + 1px)); }
-.vert::after { right: calc(-1 * (var(--gap) + var(--wick) + 1px)); }
+.vert::before { width: calc(var(--wick) * var(--wl)); left: calc(-1 * (var(--gap) + var(--wick) * var(--wl) + 1px)); }
+.vert::after { width: calc(var(--wick) * var(--wr)); right: calc(-1 * (var(--gap) + var(--wick) * var(--wr) + 1px)); }
+/* eight slightly different, never quite symmetric bones, repeated down the
+   spine so it reads as real stacked bone and not a ruler */
+.vert.v0 { border-radius: 3px 1px 4px 2px; }
+.vert.v1 { border-radius: 1px 4px 2px 3px; --k: 0.9; --sx: 1px; --wl: 0.8; --wr: 1.25; }
+.vert.v2 { border-radius: 4px 2px 1px 3px; --k: 1.1; --sx: -1px; --wl: 1.2; --wr: 0.85; }
+.vert.v3 { border-radius: 2px 3px 3px 1px; --k: 0.95; --wl: 0.9; --wr: 1.1; }
+.vert.v4 { border-radius: 3px 4px 1px 2px; --k: 1.15; --sx: 1px; --wl: 1.1; --wr: 0.8; }
+.vert.v5 { border-radius: 1px 2px 4px 4px; --k: 0.85; --sx: -1px; --wl: 0.85; --wr: 1.2; }
+.vert.v6 { border-radius: 4px 1px 3px 2px; --k: 1.05; --wl: 1.25; --wr: 0.9; }
+.vert.v7 { border-radius: 2px 4px 2px 4px; --k: 0.92; --sx: 1px; --wl: 0.95; --wr: 1.15; }
 .vert.is-done {
   border-color: rgba(120, 190, 255, 0.95);
   background: linear-gradient(90deg, rgba(60, 130, 255, 0.55), rgba(140, 215, 255, 0.9), rgba(60, 130, 255, 0.55));
@@ -6216,7 +6230,7 @@ body.lesson-view .lesson-title-heading {
 .vert.is-final { border-color: rgba(232, 184, 90, 0.75); background: rgba(232, 184, 90, 0.2); }
 .vert.is-final::before, .vert.is-final::after { background: rgba(232, 184, 90, 0.75); }
 /* a goal: same bone, a longer wick */
-.vert.is-stop { --wick: 16px; border-color: #8fd0ff; background: rgba(120, 195, 255, 0.45); }
+.vert.is-stop { --wick: 24px; --wl: 1; --wr: 1; --k: 1.15; border-color: #8fd0ff; background: rgba(120, 195, 255, 0.45); }
 .spine-tail, .spine-crown {
   position: absolute;
   left: 50%;
@@ -6235,16 +6249,18 @@ body.lesson-view .lesson-title-heading {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  width: calc(50% - 44px);
+  width: calc(50% - 50px);
   z-index: 2;
 }
-.spine-stop.is-right { left: calc(50% + 40px); align-items: flex-end; text-align: left; }
-.spine-stop.is-left { right: calc(50% + 40px); align-items: flex-start; text-align: right; }
+.spine-stop.is-right { left: calc(50% + 46px); align-items: flex-end; text-align: left; }
+.spine-stop.is-left { right: calc(50% + 46px); align-items: flex-start; text-align: right; }
 .spine-stop-days { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; color: var(--crystal-ice); }
 .spine-stop.is-gift .spine-stop-days { color: #ffd9a3; }
 .spine-gift { display: inline-flex; width: 18px; height: 18px; color: #e8b85a; }
 .spine-gift svg { width: 100%; height: 100%; }
 .spine-open {
+  text-align: inherit;
+  line-height: 1.35;
   padding: 0;
   border: 0;
   background: none;

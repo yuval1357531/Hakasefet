@@ -305,6 +305,8 @@ const SPINE_PX = 14;
 const SPINE_TAIL = 44;
 const SPINE_CROWN = 66;
 const SPINE_EXTRA_DAYS = 10;
+// Which of the eight bone shapes each day gets (scrambled so no pattern shows).
+const BONE_ORDER = [0, 3, 6, 1, 4, 7, 2, 5];
 
 function spineStopHTML(stop, i, ctx) {
   const { streak, best, claimedIds, canClaim, topDay } = ctx;
@@ -314,7 +316,7 @@ function spineStopHTML(stop, i, ctx) {
   const hasGift = stop.rewards.length > 0;
   const kind = hasIce ? 'is-ice' : 'is-gift';
   const giftMark = hasGift ? `<span class="spine-gift">${stop.rewards.length === 1 ? rewardIcon(stop.rewards[0]) : ICONS.gift}</span>` : '';
-  const linkText = hasIce ? 'לחץ לראות מה נמס' : 'לחץ לראות מה המתנה';
+  const linkText = hasIce ? 'לחץ כדי לראות מה נמס ביעד הזה' : 'לחץ כדי לראות מה המתנה ביעד הזה';
   const y = SPINE_TAIL + (stop.days - 0.5) * SPINE_PX;
   const gems = hasIce
     ? stop.goal.lessons.map((l) => `<div class="spine-gem"><i aria-hidden="true"></i><span>${escapeHtml(l.title)}</span></div>`).join('')
@@ -356,7 +358,7 @@ function spineHTML({ stops, streak, best, claimedIds, canClaim }) {
   const bones = [];
   for (let d = 1; d <= topDay; d += 1) {
     const w = 14 + Math.round(10 * Math.sin((Math.PI * d) / (topDay + 1)));
-    const cls = ['vert'];
+    const cls = ['vert', `v${BONE_ORDER[d % 8]}`];
     if (d <= streak) cls.push('is-done');
     if (d > topDay - SPINE_EXTRA_DAYS) cls.push('is-final');
     if (stopDays.has(d)) cls.push('is-stop');
