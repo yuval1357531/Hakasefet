@@ -6183,36 +6183,40 @@ body.lesson-view .lesson-title-heading {
   align-items: center;
 }
 .vert {
+  --wick: 9px;
+  --gap: 5px;
   display: block;
   flex: none;
   width: var(--w);
-  height: calc(var(--spine-px) - 4px);
-  margin-top: 4px;
-  border-radius: 5px;
-  border: 1px solid rgba(140, 200, 255, 0.28);
-  background: rgba(99, 171, 255, 0.07);
+  height: calc(var(--spine-px) - 8px);
+  margin-top: 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(140, 200, 255, 0.3);
+  background: rgba(99, 171, 255, 0.1);
   position: relative;
 }
+/* the thin line out of each side, like a candlestick's wick laid on its
+   side: it floats a little apart from the body and is not attached to it */
 .vert::before, .vert::after {
   content: '';
   position: absolute;
-  top: 40%;
-  width: 7px;
-  height: 2px;
-  background: rgba(140, 200, 255, 0.28);
-  border-radius: 1px;
+  top: calc(50% - 0.5px);
+  width: var(--wick);
+  height: 1px;
+  background: rgba(140, 200, 255, 0.4);
 }
-.vert::before { left: -8px; }
-.vert::after { right: -8px; }
+.vert::before { left: calc(-1 * (var(--gap) + var(--wick) + 1px)); }
+.vert::after { right: calc(-1 * (var(--gap) + var(--wick) + 1px)); }
 .vert.is-done {
-  border-color: rgba(120, 190, 255, 0.9);
-  background: linear-gradient(90deg, rgba(60, 130, 255, 0.55), rgba(140, 215, 255, 0.85), rgba(60, 130, 255, 0.55));
-  box-shadow: 0 0 9px rgba(90, 170, 255, 0.55);
+  border-color: rgba(120, 190, 255, 0.95);
+  background: linear-gradient(90deg, rgba(60, 130, 255, 0.55), rgba(140, 215, 255, 0.9), rgba(60, 130, 255, 0.55));
+  box-shadow: 0 0 7px rgba(90, 170, 255, 0.6);
 }
-.vert.is-done::before, .vert.is-done::after { background: rgba(140, 210, 255, 0.85); }
-.vert.is-final { border-color: rgba(232, 184, 90, 0.7); background: rgba(232, 184, 90, 0.16); }
-.vert.is-final::before, .vert.is-final::after { background: rgba(232, 184, 90, 0.7); }
-.vert.is-stop { width: calc(var(--w) + 8px); border-color: #8fd0ff; background: rgba(120, 195, 255, 0.4); }
+.vert.is-done::before, .vert.is-done::after { background: rgba(140, 210, 255, 0.9); }
+.vert.is-final { border-color: rgba(232, 184, 90, 0.75); background: rgba(232, 184, 90, 0.2); }
+.vert.is-final::before, .vert.is-final::after { background: rgba(232, 184, 90, 0.75); }
+/* a goal: same bone, a longer wick */
+.vert.is-stop { --wick: 16px; border-color: #8fd0ff; background: rgba(120, 195, 255, 0.45); }
 .spine-tail, .spine-crown {
   position: absolute;
   left: 50%;
@@ -6231,11 +6235,11 @@ body.lesson-view .lesson-title-heading {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  width: calc(50% - 30px);
+  width: calc(50% - 44px);
   z-index: 2;
 }
-.spine-stop.is-right { left: calc(50% + 26px); align-items: flex-end; text-align: left; }
-.spine-stop.is-left { right: calc(50% + 26px); align-items: flex-start; text-align: right; }
+.spine-stop.is-right { left: calc(50% + 40px); align-items: flex-end; text-align: left; }
+.spine-stop.is-left { right: calc(50% + 40px); align-items: flex-start; text-align: right; }
 .spine-stop-days { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; color: var(--crystal-ice); }
 .spine-stop.is-gift .spine-stop-days { color: #ffd9a3; }
 .spine-gift { display: inline-flex; width: 18px; height: 18px; color: #e8b85a; }

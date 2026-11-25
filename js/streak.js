@@ -355,7 +355,7 @@ function spineHTML({ stops, streak, best, claimedIds, canClaim }) {
   const stopDays = new Set(stops.map((s) => s.days));
   const bones = [];
   for (let d = 1; d <= topDay; d += 1) {
-    const w = 22 + Math.round(14 * Math.sin((Math.PI * d) / (topDay + 1)));
+    const w = 14 + Math.round(10 * Math.sin((Math.PI * d) / (topDay + 1)));
     const cls = ['vert'];
     if (d <= streak) cls.push('is-done');
     if (d > topDay - SPINE_EXTRA_DAYS) cls.push('is-final');
