@@ -6193,8 +6193,8 @@ body.lesson-view .lesson-title-heading {
   flex: none;
   width: calc(var(--w) * var(--k));
   transform: translateX(var(--sx));
-  height: calc(var(--spine-px) - 8px);
-  margin-top: 8px;
+  height: calc(var(--spine-px) * 0.43);
+  margin-top: calc(var(--spine-px) * 0.57);
   border-radius: 2px;
   border: 1px solid rgba(140, 200, 255, 0.3);
   background: rgba(99, 171, 255, 0.1);
@@ -6324,3 +6324,9 @@ body.lesson-view .lesson-title-heading {
 /* a goal's wick toward its text is the long leader line (1.5x the goal's own) */
 .vert.is-stop.to-right { --wr: 1.5; }
 .vert.is-stop.to-left { --wl: 1.5; }
+
+/* Phones: the map popup uses almost the whole screen so most of the spine
+   is visible at once. */
+@media (max-width: 600px) {
+  .streak-modal-card { max-height: 95vh; }
+}

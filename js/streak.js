@@ -301,7 +301,8 @@ export function streakButtonHTML(state) {
 // "tap to see" link; the link opens a small bubble with a gem per lesson.
 // Everything is built from the real data (gifts + ice goals), so adding a
 // lesson to a level or a new level shows up here by itself.
-const SPINE_PX = 14;
+// Pixels per day: tighter on phones so most of the spine fits on one screen.
+const spinePx = () => (window.innerWidth <= 600 ? 10 : 14);
 const SPINE_TAIL = 44;
 const SPINE_CROWN = 66;
 const SPINE_EXTRA_DAYS = 10;
@@ -309,7 +310,7 @@ const SPINE_EXTRA_DAYS = 10;
 const BONE_ORDER = [0, 3, 6, 1, 4, 7, 2, 5];
 
 function spineStopHTML(stop, i, ctx) {
-  const { streak, best, claimedIds, canClaim, topDay } = ctx;
+  const { streak, best, claimedIds, canClaim, topDay, px } = ctx;
   const reached = best >= stop.days;
   const side = i % 2 === 0 ? 'is-right' : 'is-left';
   const hasIce = !!stop.goal;
@@ -317,7 +318,7 @@ function spineStopHTML(stop, i, ctx) {
   const kind = hasIce ? 'is-ice' : 'is-gift';
   const giftMark = hasGift ? `<span class="spine-gift">${stop.rewards.length === 1 ? rewardIcon(stop.rewards[0]) : ICONS.gift}</span>` : '';
   const linkText = hasIce ? 'לחץ כדי לראות מה נמס ביעד הזה' : 'לחץ כדי לראות מה המתנה ביעד הזה';
-  const y = SPINE_TAIL + (stop.days - 0.5) * SPINE_PX;
+  const y = SPINE_TAIL + (stop.days - 0.5) * px;
   const gems = hasIce
     ? stop.goal.lessons.map((l) => `<div class="spine-gem"><i aria-hidden="true"></i><span>${escapeHtml(l.title)}</span></div>`).join('')
     : '';
@@ -340,7 +341,7 @@ function spineStopHTML(stop, i, ctx) {
   const left = stop.days - streak;
   const remain = !reached && left > 0 ? `<span class="road-note">עוד ${left} ${daysWord(left)}</span>` : '';
   // Stops near the crown open their bubble downward so it never leaves the spine.
-  const popPos = stop.days > topDay - 22 ? `top:${SPINE_CROWN + (topDay - stop.days) * SPINE_PX + 10}px` : `bottom:${y + 14}px`;
+  const popPos = stop.days > topDay - 22 ? `top:${SPINE_CROWN + (topDay - stop.days) * px + 10}px` : `bottom:${y + 14}px`;
   return `
       <div class="spine-stop ${side} ${kind}${reached ? ' is-reached' : ''}" style="bottom:${y}px">
         <span class="spine-stop-days">${stop.days} ${daysWord(stop.days)}${giftMark}</span>
@@ -365,11 +366,12 @@ function spineHTML({ stops, streak, best, claimedIds, canClaim }) {
     if (stopDays.has(d)) cls.push('is-stop', stopDays.get(d) % 2 === 0 ? 'to-right' : 'to-left');
     bones.push(`<i class="${cls.join(' ')}" style="--w:${w}px"></i>`);
   }
-  const ctx = { streak, best, claimedIds, canClaim, topDay };
-  const hereY = SPINE_TAIL + (Math.max(streak, 0) - 0.5) * SPINE_PX;
+  const px = spinePx();
+  const ctx = { streak, best, claimedIds, canClaim, topDay, px };
+  const hereY = SPINE_TAIL + (Math.max(streak, 0) - 0.5) * px;
   const here = streak > 0 ? `<span class="spine-here" style="bottom:${hereY}px" title="אתה כאן">${streak}</span>` : '';
   return `
-    <div class="spine" style="--spine-px:${SPINE_PX}px;height:${SPINE_TAIL + topDay * SPINE_PX + SPINE_CROWN}px">
+    <div class="spine" style="--spine-px:${px}px;height:${SPINE_TAIL + topDay * px + SPINE_CROWN}px">
       <svg class="spine-crown" viewBox="0 0 40 52" aria-hidden="true"><path d="M20 2l12 14-12 34L8 16z" /><path d="M8 16h24M20 2l-5 14 5 34M20 2l5 14-5 34" fill="none"/></svg>
       <div class="spine-col">${bones.join('')}</div>
       <svg class="spine-tail" viewBox="0 0 24 44" aria-hidden="true"><path d="M5 2h14l-2 12H7z"/><path d="M8 17h8l-1.5 10h-5z"/><path d="M10 30h4l-.8 8h-2.4z"/></svg>
