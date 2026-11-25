@@ -17,7 +17,25 @@ import { dailyWheelStore } from './data/dailyWheelStore.js';
 import { progressStore } from './data/progressStore.js';
 import { vaultStore } from './data/vaultStore.js';
 
-const LOCK_MS = 24 * 60 * 60 * 1000;
+const LOCK_MS = 20 * 60 * 60 * 1000;
+
+// When the lever opens again after a pull: 20 hours, and never on the same
+// Israel calendar day. Same rule as hk_lever_unlock_at() in the database, which
+// is what actually counts (supabase-streak-lever.sql).
+function unlockTime(spunAt) {
+  const t = new Date(spunAt).getTime();
+  const wall = (ms) => {
+    const p = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' })
+      .formatToParts(new Date(ms)).forEach((x) => { p[x.type] = Number(x.value); });
+    return p;
+  };
+  const d = wall(t);
+  const utcMidnight = Date.UTC(d.year, d.month - 1, d.day + 1);
+  const w = wall(utcMidnight);
+  const offset = Date.UTC(w.year, w.month - 1, w.day, w.hour, w.minute, w.second) - utcMidnight;
+  return Math.max(t + LOCK_MS, utcMidnight - offset);
+}
 
 function escapeHtml(value) {
   return String(value || '')
@@ -234,8 +252,8 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
     root.classList.add('is-revealed');
   }
 
-  function updateLockUI(spunAt) {
-    const msLeft = new Date(spunAt).getTime() + LOCK_MS - Date.now();
+  function updateLockUI(spin) {
+    const msLeft = (spin.unlockAt || unlockTime(spin.spunAt)) - Date.now();
     if (msLeft <= 0) {
       root.classList.remove('is-locked');
       handle.disabled = false;
@@ -270,10 +288,10 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
   if (spin) {
     reel.innerHTML = `<span class="daily-wheel-sentence">${escapeHtml(spin.sentenceText)}</span>`;
     root.classList.add('is-revealed');
-    updateLockUI(spin.spunAt);
+    updateLockUI(spin);
     suppressFlip = false;
     if (root.classList.contains('is-locked')) {
-      lockInterval = setInterval(() => updateLockUI(spin.spunAt), 1000);
+      lockInterval = setInterval(() => updateLockUI(spin), 1000);
     }
   } else {
     suppressFlip = false;
@@ -344,15 +362,16 @@ export async function mountDailyWheel(root, session, onLockChange, options = {})
         showRevealed(final.text);
         seenSoFar = seenIds;
         const saving = options.demoSpin
-          ? Promise.resolve({ spunAt: new Date(Date.now() - LOCK_MS + 4000).toISOString() })
+          ? Promise.resolve({ unlockAt: Date.now() + 4000 })
           : dailyWheelStore.spin({ userId: session.id, sentenceId: final.id, sentenceText: final.text, seenIds });
         saving.then((saved) => {
           if (!saved) return;
           suppressFlip = true;
-          updateLockUI(saved.spunAt);
+          updateLockUI(saved);
           suppressFlip = false;
           if (lockInterval) clearInterval(lockInterval);
-          lockInterval = setInterval(() => updateLockUI(saved.spunAt), 1000);
+          lockInterval = setInterval(() => updateLockUI(saved), 1000);
+          if (!options.demoSpin) root.dispatchEvent(new CustomEvent('wheel:saved'));
         });
       });
     }

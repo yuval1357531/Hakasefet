@@ -10,7 +10,7 @@
 // Also exports the small master-only gifts manager used inside
 // personalArea.js's "ניהול מתנות הרצף" accordion.
 
-import { streakStore, israelDate } from './data/streakStore.js';
+import { streakStore } from './data/streakStore.js';
 import { fetchIceGoals, meltLesson } from './lessonUnlock.js';
 import { watchClip } from './focusMode.js';
 
@@ -545,7 +545,7 @@ export function streakModalBodyHTML({ state, rewards: giftRewards, claimedIds, c
         <span class="streak-hero-sub">${sub}</span>
       </div>
     </div>`}
-    <p class="streak-rule">נכנסים פעם ביום וממשיכים. דילוג על יום שלם מחזיר את הרצף לאפס, אבל שומר לך את המתנות והיעדים שהגעת אליהם.</p>`;
+    <p class="streak-rule">מדליקים את הידית פעם ביום וממשיכים. רצף שנשבר חוזר לאפס, אבל המתנות והיעדים שהגעת אליהם נשמרים.</p>`;
 }
 
 export function streakModalHTML() {
@@ -572,7 +572,7 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
 
   const isDemo = !!demoState;
   const [stateNow, rewards, claimedList, iceGoalsAll] = await Promise.all([
-    isDemo ? Promise.resolve(demoState) : streakStore.touch(),
+    isDemo ? Promise.resolve(demoState) : streakStore.getState(),
     streakStore.rewards.getAll(),
     isDemo ? Promise.resolve([]) : streakStore.claims.getForUser(session.id),
     fetchIceGoals(isDemo),
@@ -694,26 +694,41 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
     });
     return;
   }
-  // Coming back to an app left open past midnight (Israel time): count today's
-  // visit through the same server function as any entry (once a day, a no-op
-  // when already counted) and refresh. A failed call keeps what is shown.
+  // The lever was pulled and the server counted it: the number, the fire and
+  // the map all step up together. Also re-read when the student comes back to
+  // an app left open (a streak may have run out, or been lit on another
+  // device). Reading never changes anything; a failed call keeps what is shown.
   let refreshing = false;
-  const onReturn = async () => {
-    if (!openBtn.isConnected) {
-      document.removeEventListener('visibilitychange', onReturn);
-      return;
-    }
-    if (document.hidden || refreshing || state.lastDay === israelDate()) return;
+  async function refresh(pulled) {
+    if (refreshing) return;
     refreshing = true;
-    const fresh = await streakStore.touch().catch(() => null);
+    const fresh = await streakStore.getState().catch(() => null);
     refreshing = false;
-    if (!fresh || !openBtn.isConnected || fresh.lastDay === state.lastDay) return;
+    if (!fresh || !openBtn.isConnected) return;
+    const changed = fresh.currentStreak !== state.currentStreak || fresh.bestStreak !== state.bestStreak;
+    const grew = fresh.currentStreak > state.currentStreak;
     state = fresh;
+    window.dispatchEvent(new CustomEvent('streak:changed', { detail: fresh }));
+    if (!changed) return;
     paintButton();
+    if (pulled && grew) {
+      pokeFlame(openBtn.querySelector('.streak-btn-flame'), 14, true);
+      const cnt = openBtn.querySelector('.streak-btn-count');
+      if (cnt) {
+        cnt.classList.remove('is-bumped');
+        void cnt.offsetWidth;
+        cnt.classList.add('is-bumped');
+      }
+    }
     if (!overlay.hidden) {
       paint();
       showHere();
     }
+  }
+  root.querySelector('#dailyWheel')?.addEventListener('wheel:saved', () => refresh(true));
+  const onReturn = () => {
+    if (!openBtn.isConnected) document.removeEventListener('visibilitychange', onReturn);
+    else if (!document.hidden) refresh(false);
   };
   document.addEventListener('visibilitychange', onReturn);
 }

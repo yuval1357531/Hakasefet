@@ -1,7 +1,8 @@
-// "הרצף" -- consecutive-login streak + the milestone gifts it unlocks.
-// Three tables (see supabase-streak.sql): login_streaks (one row per user,
-// only ever written by the touch_login_streak() database function so the
-// day is counted by the SERVER clock, once per Israel calendar day),
+// "הרצף" -- the lever-pull streak + the milestone gifts it unlocks.
+// Three tables (see supabase-streak.sql + supabase-streak-lever.sql):
+// login_streaks (one row per user, only ever written by the database when the
+// daily sentence is saved, i.e. the lever was pulled: server clock, 20h lock,
+// once per Israel day, 48h until it runs out),
 // streak_rewards (master-defined milestones) and streak_claims (who
 // collected which gift). Every call degrades to an empty/null result when
 // the tables don't exist yet, so the rest of the page keeps working.
@@ -13,7 +14,9 @@ function toStreak(row) {
   return {
     currentStreak: row.current_streak ?? row.out_current ?? 0,
     bestStreak: row.best_streak ?? row.out_best ?? 0,
-    lastDay: row.last_day ?? row.out_last_day ?? null,
+    deadline: row.out_deadline ? new Date(row.out_deadline).getTime() : null,
+    // server clock minus this device's clock
+    skew: row.out_now ? new Date(row.out_now).getTime() - Date.now() : 0,
   };
 }
 
@@ -25,11 +28,6 @@ function makeId() {
   return 'sr-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
-// Calendar date (YYYY-MM-DD) in Israel, `offsetDays` from today.
-export function israelDate(offsetDays = 0) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(Date.now() + offsetDays * 86400000));
-}
-
 // "יום 14" next to a student's name (master lists). `day` is null when the
 // student has no streak row yet -- nothing is drawn then.
 export function dayChipHTML(day) {
@@ -39,21 +37,21 @@ export function dayChipHTML(day) {
 
 export const streakStore = {
   // Master only (RLS): userId -> the streak day the student is on right now.
-  // A streak whose last visit is older than yesterday is already broken, so
-  // it reads 0 until their next visit restarts it at 1.
+  // A streak past its deadline is already broken, so it reads 0 until their
+  // next lever pull restarts it at 1.
   async getDaysForAll() {
-    const { data, error } = await supabase.from('login_streaks').select('user_id, current_streak, last_day');
+    const { data, error } = await supabase.from('login_streaks').select('user_id, current_streak, deadline_at');
     const map = new Map();
     if (error || !data) return map;
-    const yesterday = israelDate(-1);
-    data.forEach((r) => map.set(r.user_id, r.last_day && r.last_day >= yesterday ? r.current_streak : 0));
+    const now = Date.now();
+    data.forEach((r) => map.set(r.user_id, r.deadline_at && new Date(r.deadline_at).getTime() >= now ? r.current_streak : 0));
     return map;
   },
 
-  // Counts today's visit (no-op when already counted today) and returns the
-  // up-to-date streak, or null if the feature isn't set up in the database.
-  async touch() {
-    const { data, error } = await supabase.rpc('touch_login_streak');
+  // The streak as it stands right now (reads only; 0 when it already ran out),
+  // or null if the feature isn't set up in the database.
+  async getState() {
+    const { data, error } = await supabase.rpc('get_streak_state');
     if (error || !data) return null;
     return toStreak(Array.isArray(data) ? data[0] : data);
   },

@@ -5314,7 +5314,7 @@ textarea.editable-input { display: block; resize: vertical; }
 
 /* ============================================================
    The lever on the streak plaque + the in-flow daily-sentence wheel +
-   the ignite show. Pulling the lever (once per 24h) grows the fire from a
+   the ignite show. Pulling the lever (once a day) grows the fire from a
    spark AND spins the sentence; the sentence lands after the fire is done.
    ============================================================ */
 .wheel-inline { width: min(360px, 100%); margin: 0 0 22px; }
@@ -6400,3 +6400,51 @@ body.focus-hold :not([data-focus]):not([data-focus] *)::after {
 
 /* the fire is part of the bones here: no dark contact shadow under it */
 .spine-fire .fire3d::before { display: none; }
+
+/* The lever is ready: the whole arm dips and rises, again and again, asking to
+   be pulled. Stops the moment it is pulled. */
+.lever.is-ready:not(.is-pulled) .lever-arm { animation: lever-ready 2.2s ease-in-out infinite; }
+@keyframes lever-ready {
+  0%, 18%, 100% { transform: rotate(-44deg); }
+  38% { transform: rotate(-6deg); }
+  52% { transform: rotate(-38deg); }
+  68% { transform: rotate(-12deg); }
+  84% { transform: rotate(-46deg); }
+}
+.streak-btn-count.is-bumped { animation: streak-bump 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
+@keyframes streak-bump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.5); box-shadow: 0 0 18px rgba(140, 205, 255, 0.9); color: #fff; }
+  100% { transform: scale(1); }
+}
+
+/* "הרצף שלך עומד להיגמר" (js/streakWarning.js) */
+.streak-warning {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+  transform: translateX(-50%);
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  width: max-content;
+  max-width: calc(100vw - 148px);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 110, 120, 0.75);
+  background: rgba(92, 8, 20, 0.94);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55), 0 0 18px rgba(255, 50, 70, 0.4);
+  animation: streak-warning 2.4s ease-in-out infinite;
+}
+@keyframes streak-warning {
+  0%, 100% { box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55), 0 0 12px rgba(255, 50, 70, 0.3); }
+  50% { box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55), 0 0 26px rgba(255, 60, 80, 0.7); }
+}
+.streak-warning button { border: 0; background: none; font: inherit; color: #fff; cursor: pointer; }
+.streak-warning-main { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px 10px 4px; text-align: start; }
+.streak-warning-main b { font-size: 14px; }
+.streak-warning-main span { font-size: 12px; color: #ffc9cf; }
+.streak-warning-close { flex: none; align-self: stretch; width: 36px; font-size: 12px; opacity: 0.75; }
+body.lesson-view .streak-warning, body.sidebar-open .streak-warning { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .lever.is-ready:not(.is-pulled) .lever-arm, .streak-btn-count.is-bumped, .streak-warning { animation: none; }
+}

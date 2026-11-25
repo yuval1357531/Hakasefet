@@ -8,7 +8,7 @@ import { renderRoute } from './router.js';
 import { contentStore } from './data/contentStore.js';
 import { initGlobalLoader, withGlobalLoader, isHeavyRoute } from './loader.js';
 import { initHelpTips, helpTipHTML, isHelpDismissed } from './helpTip.js';
-import { streakStore } from './data/streakStore.js';
+import { initStreakWarning } from './streakWarning.js';
 import { initFocusMode } from './focusMode.js';
 
 // Minimal "?" help layer (see helpTip.js) -- one global listener for every
@@ -19,9 +19,9 @@ initHelpTips();
 // Top-level await -- native ES module feature, no bundler needed.
 const session = await auth.requireSession();
 if (session) init(session);
-// Counts today's visit toward the login streak (once per day, decided by
-// the server) even when the student lands on a deep link, not the personal page.
-if (session && session.role !== 'admin') streakStore.touch();
+// The streak counts lever pulls (decided by the server); here only the red
+// "about to run out" note, on whatever page the student lands.
+if (session && session.role !== 'admin') initStreakWarning();
 // Ambient background music (see ambientMusic.js). Loaded dynamically so a
 // problem with it can never stop the dashboard itself from starting.
 if (session) import('./ambientMusic.js').then((m) => m.initAmbientMusic(session)).catch(() => {});

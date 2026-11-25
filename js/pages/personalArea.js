@@ -476,7 +476,7 @@ export async function studentPageHTML(session, { boardModalOpen, trailModalOpen,
         ${personalBoardButtonHTML(unseenCount)}
         ${resumeHTML}
         ${wheelTabHTML(wheelDrawerOpen)}
-        <span class="streak-wrap">${streakButtonHTML(null)}${leverHTML()}${helpTipHTML('streak', 'הרצף סופר כמה ימים ברציפות נכנסת לכספת. כל יום שנכנסים האש גדלה. דילוג על יום שלם מחזיר את הרצף ל-0. לחיצה על הרצף פותחת את המפה: שם רואים את הדרך, את המתנות שמחכות בדרך ואת היעד הבא. משיכת הידית שלידו מדליקה את האש ופותחת את המשפט היומי, פעם ב-24 שעות.')}</span>
+        <span class="streak-wrap">${streakButtonHTML(null)}${leverHTML()}${helpTipHTML('streak', 'הרצף סופר כמה ימים ברציפות הדלקת את הידית. בכל משיכה האש גדלה והיום שלך נדלק. רצף שנשבר חוזר ל-0, אבל המתנות והיעדים שהגעת אליהם נשמרים. לחיצה על הרצף פותחת את המפה: שם רואים את הדרך, את המתנות שמחכות בדרך ואת היעד הבא. משיכת הידית שלידו מדליקה את האש ופותחת את המשפט היומי, פעם ביום. כשהידית זזה, היא מוכנה.')}</span>
       </div>
       ${notebookHTML(ownEntries, personalItems)}
     </div>
@@ -1142,6 +1142,7 @@ export async function mountPersonalPage(container, session) {
       if (locked) busy = false;
       if (!busy) lever.classList.toggle('is-pulled', locked);
       lever.classList.toggle('is-used', locked);
+      lever.classList.toggle('is-ready', !locked);
       if (timerEl) timerEl.textContent = locked ? e.detail.display : '';
     });
     lever.addEventListener('click', () => {
