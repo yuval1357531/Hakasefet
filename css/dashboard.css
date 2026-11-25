@@ -6231,18 +6231,19 @@ body.lesson-view .lesson-title-heading {
 .vert.is-final::before, .vert.is-final::after { background: rgba(232, 184, 90, 0.75); }
 /* a goal: same bone, a longer wick */
 .vert.is-stop { --wick: 24px; --wl: 1; --wr: 1; --k: 1.15; border-color: #8fd0ff; background: rgba(120, 195, 255, 0.45); }
-.spine-tail, .spine-crown {
+.spine-crown {
   position: absolute;
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
-  fill: rgba(99, 171, 255, 0.16);
-  stroke: rgba(140, 200, 255, 0.55);
+  width: 44px;
+  height: 60px;
+  fill: rgba(232, 184, 90, 0.35);
+  stroke: #e8b85a;
   stroke-width: 1.2;
   stroke-linejoin: round;
+  filter: drop-shadow(0 0 10px rgba(232, 184, 90, 0.6));
 }
-.spine-tail { bottom: 0; width: 22px; height: 42px; }
-.spine-crown { top: 0; width: 44px; height: 60px; fill: rgba(232, 184, 90, 0.35); stroke: #e8b85a; filter: drop-shadow(0 0 10px rgba(232, 184, 90, 0.6)); }
-.spine-start { position: absolute; bottom: 10px; inset-inline-end: calc(50% + 26px); font-size: 11.5px; color: var(--text-dim); }
 .spine-stop {
   position: absolute;
   transform: translateY(50%);
@@ -6275,22 +6276,17 @@ body.lesson-view .lesson-title-heading {
 .spine-stop.is-reached .spine-stop-days { text-shadow: 0 0 10px rgba(120, 195, 255, 0.7); }
 .spine-here {
   position: absolute;
-  left: 50%;
-  transform: translate(-50%, 50%);
-  min-width: 28px;
-  height: 28px;
-  padding: 0 6px;
-  box-sizing: border-box;
-  border-radius: 999px;
-  background: #e0334f;
-  color: #fff;
-  font-size: 13px;
+  transform: translateY(50%);
+  font-size: 12px;
   font-weight: 700;
-  line-height: 24px;
-  text-align: center;
-  border: 2px solid rgba(255, 255, 255, 0.85);
+  line-height: 1;
+  color: #ffd27a;
+  text-shadow: 0 0 8px rgba(255, 190, 80, 0.8);
   z-index: 4;
+  pointer-events: none;
 }
+.spine-here.is-right { left: calc(50% + 34px); }
+.spine-here.is-left { right: calc(50% + 34px); }
 .spine-pop {
   position: absolute;
   left: 50%;
@@ -6325,12 +6321,6 @@ body.lesson-view .lesson-title-heading {
 .vert.is-stop.to-right { --wr: 1.5; }
 .vert.is-stop.to-left { --wl: 1.5; }
 
-/* Phones: the map popup uses almost the whole screen so most of the spine
-   is visible at once. */
-@media (max-width: 600px) {
-  .streak-modal-card { max-height: 95vh; }
-}
-
 /* The streak fire sits at the base of the spine (the root chakra) and feeds
    it: the flame and count are centred under the tailbone, with a glow
    rising from there up the bones. */
@@ -6351,18 +6341,22 @@ body.lesson-view .lesson-title-heading {
   content: '';
   position: absolute;
   left: 50%;
-  bottom: 0;
+  bottom: -70px;
   transform: translateX(-50%);
-  width: 200px;
-  height: 240px;
-  background: radial-gradient(ellipse at 50% 100%, rgba(90, 170, 255, 0.45), rgba(90, 170, 255, 0.16) 45%, transparent 72%);
+  width: 220px;
+  height: 280px;
+  background: radial-gradient(closest-side, rgba(90, 170, 255, 0.34), rgba(90, 170, 255, 0.12) 55%, transparent);
   pointer-events: none;
+  mix-blend-mode: screen;
+  z-index: 4;
 }
 
 /* The fire is the start of the spine: smaller, standing right where the
-   bones begin so it reads as one continuous thing, and it sends light
-   pulses up through the bones the streak has reached. */
+   bones begin so it reads as one continuous thing. The whole block is
+   screen-blended (its own stacking context would otherwise show the clip's
+   black as a dark blob over the first bones). */
 .spine-fire {
+  mix-blend-mode: screen;
   position: absolute;
   left: 50%;
   bottom: -6px;
@@ -6371,35 +6365,17 @@ body.lesson-view .lesson-title-heading {
   display: block;
 }
 .spine-fire .streak-hero-flame { --fire: 92px; display: block; }
-.spine-pulse {
-  position: absolute;
-  left: 50%;
-  width: 56px;
-  transform: translateX(-50%);
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 1;
-  -webkit-mask-image: linear-gradient(to top, #000 82%, transparent);
-  mask-image: linear-gradient(to top, #000 82%, transparent);
+.spine-fx { position: absolute; left: 50%; transform: translateX(-50%); bottom: 0; pointer-events: none; }
+.spine-fx-back { z-index: 0; }
+.spine-fx-front { z-index: 2; }
+.spine-col { z-index: 1; }
+/* today's bone: the brightest one on the spine */
+.vert.is-today {
+  border-color: #ffffff;
+  background: linear-gradient(90deg, rgba(150, 215, 255, 0.9), #ffffff, rgba(150, 215, 255, 0.9));
+  box-shadow: 0 0 14px rgba(190, 235, 255, 0.95), 0 0 4px #fff;
 }
-.spine-pulse i {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 64px;
-  background: linear-gradient(to top, transparent, rgba(190, 232, 255, 0.85) 55%, transparent);
-  mix-blend-mode: screen;
-  transform: translateY(100%);
-  animation: spine-pulse 3.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-.spine-pulse i + i { animation-delay: 1.6s; }
-@keyframes spine-pulse {
-  0% { transform: translateY(100%); opacity: 0; }
-  12% { opacity: 1; }
-  100% { transform: translateY(-110%); opacity: 0; }
-}
-@media (prefers-reduced-motion: reduce) { .spine-pulse i { animation: none; opacity: 0; } }
+.vert.is-today::before, .vert.is-today::after { background: #ffffff; }
 
 /* Focus mode: while the streak map is open, every looping animation outside
    it is frozen (paused, not removed) so only the map moves; closing the map

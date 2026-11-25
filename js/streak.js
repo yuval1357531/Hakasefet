@@ -306,8 +306,115 @@ const spinePx = () => (window.innerWidth <= 600 ? 10 : 14);
 const SPINE_TAIL = 62;
 const SPINE_CROWN = 66;
 const SPINE_EXTRA_DAYS = 10;
+const SPINE_FX_W = 120;
 // Which of the eight bone shapes each day gets (scrambled so no pattern shows).
 const BONE_ORDER = [0, 3, 6, 1, 4, 7, 2, 5];
+
+// Spark colours follow the fire: blue-white, warming toward gold where the fire does.
+function sparkPalette(streak) {
+  const row = FIRE_LADDER[fireStageIndex(streak)];
+  const g = Math.min(1, (row.gold || 0) * 1.6);
+  const mix = (a, b) => a.map((v, i) => Math.round(v + (b[i] - v) * g)).join(',');
+  return { core: mix([226, 244, 255], [255, 236, 190]), glow: mix([90, 170, 255], [255, 188, 80]) };
+}
+
+// --- the sparks themselves ----------------------------------------------------
+// A handful of tiny lights climb from the fire in a loose helix around the
+// spine: x = sin(angle), depth = cos(angle). Depth decides the layer (front or
+// behind the bones), the size and the brightness. The helix tightens toward the
+// end so each light spirals INTO today's bone, which flashes as it lands.
+// Runs only while the map is open (see runSpineFx / stopSpineFx).
+let fxRaf = 0;
+function stopSpineFx() {
+  if (fxRaf) cancelAnimationFrame(fxRaf);
+  fxRaf = 0;
+}
+function runSpineFx(root) {
+  stopSpineFx();
+  const back = root.querySelector('.spine-fx-back');
+  const front = root.querySelector('.spine-fx-front');
+  if (!back || !front) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const W = Number(front.dataset.w);
+  const H = Number(front.dataset.h);
+  const y0 = Number(front.dataset.y0);
+  const y1 = Number(front.dataset.y1);
+  const core = front.dataset.core;
+  const glow = front.dataset.glow;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  [back, front].forEach((c) => { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); });
+  const bc = back.getContext('2d');
+  const fc = front.getContext('2d');
+  if (!bc || !fc) return;
+  [bc, fc].forEach((c) => { c.setTransform(dpr, 0, 0, dpr, 0, 0); c.globalCompositeOperation = 'lighter'; });
+  const cx = W / 2;
+  const L = Math.max(24, y0 - y1);
+  const turns = Math.max(1, Math.min(3.5, L / 110));
+  const TAU = Math.PI * 2;
+  const smooth = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+  const make = (phase) => ({
+    t: phase,
+    dur: 3.2 + Math.random() * 1.1,
+    th0: Math.random() * TAU,
+    R: 18 + Math.random() * 8,
+    size: 1 + Math.random() * 0.5,
+  });
+  // Where a spark is at moment t: computed, not remembered, so the tail stays
+  // one smooth ribbon at any frame rate.
+  const at = (p, u) => {
+    const e = 0.6 * u + 0.4 * (1 - (1 - u) * (1 - u));
+    const env = Math.sin(Math.min(u / 0.16, 1) * Math.PI / 2) * (1 - smooth(0.82, 1, u));
+    const th = p.th0 + turns * TAU * e;
+    return { x: cx + p.R * env * Math.sin(th), y: y0 - L * e, z: Math.cos(th) };
+  };
+  const TAIL = 34;
+  const N = 6;
+  const ps = Array.from({ length: N }, (_, i) => make(i / N));
+  // One soft light, drawn once and stamped everywhere (cheap on phones).
+  const sprite = document.createElement('canvas');
+  sprite.width = sprite.height = 64;
+  const sc = sprite.getContext('2d');
+  const sg = sc.createRadialGradient(32, 32, 0, 32, 32, 32);
+  sg.addColorStop(0, `rgba(${core},1)`);
+  sg.addColorStop(0.3, `rgba(${glow},0.55)`);
+  sg.addColorStop(1, `rgba(${glow},0)`);
+  sc.fillStyle = sg;
+  sc.fillRect(0, 0, 64, 64);
+  const dot = (ctx, x, y, rad, a) => {
+    if (a <= 0.01) return;
+    ctx.globalAlpha = Math.min(1, a);
+    ctx.drawImage(sprite, x - rad * 3, y - rad * 3, rad * 6, rad * 6);
+  };
+  let flash = 0;
+  let last = performance.now();
+  function frame(now) {
+    if (!root.isConnected) { fxRaf = 0; return; }
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    bc.clearRect(0, 0, W, H);
+    fc.clearRect(0, 0, W, H);
+    ps.forEach((p, i) => {
+      p.t += dt / p.dur;
+      if (p.t >= 1) { flash = 1; ps[i] = make(0); return; }
+      const fade = Math.min(1, p.t / 0.1);
+      for (let k = TAIL; k >= 0; k -= 1) {
+        const u = p.t - (k * 0.016) / p.dur;
+        if (u <= 0) continue;
+        const q = at(p, u);
+        const near = 1 - k / (TAIL + 1);
+        const depth = 0.5 + 0.5 * q.z;
+        // behind the spine: dimmer, and almost hidden where a bone covers it
+        const covered = q.z < 0 && Math.abs(q.x - cx) < 11 ? 0.25 : 1;
+        const a = (k === 0 ? 1 : 0.34 * near * near) * (0.35 + 0.65 * depth) * covered * fade;
+        dot(q.z >= 0 ? fc : bc, q.x, q.y, p.size * (0.7 + 0.8 * depth) * (k === 0 ? 1.7 : 0.35 + 0.65 * near), a);
+      }
+    });
+    flash = Math.max(0, flash - dt * 1.7);
+    dot(fc, cx, y1, 7 + 6 * flash, 0.35 + 0.55 * flash);
+    fxRaf = requestAnimationFrame(frame);
+  }
+  fxRaf = requestAnimationFrame(frame);
+}
 
 function spineStopHTML(stop, i, ctx) {
   const { streak, best, claimedIds, canClaim, topDay, px } = ctx;
@@ -362,19 +469,34 @@ function spineHTML({ stops, streak, best, claimedIds, canClaim }) {
     const w = 14 + Math.round(10 * Math.sin((Math.PI * d) / (topDay + 1)));
     const cls = ['vert', `v${BONE_ORDER[d % 8]}`];
     if (d <= streak) cls.push('is-done');
+    if (d === streak) cls.push('is-today');
     if (d > topDay - SPINE_EXTRA_DAYS) cls.push('is-final');
     if (stopDays.has(d)) cls.push('is-stop', stopDays.get(d) % 2 === 0 ? 'to-right' : 'to-left');
     bones.push(`<i class="${cls.join(' ')}" style="--w:${w}px"></i>`);
   }
   const px = spinePx();
   const ctx = { streak, best, claimedIds, canClaim, topDay, px };
-  const hereY = SPINE_TAIL + (Math.max(streak, 0) - 0.5) * px;
-  const here = streak > 0 ? `<span class="spine-here" style="bottom:${hereY}px" title="אתה כאן">${streak}</span>` : '';
+  const shown = Math.min(Math.max(streak, 0), topDay);
+  const hereY = SPINE_TAIL + (shown - 0.5) * px;
+  // Today's number sits in gold beside its bone, on the side with no goal text close by.
+  const near = stops.map((s, i) => ({ d: s.days, right: i % 2 === 0 })).filter((o) => Math.abs(o.d - shown) <= 3);
+  const hereSide = near.some((o) => o.right) && !near.some((o) => !o.right) ? 'is-left' : 'is-right';
+  const here = streak > 0 ? `<span class="spine-here ${hereSide}" style="bottom:${hereY}px" title="אתה כאן">${streak}</span>` : '';
+  // Light sparks that leave the fire, spiral round the spine (behind it and in
+  // front of it) and flow into today's bone. Two canvases give the depth.
+  const fxH = SPINE_TAIL + shown * px + 26;
+  const pal = sparkPalette(streak);
+  const fxSize = `style="width:${SPINE_FX_W}px;height:${fxH}px" aria-hidden="true"`;
+  const fxBack = streak > 0 ? `<canvas class="spine-fx spine-fx-back" ${fxSize}></canvas>` : '';
+  const fxFront = streak > 0
+    ? `<canvas class="spine-fx spine-fx-front" ${fxSize} data-w="${SPINE_FX_W}" data-h="${fxH}" data-y0="${fxH - 24}" data-y1="${fxH - hereY}" data-core="${pal.core}" data-glow="${pal.glow}"></canvas>`
+    : '';
   return `
     <div class="spine" style="--spine-px:${px}px;height:${SPINE_TAIL + topDay * px + SPINE_CROWN}px">
       <svg class="spine-crown" viewBox="0 0 40 52" aria-hidden="true"><path d="M20 2l12 14-12 34L8 16z" /><path d="M8 16h24M20 2l-5 14 5 34M20 2l5 14-5 34" fill="none"/></svg>
+      ${fxBack}
       <div class="spine-col">${bones.join('')}</div>
-      ${streak > 0 ? `<div class="spine-pulse" style="bottom:${SPINE_TAIL}px;height:${streak * px}px" aria-hidden="true"><i></i><i></i></div>` : ''}
+      ${fxFront}
       <span class="spine-fire"><button type="button" class="streak-hero-flame" id="streakFlameBtn" aria-label="להבת הרצף">${fireHTML(streak)}</button></span>
       ${stops.map((st, i) => spineStopHTML(st, i, ctx)).join('')}
       ${here}
@@ -483,6 +605,7 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
     const flameBtn = body.querySelector('#streakFlameBtn');
     if (flameBtn) flameBtn.addEventListener('click', () => pokeFlame(flameBtn));
     wakeFires(body);
+    if (!overlay.hidden) runSpineFx(body);
     const spine = body.querySelector('.spine');
     if (spine) {
       const closePops = () => spine.querySelectorAll('.spine-pop').forEach((p) => { p.hidden = true; });
@@ -508,7 +631,7 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
         row?.classList.add('is-melting');
         const results = await Promise.all(goal.lessons.map((l) => meltLesson(l.section, l.id)));
         if (results.every(Boolean)) iceGoals = iceGoals.filter((g) => g.days !== days);
-        setTimeout(paint, 1100);
+        setTimeout(() => { if (!overlay.hidden) paint(); }, 1100);
       });
     });
     body.querySelectorAll('.road-claim-btn').forEach((btn) => {
@@ -523,9 +646,17 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
 
   // While the map is open nothing else on the page animates (see
   // body.map-open in dashboard.css); it resumes the moment the map closes.
+  // The page's own decorative (muted) fire videos are held too: CSS can't
+  // pause a video, and those are the costly part.
+  let heldVideos = [];
   const close = () => {
     overlay.hidden = true;
+    stopSpineFx();
+    window.removeEventListener('hashchange', close);
     document.body.classList.remove('map-open');
+    heldVideos.forEach((v) => { if (v.isConnected) v.play().catch(() => {}); });
+    heldVideos = [];
+    body.innerHTML = '';
   };
   // The spine is tall and starts at the bottom: bring the streak's own
   // position into view when the popup opens.
@@ -547,8 +678,11 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
     paint();
     overlay.hidden = false;
     document.body.classList.add('map-open');
-    window.addEventListener('hashchange', close, { once: true });
+    window.addEventListener('hashchange', close);
+    heldVideos = [...document.querySelectorAll('video')].filter((v) => v.muted && !v.paused && !overlay.contains(v));
+    heldVideos.forEach((v) => v.pause());
     showHere();
+    runSpineFx(body);
   });
   root.querySelector('#streakClose')?.addEventListener('click', close);
   overlay.addEventListener('click', (e) => {
