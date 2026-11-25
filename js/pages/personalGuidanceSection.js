@@ -61,11 +61,11 @@ const STATUS_BADGE = { pending: '', approved: 'badge-active', hidden: 'badge-blo
 // deliberately separate fields, since this message is for a completely
 // different audience than the real unlocked content.
 // The two options shown on the "no access" screen. Prices live here in one
-// place. 299 is the Vault-member right (shown against a struck-through
+// place. 222 is the Vault-member right (shown against a struck-through
 // 499); the 399 intro price and the 10-session pack are for people outside
 // the Vault and are deliberately NOT shown here.
 const PG_WHATSAPP = '972509977677';
-const PG_MEETING_PRICE = '299';
+const PG_MEETING_PRICE = '222';
 const PG_MEETING_LIST_PRICE = '499';
 const PG_PROGRAM_PRICE = '6,200';
 
@@ -91,7 +91,7 @@ function offersHTML() {
         <span class="pg-offer-ribbon">רק לחברי כספת</span>
         <span class="pg-offer-gem">${GEM_SVG}</span>
         <h3 class="pg-offer-title">פגישה אישית 1 על 1</h3>
-        <p class="pg-offer-text">שעה אחת בזום, אני ואתה אחי. אתה מרגיש שאתה רוצה לדבר איתי בצורה יותר עמוקה ופתוחה, באמת, מאח לאח, מגבר לגבר. אני פה כדי להקשיב, לשמוע, לא לשפוט, ולתת פתרון שיוציא אותך לחופש אמיתי.</p>
+        <p class="pg-offer-text">60 דקות בזום, אני ואתה אחי. אתה מרגיש שאתה רוצה לדבר איתי בצורה יותר עמוקה ופתוחה, באמת, מאח לאח, מגבר לגבר. אני פה כדי להקשיב, לשמוע, לא לשפוט, ולתת פתרון שיוציא אותך לחופש אמיתי.</p>
         <div class="pg-offer-price pg-offer-price-member">
           <span class="pg-offer-was"><small>מחיר רגיל</small><s>₪${PG_MEETING_LIST_PRICE}</s></span>
           <span class="pg-offer-now"><small>לחברי כספת</small><strong>₪${PG_MEETING_PRICE}</strong></span>
