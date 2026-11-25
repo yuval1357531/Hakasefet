@@ -6377,12 +6377,11 @@ body.lesson-view .lesson-title-heading {
 }
 .vert.is-today::before, .vert.is-today::after { background: #ffffff; }
 
-/* Focus mode: while the streak map is open, every looping animation outside
-   it is frozen (paused, not removed) so only the map moves; closing the map
-   resumes them from the same frame. */
-body.map-open :not(#streakOverlay):not(#streakOverlay *),
-body.map-open :not(#streakOverlay):not(#streakOverlay *)::before,
-body.map-open :not(#streakOverlay):not(#streakOverlay *)::after {
+/* Focus mode (js/focusMode.js): while a window people stay in is open, every
+   looping animation behind it is frozen in place and resumes on close. */
+body.focus-hold :not([data-focus]):not([data-focus] *),
+body.focus-hold :not([data-focus]):not([data-focus] *)::before,
+body.focus-hold :not([data-focus]):not([data-focus] *)::after {
   animation-play-state: paused !important;
 }
 

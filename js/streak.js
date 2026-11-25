@@ -12,6 +12,7 @@
 
 import { streakStore } from './data/streakStore.js';
 import { fetchIceGoals, meltLesson } from './lessonUnlock.js';
+import { watchClip } from './focusMode.js';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -138,8 +139,7 @@ export function wakeFires(root) {
     const vids = host.querySelectorAll('video[autoplay]');
     vids.forEach((v) => {
       v.muted = true;
-      const p = v.play();
-      if (p && p.catch) p.catch(() => {});
+      watchClip(v);
     });
     const [base, ...extra] = vids;
     if (base && extra.length) {
@@ -639,23 +639,16 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
         btn.disabled = true;
         const ok = await streakStore.claims.claim(session.id, btn.dataset.rewardId);
         if (ok) claimedIds.add(btn.dataset.rewardId);
-        paint();
+        if (!overlay.hidden) paint();
       });
     });
   }
 
-  // While the map is open nothing else on the page animates (see
-  // body.map-open in dashboard.css); it resumes the moment the map closes.
-  // The page's own decorative (muted) fire videos are held too: CSS can't
-  // pause a video, and those are the costly part.
-  let heldVideos = [];
+  // While the map is open nothing else on the page animates (focusMode.js).
   const close = () => {
     overlay.hidden = true;
     stopSpineFx();
     window.removeEventListener('hashchange', close);
-    document.body.classList.remove('map-open');
-    heldVideos.forEach((v) => { if (v.isConnected) v.play().catch(() => {}); });
-    heldVideos = [];
     body.innerHTML = '';
   };
   // The spine is tall and starts at the bottom: bring the streak's own
@@ -677,10 +670,7 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
   openBtn.addEventListener('click', () => {
     paint();
     overlay.hidden = false;
-    document.body.classList.add('map-open');
     window.addEventListener('hashchange', close);
-    heldVideos = [...document.querySelectorAll('video')].filter((v) => v.muted && !v.paused && !overlay.contains(v));
-    heldVideos.forEach((v) => v.pause());
     showHere();
     runSpineFx(body);
   });

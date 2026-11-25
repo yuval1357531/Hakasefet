@@ -9,6 +9,7 @@ import { contentStore } from './data/contentStore.js';
 import { initGlobalLoader, withGlobalLoader, isHeavyRoute } from './loader.js';
 import { initHelpTips, helpTipHTML, isHelpDismissed } from './helpTip.js';
 import { streakStore } from './data/streakStore.js';
+import { initFocusMode } from './focusMode.js';
 
 // Minimal "?" help layer (see helpTip.js) -- one global listener for every
 // tip on every page, installed once here regardless of which section is
@@ -40,6 +41,7 @@ async function init(session) {
   const sidebar = document.getElementById('sidebar');
   const sidebarNav = document.getElementById('sidebarNav');
   const content = document.getElementById('content');
+  initFocusMode(content);
   const appMain = document.querySelector('.app-main');
   const userName = document.getElementById('userName');
   const userRole = document.getElementById('userRole');

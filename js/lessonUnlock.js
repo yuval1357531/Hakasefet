@@ -6,6 +6,7 @@
 // קפוא לא נמסר בכלל, והשרת רק מוסר שם + יעד + כמה ימים נשארו.
 // כאן: משיכת הרשימה, ציור הקרח, ההמסה, החלון הקטן, יעדי המפה ועריכת השדה.
 
+import { watchClip } from './focusMode.js';
 import { supabase } from './supabaseClient.js';
 import { vaultStore } from './data/vaultStore.js';
 import { freedomStore } from './data/freedomStore.js';
@@ -152,8 +153,7 @@ function wakeIce(root) {
       v.removeAttribute('autoplay');
       return;
     }
-    const p = v.play();
-    if (p && p.catch) p.catch(() => {});
+    watchClip(v);
   });
 }
 
