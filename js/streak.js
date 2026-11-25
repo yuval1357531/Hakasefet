@@ -10,7 +10,7 @@
 // Also exports the small master-only gifts manager used inside
 // personalArea.js's "ניהול מתנות הרצף" accordion.
 
-import { streakStore } from './data/streakStore.js';
+import { streakStore, israelDate } from './data/streakStore.js';
 import { fetchIceGoals, meltLesson } from './lessonUnlock.js';
 import { watchClip } from './focusMode.js';
 
@@ -461,7 +461,9 @@ function spineStopHTML(stop, i, ctx) {
 
 function spineHTML({ stops, streak, best, claimedIds, canClaim }) {
   const lastDay = stops.length ? stops[stops.length - 1].days : 0;
-  const topDay = Math.max(60, lastDay) + SPINE_EXTRA_DAYS;
+  // The road proper, and past its end one more gold bone for every further day.
+  const roadEnd = Math.max(60, lastDay) + SPINE_EXTRA_DAYS;
+  const topDay = Math.max(roadEnd, streak);
   // day -> which side its text sits on (0 = right, 1 = left), same rule as spineStopHTML
   const stopDays = new Map(stops.map((s, i) => [s.days, i % 2]));
   const bones = [];
@@ -470,7 +472,7 @@ function spineHTML({ stops, streak, best, claimedIds, canClaim }) {
     const cls = ['vert', `v${BONE_ORDER[d % 8]}`];
     if (d <= streak) cls.push('is-done');
     if (d === streak) cls.push('is-today');
-    if (d > topDay - SPINE_EXTRA_DAYS) cls.push('is-final');
+    if (d > roadEnd - SPINE_EXTRA_DAYS) cls.push('is-final');
     if (stopDays.has(d)) cls.push('is-stop', stopDays.get(d) % 2 === 0 ? 'to-right' : 'to-left');
     bones.push(`<i class="${cls.join(' ')}" style="--w:${w}px"></i>`);
   }
@@ -507,7 +509,8 @@ export function streakModalBodyHTML({ state, rewards: giftRewards, claimedIds, c
   const streak = state ? state.currentStreak : 0;
   const best = state ? state.bestStreak : 0;
   const rewards = giftRewards;
-  const next = rewards.find((r) => r.days > streak);
+  // A gift already reached at the best streak stays theirs, so it isn't "next".
+  const next = rewards.find((r) => r.days > Math.max(streak, best));
   // Gifts and frozen-lesson goals share one spine; the same day holds both.
   const byDay = new Map();
   const slot = (days) => {
@@ -568,12 +571,13 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
   if (!openBtn || !overlay || !body) return;
 
   const isDemo = !!demoState;
-  const [state, rewards, claimedList, iceGoalsAll] = await Promise.all([
+  const [stateNow, rewards, claimedList, iceGoalsAll] = await Promise.all([
     isDemo ? Promise.resolve(demoState) : streakStore.touch(),
     streakStore.rewards.getAll(),
     isDemo ? Promise.resolve([]) : streakStore.claims.getForUser(session.id),
     fetchIceGoals(isDemo),
   ]);
+  let state = stateNow;
   let iceGoals = iceGoalsAll;
 
   // Tables not created yet (supabase-streak.sql not run) -- show nothing
@@ -584,12 +588,15 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
   }
   const claimedIds = new Set(claimedList);
   openBtn.hidden = false;
-  const btnCount = openBtn.querySelector('.streak-btn-count');
-  if (btnCount) btnCount.textContent = String(state.currentStreak);
-  openBtn.classList.toggle('is-lit', state.currentStreak > 0);
-  const btnFlame = openBtn.querySelector('.streak-btn-flame');
-  if (btnFlame) btnFlame.innerHTML = fireHTML(state.currentStreak);
-  wakeFires(openBtn);
+  function paintButton() {
+    const btnCount = openBtn.querySelector('.streak-btn-count');
+    if (btnCount) btnCount.textContent = String(state.currentStreak);
+    openBtn.classList.toggle('is-lit', state.currentStreak > 0);
+    const btnFlame = openBtn.querySelector('.streak-btn-flame');
+    if (btnFlame) btnFlame.innerHTML = fireHTML(state.currentStreak);
+    wakeFires(openBtn);
+  }
+  paintButton();
   if (!isDemo) {
     try {
       const key = 'hk_fire_stage_' + session.id;
@@ -678,6 +685,37 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) close();
   });
+
+  // The number by the fire and the map always tell the same day.
+  if (isDemo) {
+    // master's student view: the lever moved the day (it repaints the fire itself)
+    openBtn.addEventListener('streak:preview', (e) => {
+      state = { ...state, currentStreak: e.detail.day, bestStreak: e.detail.day };
+    });
+    return;
+  }
+  // Coming back to an app left open past midnight (Israel time): count today's
+  // visit through the same server function as any entry (once a day, a no-op
+  // when already counted) and refresh. A failed call keeps what is shown.
+  let refreshing = false;
+  const onReturn = async () => {
+    if (!openBtn.isConnected) {
+      document.removeEventListener('visibilitychange', onReturn);
+      return;
+    }
+    if (document.hidden || refreshing || state.lastDay === israelDate()) return;
+    refreshing = true;
+    const fresh = await streakStore.touch().catch(() => null);
+    refreshing = false;
+    if (!fresh || !openBtn.isConnected || fresh.lastDay === state.lastDay) return;
+    state = fresh;
+    paintButton();
+    if (!overlay.hidden) {
+      paint();
+      showHere();
+    }
+  };
+  document.addEventListener('visibilitychange', onReturn);
 }
 
 // --- master-only: "ניהול מתנות הרצף" ---------------------------------------

@@ -1164,6 +1164,7 @@ export async function mountPersonalPage(container, session) {
         const cnt = open.querySelector('.streak-btn-count');
         if (cnt) cnt.textContent = String(previewDay);
         wakeFires(open);
+        open.dispatchEvent(new CustomEvent('streak:preview', { detail: { day: previewDay } }));
       }
       const gate = igniteFlame(host);
       wheel.dispatchEvent(new CustomEvent('wheel:pull', { detail: { gate } }));

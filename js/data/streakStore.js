@@ -26,7 +26,7 @@ function makeId() {
 }
 
 // Calendar date (YYYY-MM-DD) in Israel, `offsetDays` from today.
-function israelDate(offsetDays = 0) {
+export function israelDate(offsetDays = 0) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(Date.now() + offsetDays * 86400000));
 }
 

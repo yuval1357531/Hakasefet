@@ -6229,6 +6229,12 @@ body.lesson-view .lesson-title-heading {
 .vert.is-done::before, .vert.is-done::after { background: rgba(140, 210, 255, 0.9); }
 .vert.is-final { border-color: rgba(232, 184, 90, 0.75); background: rgba(232, 184, 90, 0.2); }
 .vert.is-final::before, .vert.is-final::after { background: rgba(232, 184, 90, 0.75); }
+.vert.is-final.is-done {
+  border-color: rgba(255, 214, 130, 0.95);
+  background: linear-gradient(90deg, rgba(214, 150, 50, 0.6), rgba(255, 226, 160, 0.95), rgba(214, 150, 50, 0.6));
+  box-shadow: 0 0 7px rgba(255, 190, 80, 0.6);
+}
+.vert.is-final.is-done::before, .vert.is-final.is-done::after { background: rgba(255, 214, 130, 0.9); }
 /* a goal: same bone, a longer wick */
 .vert.is-stop { --wick: 24px; --wl: 1; --wr: 1; --k: 1.15; border-color: #8fd0ff; background: rgba(120, 195, 255, 0.45); }
 .spine-crown {
@@ -6370,7 +6376,7 @@ body.lesson-view .lesson-title-heading {
 .spine-fx-front { z-index: 2; }
 .spine-col { z-index: 1; }
 /* today's bone: the brightest one on the spine */
-.vert.is-today {
+.vert.is-today, .vert.is-final.is-today {
   border-color: #ffffff;
   background: linear-gradient(90deg, rgba(150, 215, 255, 0.9), #ffffff, rgba(150, 215, 255, 0.9));
   box-shadow: 0 0 14px rgba(190, 235, 255, 0.95), 0 0 4px #fff;
