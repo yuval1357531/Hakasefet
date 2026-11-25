@@ -354,14 +354,15 @@ function spineStopHTML(stop, i, ctx) {
 function spineHTML({ stops, streak, best, claimedIds, canClaim }) {
   const lastDay = stops.length ? stops[stops.length - 1].days : 0;
   const topDay = Math.max(60, lastDay) + SPINE_EXTRA_DAYS;
-  const stopDays = new Set(stops.map((s) => s.days));
+  // day -> which side its text sits on (0 = right, 1 = left), same rule as spineStopHTML
+  const stopDays = new Map(stops.map((s, i) => [s.days, i % 2]));
   const bones = [];
   for (let d = 1; d <= topDay; d += 1) {
     const w = 14 + Math.round(10 * Math.sin((Math.PI * d) / (topDay + 1)));
     const cls = ['vert', `v${BONE_ORDER[d % 8]}`];
     if (d <= streak) cls.push('is-done');
     if (d > topDay - SPINE_EXTRA_DAYS) cls.push('is-final');
-    if (stopDays.has(d)) cls.push('is-stop');
+    if (stopDays.has(d)) cls.push('is-stop', stopDays.get(d) % 2 === 0 ? 'to-right' : 'to-left');
     bones.push(`<i class="${cls.join(' ')}" style="--w:${w}px"></i>`);
   }
   const ctx = { streak, best, claimedIds, canClaim, topDay };

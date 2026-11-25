@@ -6249,11 +6249,11 @@ body.lesson-view .lesson-title-heading {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  width: calc(50% - 50px);
+  width: calc(50% - 64px);
   z-index: 2;
 }
-.spine-stop.is-right { left: calc(50% + 46px); align-items: flex-end; text-align: left; }
-.spine-stop.is-left { right: calc(50% + 46px); align-items: flex-start; text-align: right; }
+.spine-stop.is-right { left: calc(50% + 60px); align-items: flex-end; text-align: left; }
+.spine-stop.is-left { right: calc(50% + 60px); align-items: flex-start; text-align: right; }
 .spine-stop-days { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; color: var(--crystal-ice); }
 .spine-stop.is-gift .spine-stop-days { color: #ffd9a3; }
 .spine-gift { display: inline-flex; width: 18px; height: 18px; color: #e8b85a; }
@@ -6320,3 +6320,7 @@ body.lesson-view .lesson-title-heading {
 .spine-prize b { display: block; font-size: 13.5px; color: #ffd9a3; }
 .spine-prize span:not(.spine-gift) { display: block; font-size: 12px; color: var(--text-muted); }
 .spine-pop .road-note, .spine-pop .btn-gold { display: block; margin-top: 6px; }
+
+/* a goal's wick toward its text is the long leader line (1.5x the goal's own) */
+.vert.is-stop.to-right { --wr: 1.5; }
+.vert.is-stop.to-left { --wl: 1.5; }
