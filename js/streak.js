@@ -303,7 +303,7 @@ export function streakButtonHTML(state) {
 // lesson to a level or a new level shows up here by itself.
 // Pixels per day: tighter on phones so most of the spine fits on one screen.
 const spinePx = () => (window.innerWidth <= 600 ? 10 : 14);
-const SPINE_TAIL = 44;
+const SPINE_TAIL = 62;
 const SPINE_CROWN = 66;
 const SPINE_EXTRA_DAYS = 10;
 // Which of the eight bone shapes each day gets (scrambled so no pattern shows).
@@ -374,8 +374,8 @@ function spineHTML({ stops, streak, best, claimedIds, canClaim }) {
     <div class="spine" style="--spine-px:${px}px;height:${SPINE_TAIL + topDay * px + SPINE_CROWN}px">
       <svg class="spine-crown" viewBox="0 0 40 52" aria-hidden="true"><path d="M20 2l12 14-12 34L8 16z" /><path d="M8 16h24M20 2l-5 14 5 34M20 2l5 14-5 34" fill="none"/></svg>
       <div class="spine-col">${bones.join('')}</div>
-      <svg class="spine-tail" viewBox="0 0 24 44" aria-hidden="true"><path d="M5 2h14l-2 12H7z"/><path d="M8 17h8l-1.5 10h-5z"/><path d="M10 30h4l-.8 8h-2.4z"/></svg>
-      <span class="spine-start">ההתחלה</span>
+      ${streak > 0 ? `<div class="spine-pulse" style="bottom:${SPINE_TAIL}px;height:${streak * px}px" aria-hidden="true"><i></i><i></i></div>` : ''}
+      <span class="spine-fire"><button type="button" class="streak-hero-flame" id="streakFlameBtn" aria-label="להבת הרצף">${fireHTML(streak)}</button></span>
       ${stops.map((st, i) => spineStopHTML(st, i, ctx)).join('')}
       ${here}
     </div>`;
@@ -404,14 +404,22 @@ export function streakModalBodyHTML({ state, rewards: giftRewards, claimedIds, c
   const road = stops.length ? spineHTML({ stops: mergedStops, streak, best, claimedIds, canClaim }) : '';
   return `
     ${road}
-    <div class="streak-hero is-base">
+    ${road
+      ? `<div class="streak-hero is-base">
+      <div class="streak-hero-row">
+        <span class="streak-hero-number">${streak}</span>
+        <span class="streak-hero-label">${streak === 1 ? 'יום ברצף' : 'ימים ברצף'}</span>
+      </div>
+      <span class="streak-hero-sub">${sub}</span>
+    </div>`
+      : `<div class="streak-hero">
       <button type="button" class="streak-hero-flame" id="streakFlameBtn" aria-label="להבת הרצף">${fireHTML(streak)}</button>
       <span class="streak-hero-number">${streak}</span>
       <div class="streak-hero-text">
         <span class="streak-hero-label">${streak === 1 ? 'יום ברצף' : 'ימים ברצף'}</span>
         <span class="streak-hero-sub">${sub}</span>
       </div>
-    </div>
+    </div>`}
     <p class="streak-rule">נכנסים פעם ביום וממשיכים. דילוג על יום שלם מחזיר את הרצף לאפס, אבל שומר לך את המתנות והיעדים שהגעת אליהם.</p>`;
 }
 
@@ -513,8 +521,11 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
     });
   }
 
+  // While the map is open nothing else on the page animates (see
+  // body.map-open in dashboard.css); it resumes the moment the map closes.
   const close = () => {
     overlay.hidden = true;
+    document.body.classList.remove('map-open');
   };
   // The spine is tall and starts at the bottom: bring the streak's own
   // position into view when the popup opens.
@@ -535,6 +546,8 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
   openBtn.addEventListener('click', () => {
     paint();
     overlay.hidden = false;
+    document.body.classList.add('map-open');
+    window.addEventListener('hashchange', close, { once: true });
     showHere();
   });
   root.querySelector('#streakClose')?.addEventListener('click', close);
