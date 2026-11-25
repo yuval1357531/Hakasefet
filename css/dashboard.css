@@ -6330,3 +6330,32 @@ body.lesson-view .lesson-title-heading {
 @media (max-width: 600px) {
   .streak-modal-card { max-height: 95vh; }
 }
+
+/* The streak fire sits at the base of the spine (the root chakra) and feeds
+   it: the flame and count are centred under the tailbone, with a glow
+   rising from there up the bones. */
+.streak-hero.is-base {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  column-gap: 10px;
+  margin: -34px 0 4px;
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+.streak-hero.is-base > * { pointer-events: auto; }
+.streak-hero.is-base .streak-hero-flame { grid-column: 2; grid-row: 1 / span 2; }
+.streak-hero.is-base .streak-hero-number { grid-column: 3; grid-row: 1; justify-self: start; align-self: end; }
+.streak-hero.is-base .streak-hero-text { grid-column: 3; grid-row: 2; justify-self: start; align-self: start; }
+.spine::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 220px;
+  height: 280px;
+  background: radial-gradient(ellipse at 50% 100%, rgba(90, 170, 255, 0.4), rgba(90, 170, 255, 0.14) 45%, transparent 72%);
+  pointer-events: none;
+}

@@ -403,7 +403,8 @@ export function streakModalBodyHTML({ state, rewards: giftRewards, claimedIds, c
       : 'המתנות בדרך';
   const road = stops.length ? spineHTML({ stops: mergedStops, streak, best, claimedIds, canClaim }) : '';
   return `
-    <div class="streak-hero">
+    ${road}
+    <div class="streak-hero is-base">
       <button type="button" class="streak-hero-flame" id="streakFlameBtn" aria-label="להבת הרצף">${fireHTML(streak)}</button>
       <span class="streak-hero-number">${streak}</span>
       <div class="streak-hero-text">
@@ -411,8 +412,7 @@ export function streakModalBodyHTML({ state, rewards: giftRewards, claimedIds, c
         <span class="streak-hero-sub">${sub}</span>
       </div>
     </div>
-    ${road}
-    <p class="streak-rule">נכנסים פעם ביום וממשיכים. דילוג על יום שלם מחזיר את הרצף ל-0.</p>`;
+    <p class="streak-rule">נכנסים פעם ביום וממשיכים. דילוג על יום שלם מחזיר את הרצף לאפס, אבל שומר לך את המתנות והיעדים שהגעת אליהם.</p>`;
 }
 
 export function streakModalHTML() {
