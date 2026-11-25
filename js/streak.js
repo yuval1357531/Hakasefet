@@ -288,75 +288,92 @@ export function streakButtonHTML(state) {
   return `
     <button type="button" class="streak-btn streak-stage${n > 0 ? ' is-lit' : ''}" id="streakOpenBtn" aria-haspopup="dialog"${state ? '' : ' hidden'}>
       <span class="streak-btn-flame">${state ? fireHTML(n) : ''}</span>
-      <span class="streak-btn-text">הרצף שלך<span class="streak-btn-count">${n}</span><span class="streak-btn-cue">לחץ לפתיחת המפה ◂</span></span>
+      <span class="streak-btn-text">הרצף שלך<span class="streak-btn-count">${n}</span><span class="streak-btn-cue"><svg class="streak-map-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M6.5 8.5l3.5 3.5M10 8.5l-3.5 3.5"/><circle cx="16" cy="14.5" r="2.3"/><path d="M5.5 17.2c2.5-1.8 5 .8 7.2-.6" stroke-dasharray="1.6 1.8"/></svg>לחץ לפתיחת המפה ◂</span></span>
     </button>`;
 }
 
-// One row per milestone (plus a small "start" row on top). Every row has the
-// same height and its node sits at the row's top, so a single rail drawn
-// behind them (see .road-rail in dashboard.css) lines up with all the nodes.
-function roadRowHTML(reward, streak, best, claimedIds, canClaim) {
-  const reached = best >= reward.days;
-  const claimed = claimedIds.has(reward.id);
-  const state = claimed ? 'is-claimed' : reached ? 'is-ready' : 'is-locked';
-  const nodeIcon = claimed ? ICONS.check : reached ? rewardIcon(reward) : ICONS.lock;
-  let action = '';
-  if (claimed) action = '<span class="road-note">נאספה. ג\'אוריוס יחזור אליך עם הפרטים</span>';
-  else if (reached && canClaim) action = `<button type="button" class="btn-gold small road-claim-btn" data-reward-id="${escapeAttr(reward.id)}">קבל את המתנה</button>`;
-  else if (reached) action = '<span class="road-note">זמינה לאיסוף</span>';
-  else action = `<span class="road-note">עוד ${reward.days - streak} ${daysWord(reward.days - streak)}</span>`;
+// --- the road as a spine ------------------------------------------------------
+// The road is a vertical spine, one vertebra per day, climbing bottom to top
+// (the way the fire travels): a tailbone is the start, a crystal crowns the
+// end. Every stop (a frozen-lesson goal and/or a gift on the same day) sits at
+// its true day along the spine, alternating right and left so close stops never
+// collide. Stops are only the words "N ימים" (+ a gift mark) and an underlined
+// "tap to see" link; the link opens a small bubble with a gem per lesson.
+// Everything is built from the real data (gifts + ice goals), so adding a
+// lesson to a level or a new level shows up here by itself.
+const SPINE_PX = 14;
+const SPINE_TAIL = 44;
+const SPINE_CROWN = 66;
+const SPINE_EXTRA_DAYS = 10;
 
-  return `
-    <div class="road-row ${state}">
-      <span class="road-node">${nodeIcon}</span>
-      <div class="road-card">
-        <span class="road-days">${reward.days} ${daysWord(reward.days)}</span>
-        <span class="road-title">${escapeHtml(reward.title)}</span>
-        ${reward.description ? `<span class="road-desc">${escapeHtml(reward.description)}</span>` : ''}
-        ${action}
-      </div>
-    </div>`;
-}
-
-// Where the streak sits along the rail, measured in "rows": whole rows for
-// the milestones already passed, plus the way to the next one. The part
-// between two nodes is squeezed into the middle 40% of the gap so the
-// "you are here" marker never lands on top of a node; `onNode` is true when
-// the streak sits exactly on a milestone (the node itself is the marker).
-// A frozen-lessons goal on the road: the number the master chose, with the
-// lessons that melt at it. Same row shape as a gift so the rail lines up.
-function iceRowHTML(goal, streak, best, canMelt) {
-  const reached = best >= goal.days;
-  const names = goal.lessons.map((l) => escapeHtml(l.title)).join(' · ');
-  let action;
-  if (reached && canMelt) action = `<button type="button" class="btn-gold small road-melt-btn" data-ice-days="${goal.days}">המס את הקרח</button>`;
-  else if (reached) action = '<span class="road-note">מוכן להמסה</span>';
-  else action = `<span class="road-note">עוד ${goal.days - streak} ${daysWord(goal.days - streak)}</span>`;
-  return `
-    <div class="road-row is-ice ${reached ? 'is-ready' : 'is-locked'}" data-ice-row="${goal.days}">
-      <span class="road-node">${ICONS.ice}</span>
-      <div class="road-card">
-        <span class="road-days">${goal.days} ${daysWord(goal.days)}</span>
-        <span class="road-title">שיעור קפוא בקרח</span>
-        <span class="road-desc">${names}</span>
-        ${action}
-      </div>
-    </div>`;
-}
-
-function roadPosition(streak, rewards) {
-  let passed = 0;
-  let prevDays = 0;
-  for (const r of rewards) {
-    if (streak >= r.days) {
-      passed += 1;
-      prevDays = r.days;
-    } else {
-      const frac = (streak - prevDays) / (r.days - prevDays);
-      return { pos: frac > 0 ? passed + 0.3 + 0.4 * frac : passed, onNode: frac === 0 && passed > 0 };
-    }
+function spineStopHTML(stop, i, ctx) {
+  const { streak, best, claimedIds, canClaim, topDay } = ctx;
+  const reached = best >= stop.days;
+  const side = i % 2 === 0 ? 'is-right' : 'is-left';
+  const hasIce = !!stop.goal;
+  const hasGift = stop.rewards.length > 0;
+  const kind = hasIce ? 'is-ice' : 'is-gift';
+  const giftMark = hasGift ? `<span class="spine-gift">${stop.rewards.length === 1 ? rewardIcon(stop.rewards[0]) : ICONS.gift}</span>` : '';
+  const linkText = hasIce ? 'לחץ לראות מה נמס' : 'לחץ לראות מה המתנה';
+  const y = SPINE_TAIL + (stop.days - 0.5) * SPINE_PX;
+  const gems = hasIce
+    ? stop.goal.lessons.map((l) => `<div class="spine-gem"><i aria-hidden="true"></i><span>${escapeHtml(l.title)}</span></div>`).join('')
+    : '';
+  const gifts = stop.rewards
+    .map((r) => {
+      const claimed = claimedIds.has(r.id);
+      let act;
+      if (claimed) act = '<span class="road-note">נאספה. ג\'אוריוס יחזור אליך עם הפרטים</span>';
+      else if (reached && canClaim) act = `<button type="button" class="btn-gold small road-claim-btn" data-reward-id="${escapeAttr(r.id)}">קבל את המתנה</button>`;
+      else if (reached) act = '<span class="road-note">זמינה לאיסוף</span>';
+      else act = '';
+      return `<div class="spine-prize"><span class="spine-gift">${rewardIcon(r)}</span><div><b>${escapeHtml(r.title)}</b>${r.description ? `<span>${escapeHtml(r.description)}</span>` : ''}${act}</div></div>`;
+    })
+    .join('');
+  let iceAct = '';
+  if (hasIce) {
+    if (reached && canClaim) iceAct = `<button type="button" class="btn-gold small road-melt-btn" data-ice-days="${stop.days}">המס את הקרח</button>`;
+    else if (reached) iceAct = '<span class="road-note">מוכן להמסה</span>';
   }
-  return { pos: passed, onNode: true };
+  const left = stop.days - streak;
+  const remain = !reached && left > 0 ? `<span class="road-note">עוד ${left} ${daysWord(left)}</span>` : '';
+  // Stops near the crown open their bubble downward so it never leaves the spine.
+  const popPos = stop.days > topDay - 22 ? `top:${SPINE_CROWN + (topDay - stop.days) * SPINE_PX + 10}px` : `bottom:${y + 14}px`;
+  return `
+      <div class="spine-stop ${side} ${kind}${reached ? ' is-reached' : ''}" style="bottom:${y}px">
+        <span class="spine-stop-days">${stop.days} ${daysWord(stop.days)}${giftMark}</span>
+        <button type="button" class="spine-open" data-spine-open="${stop.days}">${linkText}</button>
+      </div>
+      <div class="spine-pop" data-pop="${stop.days}" style="${popPos}" hidden>
+        ${gems}${gifts}${iceAct}${remain}
+      </div>`;
+}
+
+function spineHTML({ stops, streak, best, claimedIds, canClaim }) {
+  const lastDay = stops.length ? stops[stops.length - 1].days : 0;
+  const topDay = Math.max(60, lastDay) + SPINE_EXTRA_DAYS;
+  const stopDays = new Set(stops.map((s) => s.days));
+  const bones = [];
+  for (let d = 1; d <= topDay; d += 1) {
+    const w = 22 + Math.round(14 * Math.sin((Math.PI * d) / (topDay + 1)));
+    const cls = ['vert'];
+    if (d <= streak) cls.push('is-done');
+    if (d > topDay - SPINE_EXTRA_DAYS) cls.push('is-final');
+    if (stopDays.has(d)) cls.push('is-stop');
+    bones.push(`<i class="${cls.join(' ')}" style="--w:${w}px"></i>`);
+  }
+  const ctx = { streak, best, claimedIds, canClaim, topDay };
+  const hereY = SPINE_TAIL + (Math.max(streak, 0) - 0.5) * SPINE_PX;
+  const here = streak > 0 ? `<span class="spine-here" style="bottom:${hereY}px" title="אתה כאן">${streak}</span>` : '';
+  return `
+    <div class="spine" style="--spine-px:${SPINE_PX}px;height:${SPINE_TAIL + topDay * SPINE_PX + SPINE_CROWN}px">
+      <svg class="spine-crown" viewBox="0 0 40 52" aria-hidden="true"><path d="M20 2l12 14-12 34L8 16z" /><path d="M8 16h24M20 2l-5 14 5 34M20 2l5 14-5 34" fill="none"/></svg>
+      <div class="spine-col">${bones.join('')}</div>
+      <svg class="spine-tail" viewBox="0 0 24 44" aria-hidden="true"><path d="M5 2h14l-2 12H7z"/><path d="M8 17h8l-1.5 10h-5z"/><path d="M10 30h4l-.8 8h-2.4z"/></svg>
+      <span class="spine-start">ההתחלה</span>
+      ${stops.map((st, i) => spineStopHTML(st, i, ctx)).join('')}
+      ${here}
+    </div>`;
 }
 
 export function streakModalBodyHTML({ state, rewards: giftRewards, claimedIds, canClaim, iceGoals = [] }) {
@@ -364,29 +381,22 @@ export function streakModalBodyHTML({ state, rewards: giftRewards, claimedIds, c
   const best = state ? state.bestStreak : 0;
   const rewards = giftRewards;
   const next = rewards.find((r) => r.days > streak);
-  // Gifts and frozen-lesson goals share one road, ordered by day.
-  const stops = [
-    ...rewards.map((r) => ({ days: r.days, ice: false, reward: r })),
-    ...iceGoals.map((g) => ({ days: g.days, ice: true, goal: g })),
-  ].sort((a, b) => a.days - b.days || (a.ice ? 1 : 0) - (b.ice ? 1 : 0));
+  // Gifts and frozen-lesson goals share one spine; the same day holds both.
+  const byDay = new Map();
+  const slot = (days) => {
+    if (!byDay.has(days)) byDay.set(days, { days, goal: null, rewards: [] });
+    return byDay.get(days);
+  };
+  rewards.forEach((r) => slot(r.days).rewards.push(r));
+  iceGoals.forEach((g) => { slot(g.days).goal = g; });
+  const mergedStops = [...byDay.values()].sort((a, b) => a.days - b.days);
+  const stops = mergedStops;
   const sub = next
     ? `עוד ${next.days - streak} ${daysWord(next.days - streak)} למתנה הבאה`
     : rewards.length
       ? 'הגעת לכל המתנות. כל הכבוד'
       : 'המתנות בדרך';
-  const { pos, onNode } = roadPosition(streak, stops);
-  const showHere = streak > 0 && !onNode;
-  const road = stops.length
-    ? `
-    <div class="road" style="--road-n:${stops.length};--road-pos:${pos.toFixed(3)}">
-      <div class="road-rail" aria-hidden="true">
-        <div class="road-rail-fill"></div>
-        ${showHere ? `<span class="road-here" title="אתה כאן">${streak}</span>` : ''}
-      </div>
-      <div class="road-row is-start"><span class="road-node"></span><div class="road-card"><span class="road-title">ההתחלה</span></div></div>
-      ${stops.map((p) => (p.ice ? iceRowHTML(p.goal, streak, best, canClaim) : roadRowHTML(p.reward, streak, best, claimedIds, canClaim))).join('')}
-    </div>`
-    : '';
+  const road = stops.length ? spineHTML({ stops: mergedStops, streak, best, claimedIds, canClaim }) : '';
   return `
     <div class="streak-hero">
       <button type="button" class="streak-hero-flame" id="streakFlameBtn" aria-label="להבת הרצף">${fireHTML(streak)}</button>
@@ -460,13 +470,28 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
     const flameBtn = body.querySelector('#streakFlameBtn');
     if (flameBtn) flameBtn.addEventListener('click', () => pokeFlame(flameBtn));
     wakeFires(body);
+    const spine = body.querySelector('.spine');
+    if (spine) {
+      const closePops = () => spine.querySelectorAll('.spine-pop').forEach((p) => { p.hidden = true; });
+      spine.querySelectorAll('[data-spine-open]').forEach((link) => {
+        link.addEventListener('click', () => {
+          const pop = spine.querySelector(`.spine-pop[data-pop="${link.dataset.spineOpen}"]`);
+          const wasOpen = pop && !pop.hidden;
+          closePops();
+          if (pop && !wasOpen) pop.hidden = false;
+        });
+      });
+      spine.addEventListener('click', (e) => {
+        if (!e.target.closest('.spine-pop, [data-spine-open]')) closePops();
+      });
+    }
     body.querySelectorAll('.road-melt-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
         btn.disabled = true;
         const days = Number(btn.dataset.iceDays);
         const goal = iceGoals.find((g) => g.days === days);
         if (!goal) return;
-        const row = btn.closest('.road-row');
+        const row = btn.closest('.spine-pop');
         row?.classList.add('is-melting');
         const results = await Promise.all(goal.lessons.map((l) => meltLesson(l.section, l.id)));
         if (results.every(Boolean)) iceGoals = iceGoals.filter((g) => g.days !== days);
@@ -486,9 +511,26 @@ export async function mountStreak(root, session, { demoState = null } = {}) {
   const close = () => {
     overlay.hidden = true;
   };
+  // The spine is tall and starts at the bottom: bring the streak's own
+  // position into view when the popup opens.
+  function showHere() {
+    const here = body.querySelector('.spine-here');
+    if (!here) return;
+    let scroller = body;
+    while (scroller && scroller !== document.body) {
+      const oy = getComputedStyle(scroller).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && scroller.scrollHeight > scroller.clientHeight) break;
+      scroller = scroller.parentElement;
+    }
+    if (!scroller || scroller === document.body) return;
+    const sr = scroller.getBoundingClientRect();
+    const hr = here.getBoundingClientRect();
+    scroller.scrollTop += hr.top - sr.top - sr.height / 2 + hr.height / 2;
+  }
   openBtn.addEventListener('click', () => {
     paint();
     overlay.hidden = false;
+    showHere();
   });
   root.querySelector('#streakClose')?.addEventListener('click', close);
   overlay.addEventListener('click', (e) => {

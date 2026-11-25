@@ -6165,3 +6165,138 @@ body.lesson-view .lesson-title-heading {
   line-height: 1.65;
   color: var(--text);
 }
+
+/* The map button's little drawn-map mark. */
+.streak-map-ico { width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-inline-end: 5px; }
+
+/* The road as a spine (see spineHTML in streak.js): one vertebra per day,
+   a tailbone at the bottom (the start), a crystal at the top, stops
+   alternating right and left at their true day. */
+.spine { position: relative; width: 100%; margin: 6px 0 4px; }
+.spine-col {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 44px;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+}
+.vert {
+  display: block;
+  flex: none;
+  width: var(--w);
+  height: calc(var(--spine-px) - 4px);
+  margin-top: 4px;
+  border-radius: 5px;
+  border: 1px solid rgba(140, 200, 255, 0.28);
+  background: rgba(99, 171, 255, 0.07);
+  position: relative;
+}
+.vert::before, .vert::after {
+  content: '';
+  position: absolute;
+  top: 40%;
+  width: 7px;
+  height: 2px;
+  background: rgba(140, 200, 255, 0.28);
+  border-radius: 1px;
+}
+.vert::before { left: -8px; }
+.vert::after { right: -8px; }
+.vert.is-done {
+  border-color: rgba(120, 190, 255, 0.9);
+  background: linear-gradient(90deg, rgba(60, 130, 255, 0.55), rgba(140, 215, 255, 0.85), rgba(60, 130, 255, 0.55));
+  box-shadow: 0 0 9px rgba(90, 170, 255, 0.55);
+}
+.vert.is-done::before, .vert.is-done::after { background: rgba(140, 210, 255, 0.85); }
+.vert.is-final { border-color: rgba(232, 184, 90, 0.7); background: rgba(232, 184, 90, 0.16); }
+.vert.is-final::before, .vert.is-final::after { background: rgba(232, 184, 90, 0.7); }
+.vert.is-stop { width: calc(var(--w) + 8px); border-color: #8fd0ff; background: rgba(120, 195, 255, 0.4); }
+.spine-tail, .spine-crown {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  fill: rgba(99, 171, 255, 0.16);
+  stroke: rgba(140, 200, 255, 0.55);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+.spine-tail { bottom: 0; width: 22px; height: 42px; }
+.spine-crown { top: 0; width: 44px; height: 60px; fill: rgba(232, 184, 90, 0.35); stroke: #e8b85a; filter: drop-shadow(0 0 10px rgba(232, 184, 90, 0.6)); }
+.spine-start { position: absolute; bottom: 10px; inset-inline-end: calc(50% + 26px); font-size: 11.5px; color: var(--text-dim); }
+.spine-stop {
+  position: absolute;
+  transform: translateY(50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: calc(50% - 30px);
+  z-index: 2;
+}
+.spine-stop.is-right { left: calc(50% + 26px); align-items: flex-end; text-align: left; }
+.spine-stop.is-left { right: calc(50% + 26px); align-items: flex-start; text-align: right; }
+.spine-stop-days { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; color: var(--crystal-ice); }
+.spine-stop.is-gift .spine-stop-days { color: #ffd9a3; }
+.spine-gift { display: inline-flex; width: 18px; height: 18px; color: #e8b85a; }
+.spine-gift svg { width: 100%; height: 100%; }
+.spine-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  color: #8fd0ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.spine-stop.is-gift .spine-open { color: #e8b85a; }
+.spine-stop.is-reached .spine-stop-days { text-shadow: 0 0 10px rgba(120, 195, 255, 0.7); }
+.spine-here {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #e0334f;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 24px;
+  text-align: center;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  z-index: 4;
+}
+.spine-pop {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(280px, 94%);
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(140, 200, 255, 0.5);
+  background: rgba(12, 20, 38, 0.97);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  z-index: 6;
+}
+.spine-pop[hidden] { display: none; }
+.spine-pop.is-melting { animation: ice-melt 1.1s ease-in forwards; }
+.spine-gem { display: flex; align-items: center; gap: 9px; padding: 5px 2px; font-size: 13px; color: var(--text-main); }
+.spine-gem i {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  transform: rotate(45deg);
+  border-radius: 2px;
+  background: linear-gradient(135deg, #e6f4ff, #5aa7ff);
+  box-shadow: 0 0 8px rgba(120, 195, 255, 0.7);
+}
+.spine-prize { display: flex; align-items: flex-start; gap: 9px; padding: 6px 2px; }
+.spine-prize b { display: block; font-size: 13.5px; color: #ffd9a3; }
+.spine-prize span:not(.spine-gift) { display: block; font-size: 12px; color: var(--text-muted); }
+.spine-pop .road-note, .spine-pop .btn-gold { display: block; margin-top: 6px; }
