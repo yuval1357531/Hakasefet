@@ -748,12 +748,15 @@ function securityAlertsHistoryHTML(deviceHistory, masterHistory, studentNameById
 // Master-only, edit mode only -- switches this page between the master's
 // own management view and exactly what a student sees (demo data, nothing
 // real is read or written). Same look as the lesson/guidance "תצוגה:" rows.
+// Master / student view: one switch, like the old iPhone ring/silent switch --
+// a round knob sliding inside a rounded track; the knob says which view is on.
 function personalViewToggleHTML(viewAsStudent) {
   return `
-    <div class="desc-mode-row personal-view-toggle">
-      <span class="desc-mode-label">תצוגה:</span>
-      <button type="button" class="btn-ghost small ${!viewAsStudent ? 'is-active-mode' : ''}" data-personal-view="master">תצוגת מאסטר</button>
-      <button type="button" class="btn-ghost small ${viewAsStudent ? 'is-active-mode' : ''}" data-personal-view="student">תצוגת תלמיד</button>
+    <div class="personal-view-toggle">
+      <button type="button" class="view-switch${viewAsStudent ? ' is-student' : ''}" role="switch" aria-checked="${viewAsStudent}"
+        aria-label="${viewAsStudent ? 'תצוגת תלמיד' : 'תצוגת מאסטר'}" data-personal-view="${viewAsStudent ? 'master' : 'student'}">
+        <span class="view-switch-knob">${viewAsStudent ? 'תלמיד' : 'מאסטר'}</span>
+      </button>
     </div>`;
 }
 
@@ -886,7 +889,7 @@ export async function mountPersonalPage(container, session) {
     });
     container.innerHTML = `
       <div class="admin-page personal-view-toggle-wrap">${personalViewToggleHTML(true)}</div>
-      <div class="admin-preview-banner">תצוגה מקדימה — כך נראה האזור האישי אצל משתמש רגיל (ללא נתונים אמיתיים) <button type="button" class="btn-ghost small" id="fireDemoBtn">הדגמת צמיחה</button></div>
+      <div class="admin-preview-tools"><button type="button" class="btn-ghost small" id="fireDemoBtn">הדגמת צמיחה</button></div>
       ${html}`;
     wireViewToggle();
     wireTrailNote();
@@ -903,6 +906,7 @@ export async function mountPersonalPage(container, session) {
       { demoSpin: true }
     );
     mountStreak(container, DEMO_SESSION, { demoState: { ...DEMO_STREAK, currentStreak: previewDay, bestStreak: previewDay } });
+    mountChargeDays(container, DEMO_SESSION, { preview: true });
     const fireDemoBtn = container.querySelector('#fireDemoBtn');
     if (fireDemoBtn) wireFireDemo(container, fireDemoBtn);
     wireAttachmentLinks(container);

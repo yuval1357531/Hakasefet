@@ -88,10 +88,14 @@ function trackHTML(doneCount, lightColor, igniting) {
 }
 
 let current = null; // { uid, step } -- for the note inside the lesson
-export async function mountChargeDays(root, session, { start = false } = {}) {
+// The master's student view: the same card, kept on this page only (nothing
+// is saved) -- the invitation, then day 1 once "start" is pressed.
+const previewState = { started: false, log: {}, today: '' };
+export async function mountChargeDays(root, session, { start = false, preview = false } = {}) {
   const el = root.querySelector('#burnCard');
-  if (!el || session.role === 'admin') return;
-  const state = await burnStore.sync(start);
+  if (!el || (session.role === 'admin' && !preview)) return;
+  if (preview && start) previewState.started = true;
+  const state = preview ? previewState : await burnStore.sync(start);
   if (!state || !el.isConnected) return;
   const { days, fresh } = plan(session.id, state);
   const doneCount = days.filter((d) => d === 'done').length;
@@ -118,7 +122,7 @@ export async function mountChargeDays(root, session, { start = false } = {}) {
     }
     el.querySelector('.burn-start').addEventListener('click', async () => {
       el.classList.add('is-opening');
-      await mountChargeDays(root, session, { start: true });
+      await mountChargeDays(root, session, { start: true, preview });
       openInfo();
     });
     return;
