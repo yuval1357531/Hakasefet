@@ -131,7 +131,7 @@ export async function mountChargeDays(root, session, { start = false, preview = 
     el.querySelector('.burn-start').addEventListener('click', async () => {
       el.classList.add('is-opening');
       await mountChargeDays(root, session, { start: true, preview });
-      openInfo();
+      openInfo(true);
     });
     return;
   }
@@ -184,7 +184,7 @@ export async function mountChargeDays(root, session, { start = false, preview = 
   el.className = 'burn' + (el.classList.contains('is-opening') ? ' is-opening' : '');
   el.innerHTML = `${head}${trackHTML(doneCount, doneCount ? CHARGE_STEPS[Math.min(doneCount, 6)].color : CHARGE_STEPS[0].color, fresh.size > 0)}${task}`;
   el.querySelector('.burn-go')?.addEventListener('click', () => go(s, session.id));
-  el.querySelector('.burn-info')?.addEventListener('click', openInfo);
+  el.querySelector('.burn-info')?.addEventListener('click', () => openInfo(false));
 }
 
 // Inside the lesson of the open step: one quiet line, so the step gets counted.
@@ -210,7 +210,7 @@ function watchLessons() {
 
 // What the path is, in one small window: right after "start", and behind
 // the (i) next to the title.
-function openInfo() {
+function openInfo(starting = false) {
   if (document.querySelector('.burn-intro')) return;
   const w = document.createElement('div');
   w.className = 'burn-intro';
@@ -221,7 +221,7 @@ function openInfo() {
       <p class="burn-intro-def">איכות היא לא משהו שאתה עושה או חושב. היא יכולת שחיה בך, בגוף, ברגש ובתודעה ביחד. ובכל רגע, אתה יכול לחזור אליהן ולעקרונות שתלמד כאן.</p>
       <div class="burn-intro-track"><span class="burn-intro-line"></span></div>
       <div class="burn-stations is-preview">${PHASES.map((p) => `<span class="burn-station is-now" style="--c:${CHARGE_STEPS[p.days[0]].color}"><b>${p.name}</b><small><em>${p.verb}</em> ${p.short}</small></span>`).join('')}</div>
-      <button type="button" class="burn-intro-go">הבנתי, מתחילים</button>
+      <button type="button" class="burn-intro-go">${starting ? 'הבנתי, מתחילים' : 'הבנתי'}</button>
     </div>`;
   const close = () => { w.classList.add('is-out'); setTimeout(() => w.remove(), 250); };
   w.addEventListener('click', (e) => { if (e.target === w) close(); });
