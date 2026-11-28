@@ -6793,7 +6793,9 @@ body.lesson-view .streak-warning, body.sidebar-open .streak-warning { display: n
 .burn-intro-title { display: block; font-size: 20px; letter-spacing: 0.05em; color: #f6efe6; margin-bottom: 8px; }
 .burn-intro-sub { margin: 0 0 10px; font-size: 12.5px; letter-spacing: 0.04em; color: rgba(255, 255, 255, 0.55); }
 .burn-intro-lead { margin: 0 0 14px; font-size: 14px; line-height: 1.6; color: rgba(240, 232, 220, 0.85); }
-.burn-intro-def { margin: -6px 0 16px; padding-inline-start: 10px; border-inline-start: 2px solid rgba(255, 170, 110, 0.55); font-size: 12.5px; line-height: 1.55; color: rgba(255, 220, 190, 0.85); }
+.burn-intro-sub { margin: -6px 0 12px; font-size: 12.5px; letter-spacing: 0.02em; color: rgba(255, 255, 255, 0.55); }
+.burn-intro-def { margin: 0 0 18px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 150, 90, 0.06); border-inline-start: 2px solid rgba(255, 170, 110, 0.55); font-size: 12.5px; line-height: 1.6; color: rgba(255, 225, 200, 0.85); }
+.burn-intro-def b { display: block; margin-bottom: 3px; font-size: 13px; color: #ffd2b0; }
 .burn-intro-track { position: relative; height: 1px; margin: 6px 4px 14px; }
 .burn-intro-line { position: absolute; inset: 0; background: linear-gradient(270deg, #ff4058, #ff8a3d, #ffd24a, #3fe08a, #3fc6ff, #7a6cff, #e6c4ff); box-shadow: 0 0 8px rgba(255, 170, 120, 0.35); }
 .burn-stations.is-preview { margin-bottom: 18px; }
@@ -6949,3 +6951,24 @@ body[data-burn="7"] .spine-col .vert:nth-child(-n+7)::before, body[data-burn="7"
 .view-switch.is-student .view-switch-knob { transform: translateX(-36px); }
 .admin-preview-tools { display: flex; justify-content: flex-start; margin: 0 0 10px; }
 @media (prefers-reduced-motion: reduce) { .view-switch-knob { transition: none; } }
+
+/* the master's student view only: tap the light to move it, ↺ to start over */
+.burn-head-side { display: flex; align-items: center; gap: 10px; }
+.burn-reset {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+.burn-reset svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.burn-reset:hover { color: #fff; border-color: rgba(255, 190, 120, 0.7); }
+.burn-reset.is-relic { position: absolute; top: 4px; right: 0; }
+.burn.is-badge { position: relative; }
+.burn-hit { display: none; }
+.burn.is-preview .burn-hit { display: block; left: -18px; top: -18px; width: 36px; height: 36px; cursor: pointer; pointer-events: auto; z-index: 3; }

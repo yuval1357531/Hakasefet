@@ -82,7 +82,7 @@ function trackHTML(doneCount, lightColor, igniting) {
       <span class="burn-rail"></span><span class="burn-fill"></span>
       ${CHARGE_STEPS.map((st, k) => `<i class="burn-dot${k < doneCount ? ' is-lit' : ''}" style="--k:${k};--c:${st.color}"></i>`).join('')}
       <i class="burn-gate" style="--k:3"></i><i class="burn-gate" style="--k:5"></i>
-      <span class="burn-light${igniting ? ' is-igniting' : ''}"><i class="burn-halo"></i><i class="burn-core"></i><i class="burn-spark"></i><i class="burn-spark"></i><i class="burn-spark"></i></span>
+      <span class="burn-light${igniting ? ' is-igniting' : ''}"><i class="burn-hit"></i><i class="burn-halo"></i><i class="burn-core"></i><i class="burn-spark"></i><i class="burn-spark"></i><i class="burn-spark"></i></span>
     </div>
     <div class="burn-groups">${groups}</div>`;
 }
@@ -91,10 +91,25 @@ let current = null; // { uid, step } -- for the note inside the lesson
 // The master's student view: the same card, kept on this page only (nothing
 // is saved) -- the invitation, then day 1 once "start" is pressed.
 const previewState = { started: false, log: {}, today: '' };
-export async function mountChargeDays(root, session, { start = false, preview = false } = {}) {
+const RESET = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg>';
+function previewReset(root, session) {
+  previewState.log = {};
+  lsSet('hk_burn_seen_' + session.id, '');
+  mountChargeDays(root, session, { preview: true });
+}
+function previewStep(root, session) {
+  const next = CHARGE_STEPS.find((st) => !previewState.log[st.id]);
+  if (!next) return;
+  previewState.log[next.id] = '2000-01-01'; // an earlier day: the following step is open at once
+  mountChargeDays(root, session, { preview: true, keep: true });
+}
+export async function mountChargeDays(root, session, { start = false, preview = false, keep = false } = {}) {
   const el = root.querySelector('#burnCard');
   if (!el || (session.role === 'admin' && !preview)) return;
-  if (preview) previewState.started = start; // the master's view always opens on the invitation
+  if (preview && !keep) { // the master's view always opens on the invitation
+    previewState.started = start;
+    if (!start) { previewState.log = {}; lsSet('hk_burn_seen_' + session.id, ''); }
+  }
   const state = preview ? previewState : await burnStore.sync(start);
   if (!state || !el.isConnected) return;
   const { days, fresh } = plan(session.id, state);
@@ -107,7 +122,7 @@ export async function mountChargeDays(root, session, { start = false, preview = 
   const head = `
     <div class="burn-head">
       <div><b>מסלול בערה<button type="button" class="burn-info" aria-label="מה זה מסלול בערה">i</button></b><span>3 איכויות שהופכות את האש החייתית לאנרגיה אלוקית</span></div>
-      ${doneCount < 7 ? `<span class="burn-count">${Math.min(doneCount + 1, 7)}<i>/7</i></span>` : ''}
+      <div class="burn-head-side">${doneCount < 7 ? `<span class="burn-count">${Math.min(doneCount + 1, 7)}<i>/7</i></span>` : ''}${preview ? `<button type="button" class="burn-reset" aria-label="חזרה להתחלה" title="חזרה להתחלה">${RESET}</button>` : ''}</div>
     </div>`;
 
   if (!state.started) {
@@ -171,6 +186,15 @@ export async function mountChargeDays(root, session, { start = false, preview = 
     requestAnimationFrame(() => requestAnimationFrame(() => relic.classList.add('is-half'))); // half out on arrival
     seal.addEventListener('click', toggle);
     el.querySelector('.burn-roll').addEventListener('click', toggle);
+    if (preview) {
+      const r = document.createElement('button');
+      r.type = 'button';
+      r.className = 'burn-reset is-relic';
+      r.setAttribute('aria-label', 'חזרה להתחלה');
+      r.innerHTML = RESET;
+      r.addEventListener('click', () => previewReset(root, session));
+      el.appendChild(r);
+    }
     markCrown(root);
     if (fresh.has(6)) crownMoment();
     return;
@@ -184,6 +208,11 @@ export async function mountChargeDays(root, session, { start = false, preview = 
   el.className = 'burn' + (el.classList.contains('is-opening') ? ' is-opening' : '');
   el.innerHTML = `${head}${trackHTML(doneCount, doneCount ? CHARGE_STEPS[Math.min(doneCount, 6)].color : CHARGE_STEPS[0].color, fresh.size > 0)}${task}`;
   el.querySelector('.burn-go')?.addEventListener('click', () => go(s, session.id));
+  if (preview) {
+    el.classList.add('is-preview');
+    el.querySelector('.burn-reset')?.addEventListener('click', () => previewReset(root, session));
+    el.querySelector('.burn-light')?.addEventListener('click', () => previewStep(root, session));
+  }
   el.querySelector('.burn-info')?.addEventListener('click', () => openInfo(false));
 }
 
@@ -217,10 +246,11 @@ function openInfo(starting = false) {
   w.innerHTML = `
     <div class="burn-intro-card" role="dialog" aria-label="מסלול בערה">
       <b class="burn-intro-title">מסלול בערה</b>
-      <p class="burn-intro-lead">7 ימים שבהם אתה לומד 3 איכויות שהופכות את האש החייתית לאנרגיה אלוקית: ביטחון, נוכחות, וחדות בגוף ובראש. וזו רק ההתחלה.</p>
-      <p class="burn-intro-def">איכות היא לא משהו שאתה עושה או חושב. היא יכולת שחיה בך, בגוף, ברגש ובתודעה ביחד. ובכל רגע, אתה יכול לחזור אליהן ולעקרונות שתלמד כאן.</p>
+      <p class="burn-intro-lead">מסלול שלוקח את האנרגיה התאוותית, האש החייתית, והופך אותה לנוכחות, ביטחון, וחדות בגוף ובראש. וזו רק ההתחלה.</p>
+      <p class="burn-intro-sub">3 איכויות שאתה לומד בתהליך פשוט אך עמוק של 7 ימים</p>
       <div class="burn-intro-track"><span class="burn-intro-line"></span></div>
       <div class="burn-stations is-preview">${PHASES.map((p) => `<span class="burn-station is-now" style="--c:${CHARGE_STEPS[p.days[0]].color}"><b>${p.name}</b><small><em>${p.verb}</em> ${p.short}</small></span>`).join('')}</div>
+      <div class="burn-intro-def"><b>מה זו איכות?</b>איכות היא לא משהו שאתה עושה או חושב. היא יכולת שחיה בך, בגוף, ברגש ובתודעה ביחד. ובכל רגע, אתה יכול לחזור אליהן ולעקרונות שתלמד כאן.</div>
       <button type="button" class="burn-intro-go">${starting ? 'הבנתי, מתחילים' : 'הבנתי'}</button>
     </div>`;
   const close = () => { w.classList.add('is-out'); setTimeout(() => w.remove(), 250); };
