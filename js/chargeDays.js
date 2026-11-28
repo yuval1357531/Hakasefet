@@ -126,16 +126,8 @@ export async function mountChargeDays(root, session, { start = false, preview = 
     </div>`;
 
   if (!state.started) {
-    // A student can close the invitation (on this device); it doesn't come back.
-    const hideKey = 'hk_burn_hidden_' + session.id;
-    if (!preview && lsGet(hideKey) === '1') { el.className = ''; el.innerHTML = ''; return; }
     el.className = 'burn is-invite is-stone';
-    el.innerHTML = '<button type="button" class="burn-start"><b>מסלול בערה</b><small>לחץ להתחלת המסלול <em aria-hidden="true">‹</em></small></button><button type="button" class="burn-close" aria-label="סגירה">✕</button>';
-    el.querySelector('.burn-close').addEventListener('click', () => {
-      if (!preview) lsSet(hideKey, '1');
-      el.className = '';
-      el.innerHTML = '';
-    });
+    el.innerHTML = '<button type="button" class="burn-start"><b>מסלול בערה</b><small>לחץ להתחלת המסלול <em aria-hidden="true">‹</em></small></button>';
     // Same width as the fire's plaque below it, edge to edge.
     const plaque = root.querySelector('#streakOpenBtn');
     if (plaque && window.ResizeObserver) {
@@ -143,10 +135,13 @@ export async function mountChargeDays(root, session, { start = false, preview = 
       fit();
       new ResizeObserver(fit).observe(plaque);
     }
-    el.querySelector('.burn-start').addEventListener('click', async () => {
-      el.classList.add('is-opening');
-      await mountChargeDays(root, session, { start: true, preview });
-      openInfo(true);
+    // The stone only opens the explanation; the path starts on "הבנתי, מתחילים".
+    // The window's ✕ (or a tap outside it) backs out without starting.
+    el.querySelector('.burn-start').addEventListener('click', () => {
+      openInfo(true, async () => {
+        el.classList.add('is-opening');
+        await mountChargeDays(root, session, { start: true, preview });
+      });
     });
     return;
   }
@@ -239,12 +234,13 @@ function watchLessons() {
 
 // What the path is, in one small window: right after "start", and behind
 // the (i) next to the title.
-function openInfo(starting = false) {
+function openInfo(starting = false, onStart = null) {
   if (document.querySelector('.burn-intro')) return;
   const w = document.createElement('div');
   w.className = 'burn-intro';
   w.innerHTML = `
     <div class="burn-intro-card" role="dialog" aria-label="מסלול בערה">
+      <button type="button" class="burn-intro-x" aria-label="סגירה">✕</button>
       <b class="burn-intro-title">מסלול בערה</b>
       <p class="burn-intro-lead">מסלול שלוקח את האנרגיה התאוותית, האש החייתית, והופך אותה לנוכחות, ביטחון, וחדות בגוף ובראש. וזו רק ההתחלה.</p>
       <p class="burn-intro-sub">3 איכויות שאתה לומד בתהליך פשוט אך עמוק של 7 ימים</p>
@@ -255,7 +251,11 @@ function openInfo(starting = false) {
     </div>`;
   const close = () => { w.classList.add('is-out'); setTimeout(() => w.remove(), 250); };
   w.addEventListener('click', (e) => { if (e.target === w) close(); });
-  w.querySelector('.burn-intro-go').addEventListener('click', close);
+  w.querySelector('.burn-intro-x').addEventListener('click', close);
+  w.querySelector('.burn-intro-go').addEventListener('click', () => {
+    close();
+    if (onStart) onStart();
+  });
   document.body.appendChild(w);
 }
 
