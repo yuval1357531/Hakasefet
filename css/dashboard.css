@@ -6641,6 +6641,26 @@ body.lesson-view .streak-warning, body.sidebar-open .streak-warning { display: n
 .burn.is-stone .burn-start small { font-size: 9.5px; color: #ffd7d0; }
 .burn.is-stone .burn-start em { display: inline-block; font-style: normal; font-size: 13px; line-height: 1; margin-inline-start: 2px; animation: burn-nudge 1.4s ease-in-out infinite; }
 @keyframes burn-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-4px); } }
+.burn.is-invite { position: relative; width: fit-content; margin-left: 0; margin-right: auto; }
+.burn-close {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(14, 12, 20, 0.92);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+}
+.burn-close:hover { color: #fff; border-color: rgba(255, 120, 120, 0.7); }
 .burn.is-opening { animation: burn-open 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
 @keyframes burn-open { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
 

@@ -94,7 +94,7 @@ const previewState = { started: false, log: {}, today: '' };
 export async function mountChargeDays(root, session, { start = false, preview = false } = {}) {
   const el = root.querySelector('#burnCard');
   if (!el || (session.role === 'admin' && !preview)) return;
-  if (preview && start) previewState.started = true;
+  if (preview) previewState.started = start; // the master's view always opens on the invitation
   const state = preview ? previewState : await burnStore.sync(start);
   if (!state || !el.isConnected) return;
   const { days, fresh } = plan(session.id, state);
@@ -111,8 +111,16 @@ export async function mountChargeDays(root, session, { start = false, preview = 
     </div>`;
 
   if (!state.started) {
+    // A student can close the invitation (on this device); it doesn't come back.
+    const hideKey = 'hk_burn_hidden_' + session.id;
+    if (!preview && lsGet(hideKey) === '1') { el.className = ''; el.innerHTML = ''; return; }
     el.className = 'burn is-invite is-stone';
-    el.innerHTML = '<button type="button" class="burn-start"><b>מסלול בערה</b><small>לחץ להתחלת המסלול <em aria-hidden="true">‹</em></small></button>';
+    el.innerHTML = '<button type="button" class="burn-start"><b>מסלול בערה</b><small>לחץ להתחלת המסלול <em aria-hidden="true">‹</em></small></button><button type="button" class="burn-close" aria-label="סגירה">✕</button>';
+    el.querySelector('.burn-close').addEventListener('click', () => {
+      if (!preview) lsSet(hideKey, '1');
+      el.className = '';
+      el.innerHTML = '';
+    });
     // Same width as the fire's plaque below it, edge to edge.
     const plaque = root.querySelector('#streakOpenBtn');
     if (plaque && window.ResizeObserver) {
