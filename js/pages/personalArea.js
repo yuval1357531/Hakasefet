@@ -41,6 +41,7 @@ import { deviceAlertsStore } from '../data/deviceAlertsStore.js';
 import { helpTipHTML } from '../helpTip.js';
 import { auth } from '../auth.js';
 import { streakStore } from '../data/streakStore.js';
+import { chargeCardHTML, mountChargeDays } from '../chargeDays.js';
 import {
   streakButtonHTML,
   leverHTML,
@@ -472,6 +473,7 @@ export async function studentPageHTML(session, { boardModalOpen, trailModalOpen,
         <h1 class="gold-title placeholder-title">שלום, ${escapeHtml(firstName(session.fullName || session.username))} האגדי</h1>
         <img src="assets/jaurius-mask-logo-240.png" alt="" class="personal-page-icon">
       </div>
+      ${chargeCardHTML()}
       <div class="personal-topbar personal-top">
         ${personalBoardButtonHTML(unseenCount)}
         ${resumeHTML}
@@ -1011,6 +1013,7 @@ export async function mountPersonalPage(container, session) {
       wireTrailExpand(container);
       wireWheelDrawer();
       mountStreak(container, session);
+      mountChargeDays(container, session);
       const tabTimerEl = container.querySelector('#wheelTabTimer');
       mountDailyWheel(container.querySelector('#dailyWheel'), session, (display) => {
         if (tabTimerEl) tabTimerEl.textContent = display || 'זמין';

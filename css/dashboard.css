@@ -6403,13 +6403,11 @@ body.focus-hold :not([data-focus]):not([data-focus] *)::after {
 
 /* The lever is ready: the whole arm dips and rises, again and again, asking to
    be pulled. Stops the moment it is pulled. */
-.lever.is-ready:not(.is-pulled) .lever-arm { animation: lever-ready 2.2s ease-in-out infinite; }
+.lever.is-ready:not(.is-pulled) .lever-arm { animation: lever-ready 2.6s cubic-bezier(0.45, 0, 0.35, 1) infinite; }
 @keyframes lever-ready {
-  0%, 18%, 100% { transform: rotate(-44deg); }
-  38% { transform: rotate(-6deg); }
-  52% { transform: rotate(-38deg); }
-  68% { transform: rotate(-12deg); }
-  84% { transform: rotate(-46deg); }
+  0%, 22%, 100% { transform: rotate(-42deg); }
+  42%, 56% { transform: rotate(0deg); }
+  78% { transform: rotate(-46deg); }
 }
 .streak-btn-count.is-bumped { animation: streak-bump 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
 @keyframes streak-bump {
@@ -6448,3 +6446,451 @@ body.lesson-view .streak-warning, body.sidebar-open .streak-warning { display: n
 @media (prefers-reduced-motion: reduce) {
   .lever.is-ready:not(.is-pulled) .lever-arm, .streak-btn-count.is-bumped, .streak-warning { animation: none; }
 }
+
+/* ============================================================
+   "מסלול בערה" (js/chargeDays.js) -- demo only for now.
+   Dark and quiet; colour lives only in light. Seven centres, root to crown,
+   in three revealed phases; each one ignites from within like an ember.
+   ============================================================ */
+.app-main[data-active-section="me"] .admin-page > .burn { filter: none; }
+.burn {
+  position: relative;
+  margin: 0 0 26px;
+  padding: 16px 18px 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(14, 16, 26, 0.9), rgba(7, 8, 14, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.burn-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 26px; }
+.burn-head > div:first-child { display: flex; flex-direction: column; gap: 3px; }
+.burn-count { font-size: 15px; font-weight: 700; color: #f6efe6; font-variant-numeric: tabular-nums; }
+.burn-count i { font-style: normal; font-weight: 400; color: rgba(255, 255, 255, 0.35); }
+.burn-head b { display: inline-flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 700; letter-spacing: 0.05em; color: #f4efe8; }
+.burn-head span { font-size: 12.5px; color: rgba(255, 196, 140, 0.72); letter-spacing: 0.02em; }
+.burn-info {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font: italic 600 11px/1 Georgia, serif;
+  cursor: pointer;
+}
+.burn-info:hover { border-color: rgba(255, 190, 120, 0.7); color: #fff; }
+
+/* the track: a hair-thin rail, the fire's colours filling it, and a point of
+   light at the front -- like a laser drawing the way */
+.burn-track { position: relative; height: 1px; margin: 0 4px 12px; direction: rtl; }
+.burn-rail, .burn-fill { position: absolute; top: 0; right: 0; height: 1px; }
+.burn-rail { left: 0; background: rgba(255, 255, 255, 0.1); }
+.burn-fill {
+  width: calc(var(--pos) * 100%);
+  height: 2px;
+  top: -0.5px;
+  background: var(--fire);
+  background-size: calc(100% / max(var(--pos), 0.001)) 100%;
+  background-position: right center;
+  filter: drop-shadow(0 0 4px rgba(255, 170, 90, 0.6));
+}
+.burn-dot {
+  position: absolute;
+  top: -2.5px;
+  right: calc((var(--k) + 0.5) / 7 * 100%);
+  width: 6px;
+  height: 6px;
+  margin-right: -3px;
+  border-radius: 50%;
+  background: #1a1c26;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.burn-dot.is-lit { background: var(--c); border-color: var(--c); box-shadow: 0 0 6px var(--c); }
+.burn-gate { position: absolute; top: -7px; right: calc(var(--k) / 7 * 100%); width: 1px; height: 15px; background: rgba(255, 255, 255, 0.28); }
+.burn-groups { display: grid; grid-template-columns: 3fr 2fr 2fr; margin: 0 4px 16px; }
+.burn-group { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0 3px; text-align: center; }
+.burn-group + .burn-group { border-inline-start: 1px solid rgba(255, 255, 255, 0.07); }
+.burn-group-steps { display: grid; grid-template-columns: repeat(var(--n), 1fr); width: 100%; margin-bottom: 8px; }
+.burn-group-steps span { font-size: 10px; color: rgba(255, 255, 255, 0.3); }
+.burn-group-steps span.is-lit { color: color-mix(in srgb, var(--c) 75%, white 15%); }
+.burn-group-steps span.is-next { color: #fff; font-weight: 700; }
+.burn-group b { font-size: 13px; letter-spacing: 0.06em; color: rgba(255, 255, 255, 0.38); }
+.burn-group small { font-size: 11px; line-height: 1.4; color: rgba(255, 255, 255, 0.28); }
+.burn-group em { display: block; font-style: normal; font-weight: 600; color: rgba(255, 255, 255, 0.4); }
+.burn-group.is-done b { color: rgba(246, 239, 230, 0.8); }
+.burn-group.is-done small { color: rgba(240, 232, 220, 0.5); }
+.burn-group.is-done em { color: color-mix(in srgb, var(--c) 70%, white 10%); }
+.burn-group.is-now b { color: #fff; text-shadow: 0 0 14px color-mix(in srgb, var(--c) 70%, transparent); }
+.burn-group.is-now em { color: var(--c); }
+.burn-group.is-now small { color: rgba(245, 238, 228, 0.85); }
+.burn-light {
+  position: absolute;
+  top: 0;
+  right: calc(var(--pos) * 100%);
+  width: 0;
+  height: 0;
+}
+.burn-light i { position: absolute; border-radius: 50%; pointer-events: none; }
+.burn-halo {
+  left: -14px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--lc) 75%, transparent) 0%, color-mix(in srgb, var(--lc) 25%, transparent) 45%, transparent 70%);
+  filter: blur(2px);
+  animation: burn-flicker 1.7s steps(1, end) infinite, burn-breathe 3.1s ease-in-out infinite;
+}
+.burn-core {
+  left: -3.5px;
+  top: -3.5px;
+  width: 7px;
+  height: 7px;
+  background: radial-gradient(circle, #fff 0 40%, color-mix(in srgb, var(--lc) 60%, #fff) 70%, transparent 100%);
+  box-shadow: 0 0 6px #fff, 0 0 14px var(--lc);
+  animation: burn-core 0.9s ease-in-out infinite alternate;
+}
+.burn-spark {
+  left: -1px;
+  top: -1px;
+  width: 2px;
+  height: 2px;
+  background: #fff;
+  box-shadow: 0 0 4px var(--lc);
+  opacity: 0;
+  animation: burn-spark 2.2s ease-out infinite;
+}
+.burn-spark:nth-child(4) { animation-delay: 0.7s; --sx: -7px; }
+.burn-spark:nth-child(5) { animation-delay: 1.4s; --sx: 6px; }
+@keyframes burn-flicker {
+  0% { opacity: 0.85; } 13% { opacity: 1; } 27% { opacity: 0.7; } 41% { opacity: 0.95; }
+  55% { opacity: 0.78; } 69% { opacity: 1; } 83% { opacity: 0.82; }
+}
+@keyframes burn-breathe { 0%, 100% { transform: scale(0.9); } 50% { transform: scale(1.25); } }
+@keyframes burn-core { from { transform: scale(0.85); } to { transform: scale(1.15); } }
+@keyframes burn-spark {
+  0% { opacity: 0; transform: translate(0, 0); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--sx, 3px), -16px); }
+}
+/* the strike: a flash like a match catching, then the ember settles */
+.burn-light.is-igniting .burn-halo { animation: burn-strike 1.3s 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) both, burn-flicker 1.7s 1.6s steps(1, end) infinite, burn-breathe 3.1s 1.6s ease-in-out infinite; }
+@keyframes burn-strike { 0% { transform: scale(0.1); opacity: 0; } 35% { transform: scale(2.6); opacity: 1; } 100% { transform: scale(1); opacity: 0.9; } }
+.burn-stations { display: grid; grid-template-columns: 3fr 2fr 2fr; gap: 8px; margin: 0 4px 16px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.06); text-align: center; }
+.burn-station { display: flex; flex-direction: column; gap: 3px; }
+.burn-station b { font-size: 13px; letter-spacing: 0.06em; color: rgba(255, 255, 255, 0.38); transition: color 0.6s ease; }
+.burn-station small { font-size: 11px; line-height: 1.4; color: rgba(255, 255, 255, 0.28); }
+.burn-station em { display: block; font-style: normal; font-weight: 600; color: rgba(255, 255, 255, 0.4); }
+.burn-station.is-done b { color: rgba(246, 239, 230, 0.8); }
+.burn-station.is-done small { color: rgba(240, 232, 220, 0.5); }
+.burn-station.is-now b { color: #fff; text-shadow: 0 0 14px color-mix(in srgb, var(--c) 70%, transparent); }
+.burn-station.is-now em { color: var(--c); }
+.burn-station.is-now small { color: rgba(245, 238, 228, 0.85); }
+.burn-station.is-done em { color: color-mix(in srgb, var(--c) 70%, white 10%); }
+
+.burn-go {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
+  background: linear-gradient(90deg, rgba(12, 10, 12, 0.6), color-mix(in srgb, var(--c) 16%, rgba(12, 10, 12, 0.6)));
+  color: #fbf7f0;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--c) 18%, transparent);
+  transition: box-shadow 0.25s ease, transform 0.2s ease;
+}
+.burn-go:hover { transform: translateY(-1px); box-shadow: 0 0 26px color-mix(in srgb, var(--c) 35%, transparent); }
+.burn-go > span { display: flex; flex-direction: column; gap: 2px; font-size: 15px; font-weight: 700; }
+.burn-go small { font-size: 11px; font-weight: 400; letter-spacing: 0.08em; color: color-mix(in srgb, var(--c) 70%, white); }
+.burn-go > i { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; font-style: normal; font-size: 15px; color: #fff; background: color-mix(in srgb, var(--c) 45%, transparent); transform: scaleX(-1); }
+.burn-go.is-wait { cursor: default; border-color: rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.02); box-shadow: none; --c: #ffb070; }
+.burn-go.is-wait > span { font-size: 13.5px; font-weight: 400; color: rgba(240, 235, 225, 0.75); }
+
+/* before: one quiet invitation -- a red stone, like the section stones */
+.burn.is-invite { padding: 0; background: none; border: 0; }
+.burn-start { font: inherit; color: #fff; cursor: pointer; border: 0; background: none; padding: 0; }
+.burn-start b { letter-spacing: 0.05em; }
+.burn.is-stone .burn-start {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: var(--plaque-w, 170px);
+  aspect-ratio: 640 / 170;
+  margin: 0 auto 0 0;
+}
+.burn.is-stone .burn-start::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("../assets/nav-diamond-personalGuidance.png") center / 100% 100% no-repeat;
+  filter: drop-shadow(0 0 14px rgba(255, 60, 70, 0.45));
+  animation: burn-stone 3.2s ease-in-out infinite;
+}
+@keyframes burn-stone { 0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 60, 70, 0.35)); } 50% { filter: drop-shadow(0 0 22px rgba(255, 80, 80, 0.7)) brightness(1.12); } }
+.burn.is-stone .burn-start b, .burn.is-stone .burn-start small { position: relative; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8); }
+.burn.is-stone .burn-start b { font-size: 13px; }
+.burn.is-stone .burn-start small { font-size: 9.5px; color: #ffd7d0; }
+.burn.is-stone .burn-start em { display: inline-block; font-style: normal; font-size: 13px; line-height: 1; margin-inline-start: 2px; animation: burn-nudge 1.4s ease-in-out infinite; }
+@keyframes burn-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-4px); } }
+.burn.is-opening { animation: burn-open 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+@keyframes burn-open { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+
+/* after: the relic -- a crown, and a scroll that unrolls out of it */
+.burn.is-badge { padding: 0; background: none; border: 0; }
+.burn-relic {
+  --row: 34px;
+  --seal: 46px;
+  display: grid;
+  grid-template-columns: var(--seal) 1fr;
+  column-gap: 0;
+  align-items: start;
+}
+.burn-relic-col { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; }
+.burn-seal {
+  flex: none;
+  width: var(--seal);
+  height: var(--seal);
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: conic-gradient(from 200deg, #ff4058, #ff8a3d, #ffd24a, #3fe08a, #3fc6ff, #7a6cff, #e6c4ff, #ff4058);
+  box-shadow: 0 0 20px rgba(210, 170, 255, 0.55);
+  margin: 16px 0 -6px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.burn-seal:hover { transform: scale(1.05); box-shadow: 0 0 28px rgba(220, 180, 255, 0.8); }
+.burn-seal svg { display: block; width: 100%; height: 100%; padding: 10px; box-sizing: border-box; border-radius: 50%; background: #0d0b16; fill: #f1dcff; filter: drop-shadow(0 0 5px rgba(220, 180, 255, 0.9)); }
+/* the six centres below the crown, shown only when open */
+.burn-relic-dots {
+  position: relative;
+  display: grid;
+  grid-template-rows: repeat(6, var(--row));
+  justify-items: center;
+  align-items: center;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.9s cubic-bezier(0.25, 0.8, 0.3, 1), opacity 0.5s ease;
+}
+.burn-relic-dots::before { content: ''; position: absolute; top: 0; bottom: calc(var(--row) / 2); left: 50%; width: 1px; background: linear-gradient(0deg, #ff4058, #ff8a3d, #ffd24a, #3fe08a, #3fc6ff, #7a6cff); opacity: 0.5; }
+.burn-relic-dots i { width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle, #fff 0 20%, var(--c) 55%); box-shadow: 0 0 8px var(--c); position: relative; }
+.burn-relic.is-open .burn-relic-dots { max-height: calc(6 * var(--row)); opacity: 1; }
+
+/* the scroll: rolled up beside the crown, half out on arrival, open on a tap */
+.burn-roll {
+  position: relative;
+  justify-self: start;
+  width: 0;
+  margin-top: 4px;
+  margin-left: -6px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: width 1s cubic-bezier(0.25, 0.8, 0.3, 1);
+}
+.burn-relic.is-half .burn-roll { width: 52%; }
+.burn-relic.is-open .burn-roll { width: calc(100% + 6px); }
+.burn-roll-rod {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 18px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #3a2a52, #1c1428 60%, #120c1c);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(220, 180, 255, 0.25);
+  white-space: nowrap;
+}
+.burn-roll-rod b { direction: rtl; font-size: 11px; letter-spacing: 0.14em; color: #e9d8ff; text-shadow: 0 0 10px rgba(210, 170, 255, 0.6); }
+.burn-roll-rod.is-end { height: 8px; border-radius: 6px; }
+.burn-roll-sheet {
+  position: relative;
+  height: calc(var(--row) * 2 - 18px);
+  margin: 0 4px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(28, 20, 40, 0.97), rgba(16, 12, 24, 0.97));
+  border-inline: 1px solid rgba(220, 180, 255, 0.12);
+  transition: height 0.9s cubic-bezier(0.25, 0.8, 0.3, 1);
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent);
+  mask-image: linear-gradient(180deg, #000 55%, transparent);
+}
+.burn-relic.is-open .burn-roll-sheet { height: calc(var(--row) * 7 - 18px + 10px); -webkit-mask-image: none; mask-image: none; }
+/* the writing is laid out at full width and anchored to the scroll's far edge,
+   so unrolling reveals it from its start (right, in Hebrew) */
+.burn-roll-sheet ul {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--roll-w, 300px);
+  display: grid;
+  grid-template-rows: repeat(7, var(--row));
+  margin: 0;
+  padding: 0 14px;
+  list-style: none;
+  box-sizing: border-box;
+}
+.burn-roll-sheet li { display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 0 0 0 6px; border-bottom: 1px solid rgba(220, 180, 255, 0.07); }
+.burn-roll-sheet li:last-child { border-bottom: 0; }
+.burn-roll-sheet b { font-size: 13.5px; letter-spacing: 0.05em; color: #fff; text-shadow: 0 0 12px color-mix(in srgb, var(--c) 60%, transparent); }
+.burn-roll-sheet span { font-size: 12px; line-height: 1.45; color: rgba(240, 232, 225, 0.74); }
+.burn-mark svg { display: block; fill: #f1dcff; filter: drop-shadow(0 0 6px rgba(220, 180, 255, 0.9)); }
+.burn-mark { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none; }
+.burn-mark svg { width: 20px; height: 20px; }
+
+
+/* what the path is (first time, then the (i)) */
+.burn-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(2, 3, 6, 0.78);
+  animation: burn-in 0.35s ease both;
+}
+.burn-intro.is-out { animation: burn-out 0.25s ease both; }
+.burn-intro-card {
+  width: min(360px, 100%);
+  padding: 24px 22px 20px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #12131d, #08090f);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 60px rgba(255, 120, 60, 0.08);
+  animation: burn-rise-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@keyframes burn-rise-in { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
+.burn-intro-title { display: block; font-size: 20px; letter-spacing: 0.05em; color: #f6efe6; margin-bottom: 8px; }
+.burn-intro-sub { margin: 0 0 10px; font-size: 12.5px; letter-spacing: 0.04em; color: rgba(255, 255, 255, 0.55); }
+.burn-intro-lead { margin: 0 0 14px; font-size: 14px; line-height: 1.6; color: rgba(240, 232, 220, 0.85); }
+.burn-intro-def { margin: -6px 0 16px; padding-inline-start: 10px; border-inline-start: 2px solid rgba(255, 170, 110, 0.55); font-size: 12.5px; line-height: 1.55; color: rgba(255, 220, 190, 0.85); }
+.burn-intro-track { position: relative; height: 1px; margin: 6px 4px 14px; }
+.burn-intro-line { position: absolute; inset: 0; background: linear-gradient(270deg, #ff4058, #ff8a3d, #ffd24a, #3fe08a, #3fc6ff, #7a6cff, #e6c4ff); box-shadow: 0 0 8px rgba(255, 170, 120, 0.35); }
+.burn-stations.is-preview { margin-bottom: 18px; }
+.burn-stations.is-preview .burn-station small { color: rgba(240, 232, 220, 0.72); }
+.burn-intro-card ul { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.burn-intro-card li { display: flex; flex-direction: column; gap: 2px; padding-inline-start: 14px; border-inline-start: 2px solid var(--c); }
+.burn-intro-card li b { font-size: 14.5px; color: #fff; }
+.burn-intro-card li span { font-size: 13px; line-height: 1.5; color: rgba(235, 228, 216, 0.72); }
+.burn-intro-foot { margin: 0 0 18px; font-size: 13px; color: rgba(255, 196, 140, 0.85); }
+.burn-intro-go {
+  width: 100%;
+  padding: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 150, 90, 0.6);
+  background: rgba(255, 110, 60, 0.14);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* day 7: the seven lights rise into one */
+.burn-moment {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  background: rgba(3, 4, 8, 0.9);
+  animation: burn-in 0.6s ease both;
+}
+.burn-moment.is-out { animation: burn-out 0.8s ease both; }
+@keyframes burn-in { from { opacity: 0; } }
+@keyframes burn-out { to { opacity: 0; } }
+.burn-moment-lights { position: relative; width: 120px; height: 260px; }
+.burn-moment-lights i {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--k) * 32px);
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff, var(--c) 55%, transparent 75%);
+  box-shadow: 0 0 18px var(--c);
+  animation: burn-rise 2.2s calc(var(--k) * 0.12s) cubic-bezier(0.5, 0, 0.3, 1) both;
+}
+@keyframes burn-rise {
+  0% { opacity: 0; transform: translateY(40px) scale(0.4); }
+  35% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(calc((6 - var(--k)) * -32px - 20px)) scale(0.6); }
+}
+.burn-moment-lights b {
+  position: absolute;
+  left: 50%;
+  top: -20px;
+  width: 70px;
+  height: 70px;
+  margin-left: -35px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #f1dcff 30%, rgba(200, 150, 255, 0.35) 60%, transparent 72%);
+  animation: burn-crown-light 3s 1.8s ease-out both;
+}
+@keyframes burn-crown-light { 0% { opacity: 0; transform: scale(0.2); } 40% { opacity: 1; transform: scale(1.3); } 100% { opacity: 1; transform: scale(1); } }
+.burn-moment p { margin: 0; font-size: 17px; letter-spacing: 0.2em; color: #f6eeff; text-shadow: 0 0 20px rgba(210, 170, 255, 0.7); animation: burn-in 1s 2.6s ease both; }
+
+/* the way there (first time into a section) */
+body.charge-touring { pointer-events: none; }
+.charge-glow { position: relative; z-index: 5; animation: charge-glow 1s ease-in-out infinite; }
+@keyframes charge-glow {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c, #8fd0ff) 90%, transparent), 0 0 18px color-mix(in srgb, var(--c, #8fd0ff) 70%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c, #8fd0ff) 55%, transparent), 0 0 34px var(--c, #8fd0ff); }
+}
+.nav-item.charge-glow { animation: none; box-shadow: none; filter: brightness(1.45) drop-shadow(0 0 12px rgba(143, 208, 255, 0.95)); }
+
+/* the map: the path's centres light the first seven bones in their colours */
+body[data-burn] .spine-col .vert:nth-child(1) { --pc: #ff4058; }
+body[data-burn] .spine-col .vert:nth-child(2) { --pc: #ff8a3d; }
+body[data-burn] .spine-col .vert:nth-child(3) { --pc: #ffd24a; }
+body[data-burn] .spine-col .vert:nth-child(4) { --pc: #3fe08a; }
+body[data-burn] .spine-col .vert:nth-child(5) { --pc: #3fc6ff; }
+body[data-burn] .spine-col .vert:nth-child(6) { --pc: #7a6cff; }
+body[data-burn] .spine-col .vert:nth-child(7) { --pc: #e6c4ff; }
+body[data-burn="1"] .spine-col .vert:nth-child(-n+1),
+body[data-burn="2"] .spine-col .vert:nth-child(-n+2),
+body[data-burn="3"] .spine-col .vert:nth-child(-n+3),
+body[data-burn="4"] .spine-col .vert:nth-child(-n+4),
+body[data-burn="5"] .spine-col .vert:nth-child(-n+5),
+body[data-burn="6"] .spine-col .vert:nth-child(-n+6),
+body[data-burn="7"] .spine-col .vert:nth-child(-n+7) {
+  border-color: var(--pc);
+  background: color-mix(in srgb, var(--pc) 60%, transparent);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--pc) 85%, transparent);
+}
+body[data-burn="1"] .spine-col .vert:nth-child(-n+1)::before, body[data-burn="1"] .spine-col .vert:nth-child(-n+1)::after,
+body[data-burn="2"] .spine-col .vert:nth-child(-n+2)::before, body[data-burn="2"] .spine-col .vert:nth-child(-n+2)::after,
+body[data-burn="3"] .spine-col .vert:nth-child(-n+3)::before, body[data-burn="3"] .spine-col .vert:nth-child(-n+3)::after,
+body[data-burn="4"] .spine-col .vert:nth-child(-n+4)::before, body[data-burn="4"] .spine-col .vert:nth-child(-n+4)::after,
+body[data-burn="5"] .spine-col .vert:nth-child(-n+5)::before, body[data-burn="5"] .spine-col .vert:nth-child(-n+5)::after,
+body[data-burn="6"] .spine-col .vert:nth-child(-n+6)::before, body[data-burn="6"] .spine-col .vert:nth-child(-n+6)::after,
+body[data-burn="7"] .spine-col .vert:nth-child(-n+7)::before, body[data-burn="7"] .spine-col .vert:nth-child(-n+7)::after {
+  background: var(--pc);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .burn-light i, .burn-intro, .burn-intro-card, .charge-glow, .burn-start::before, .burn.is-opening, .burn-start em { animation: none !important; }
+  .burn-roll, .burn-roll-sheet, .burn-relic-dots { transition: none; }
+  .burn-spark { display: none; }
+}
+
+/* מסלול בערה: the quiet line inside the open step's lesson */
+.burn-note { margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; color: rgba(240, 235, 225, 0.85); background: rgba(10, 10, 16, 0.6); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); }
+.burn-note b { color: var(--c); margin-inline-end: 6px; }
+/* master lists: a crown beside students who finished מסלול בערה */
+.student-crown-chip { display: inline-flex; vertical-align: middle; margin-inline-start: 6px; width: 16px; height: 16px; }
+.student-crown-chip svg { width: 100%; height: 100%; fill: #e9d3ff; filter: drop-shadow(0 0 4px rgba(210, 170, 255, 0.8)); }

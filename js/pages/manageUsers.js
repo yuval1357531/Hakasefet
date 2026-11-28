@@ -16,6 +16,7 @@ import { usersStore } from '../data/usersStore.js';
 import { SECTIONS } from '../sections.config.js';
 import { accordionHTML, wireAccordions } from '../adminAccordion.js';
 import { streakStore, dayChipHTML } from '../data/streakStore.js';
+import { burnStore } from '../data/burnStore.js';
 
 const CREATE_ERROR_MESSAGES = {
   email_taken: 'האימייל הזה כבר רשום במערכת.',
@@ -73,6 +74,7 @@ export async function mountManageUsers(container) {
   let users = [];
   // userId -> the streak day each student is on (shown next to the name).
   let streakDays = new Map();
+  let crowned = new Set();
   // Client-side only -- filters the already-fetched `users` array by name
   // or email. Persisted across re-renders (module-level, not re-read from
   // the DOM) so creating/editing a user doesn't silently clear it.
@@ -165,7 +167,7 @@ export async function mountManageUsers(container) {
 
   function userButtonInnerHTML(user) {
     const masterTag = user.role === 'admin' ? ' <span class="muted-note">(מאסטר)</span>' : '';
-    return `${escapeHtml(user.fullName)}${masterTag}${user.role === 'admin' ? '' : dayChipHTML(streakDays.get(user.id))}`;
+    return `${escapeHtml(user.fullName)}${masterTag}${user.role === 'admin' ? '' : dayChipHTML(streakDays.get(user.id), crowned.has(user.id))}`;
   }
 
   function userButtonHTML(user) {
@@ -325,7 +327,7 @@ export async function mountManageUsers(container) {
 
   async function render() {
     users = await usersStore.getAll();
-    streakDays = await streakStore.getDaysForAll();
+    [streakDays, crowned] = await Promise.all([streakStore.getDaysForAll(), burnStore.getCrowned()]);
     const resetEvents = await usersStore.getPasswordResetEvents();
     const openUser = openUserId ? users.find((u) => u.id === openUserId) : null;
 

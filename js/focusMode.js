@@ -6,7 +6,7 @@
 //     body.focus-hold in dashboard.css) and resumes when it closes.
 // Nothing here touches lesson players, sound, navigation or content.
 
-const FOCUS_WINDOWS = '#streakOverlay, #boardOverlay, #trailOverlay, .trail-lightbox-overlay';
+const FOCUS_WINDOWS = '#streakOverlay, #boardOverlay, #trailOverlay, .trail-lightbox-overlay, .burn-intro, .burn-moment';
 
 const clips = new Set();
 const offScreen = new WeakSet();

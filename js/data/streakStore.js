@@ -30,9 +30,10 @@ function makeId() {
 
 // "יום 14" next to a student's name (master lists). `day` is null when the
 // student has no streak row yet -- nothing is drawn then.
-export function dayChipHTML(day) {
-  if (day === null || day === undefined) return '';
-  return `<span class="student-day-chip" title="יום ברצף">יום ${day}</span>`;
+export function dayChipHTML(day, crowned = false) {
+  const crown = crowned ? '<span class="student-crown-chip" title="סיים את מסלול בערה"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18h18L19 8l-4.5 4L12 5l-2.5 7L5 8z"/></svg></span>' : '';
+  if (day === null || day === undefined) return crown;
+  return `<span class="student-day-chip" title="יום ברצף">יום ${day}</span>${crown}`;
 }
 
 export const streakStore = {
